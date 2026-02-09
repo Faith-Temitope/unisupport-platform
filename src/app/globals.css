@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter);
+  /* This defines the emerald shades for the new engine */
+  --color-emerald-50: #ecfdf5;
+  --color-emerald-100: #d1fae5;
+  --color-emerald-200: #a7f3d0;
+  --color-emerald-300: #6ee7b7;
+  --color-emerald-400: #34d399;
+  --color-emerald-500: #10b981;
+  --color-emerald-600: #059669;
+  --color-emerald-700: #047857;
+  --color-emerald-800: #065f46;
+  --color-emerald-900: #064e3b;
+}
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 255, 255, 255;
+  --background-end-rgb: 255, 255, 255;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: white;
+}
+
+/* We use @utility in v4 instead of the old @layer components way */
+@utility btn-primary {
+  @apply bg-emerald-600 text-white px-8 py-3 rounded-2xl font-bold transition-all duration-200 shadow-lg shadow-emerald-100;
+  
+  &:hover {
+    @apply bg-emerald-700 -translate-y-0.5 shadow-emerald-200;
+  }
+  
+  &:active {
+    @apply scale-95 translate-y-0;
+  }
+}
