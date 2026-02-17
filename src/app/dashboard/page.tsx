@@ -41,7 +41,7 @@ export default function UserDashboard() {
   return (
     <main className="pt-32 pb-20 px-4 min-h-screen bg-white">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-7xl font-black uppercase italic italic tracking-tighter mb-10">Active <span className="text-emerald-600">Vault.</span></h1>
+        <h1 className="text-7xl font-black uppercase italic tracking-tighter mb-10">Active <span className="text-emerald-600">Vault.</span></h1>
         <div className="grid gap-8">
           {orders.map((order) => {
             const deposit = order.total_price * 0.5;

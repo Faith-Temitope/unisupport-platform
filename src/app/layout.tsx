@@ -17,7 +17,7 @@ export default function RootLayout({
   const isAdminPage = pathname?.startsWith("/admin");
 
   return (
-    <html lang="en" className="scroll-smooth">
+    <html lang="en" className="scroll-smooth" data-scroll-behavior="smooth">
       <body className={inter.className}>
         {/* Only show Navbar if we are NOT on an admin page */}
         {!isAdminPage && <Navbar />}

@@ -106,18 +106,22 @@ export default function LMSPage() {
                 <div className="space-y-6 mb-12">
                     <div className="flex justify-between border-b border-gray-800 pb-4 items-center">
                         <span className="font-bold text-gray-300">Monthly Retainer</span>
-                        <span className="font-black text-xl italic">From ₦50k</span>
+                        <span className="font-black text-xl italic text-emerald-400">Custom Quote</span>
                     </div>
                     <div className="flex justify-between border-b border-gray-800 pb-4 items-center">
                         <span className="font-bold text-gray-300">Full Semester</span>
                         <div className="text-right">
                             <span className="block font-black text-emerald-400 italic">SAVE 15%</span>
-                            <span className="text-[9px] text-gray-500 font-black uppercase">Standard Discount</span>
+                            <span className="text-[9px] text-gray-500 font-black uppercase">On Bundled Modules</span>
                         </div>
                     </div>
                 </div>
 
-                <Link href="/order?service=LMS" className="w-full bg-emerald-500 text-white hover:bg-emerald-400 text-center block py-6 rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-emerald-500/20">
+                {/* THE KEY UPDATE: Link now carries the source=lms parameter */}
+                <Link 
+                  href="/order?source=lms&service=LMS Management" 
+                  className="w-full bg-emerald-500 text-white hover:bg-emerald-400 text-center block py-6 rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-emerald-500/20"
+                >
                     Get Custom Quote
                 </Link>
             </div>

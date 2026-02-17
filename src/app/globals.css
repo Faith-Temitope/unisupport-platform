@@ -2,6 +2,15 @@
 
 @plugin "@tailwindcss/typography"; /* Add this line here */
 
+/* src/app/globals.css */
+@layer base {
+  html {
+    /* Default is 16px. 14px (87.5%) or 15px (93.75%) 
+       will make everything feel tighter instantly */
+    font-size: 13px; 
+  }
+}
+
 @theme {
   --font-sans: var(--font-inter);
   /* This defines the emerald shades for the new engine */

@@ -11,19 +11,22 @@ export default function SpecialServices() {
       title: "Data Analysis & Statistics",
       desc: "SPSS, Stata, or Excel analysis for research papers and corporate audits.",
       icon: <BarChart3 className="text-orange-600" size={32} />,
-      color: "border-orange-100 bg-orange-50/30"
+      color: "border-orange-100 bg-orange-50/30",
+      slug: "Data-Analysis"
     },
     {
       title: "Creative & Speech Writing",
       desc: "Keynote speeches, high-end ghostwriting, and brand storytelling for executives.",
       icon: <PenTool className="text-purple-600" size={32} />,
-      color: "border-purple-100 bg-purple-50/30"
+      color: "border-purple-100 bg-purple-50/30",
+      slug: "Creative-Writing"
     },
     {
       title: "Technical Documentation",
       desc: "Software manuals, API documentation, and architectural project specifications.",
       icon: <Globe className="text-blue-600" size={32} />,
-      color: "border-blue-100 bg-blue-50/30"
+      color: "border-blue-100 bg-blue-50/30",
+      slug: "Technical-Docs"
     },
   ];
 
@@ -44,8 +47,10 @@ export default function SpecialServices() {
             Complex projects require deep technical precision. Our industry 
             veterans handle the tasks others find impossible.
           </p>
+          
+          {/* Main Hero Link updated with source=special */}
           <Link 
-            href="/order?service=Special" 
+            href="/order?source=special&service=Special-Project" 
             className="bg-gray-900 text-white px-12 py-6 rounded-2xl text-lg font-black uppercase tracking-widest inline-flex items-center gap-3 hover:bg-orange-500 transition-all active:scale-95 shadow-2xl shadow-gray-900/20"
           >
             Request Special Quote <ArrowRight size={20} />
@@ -68,8 +73,10 @@ export default function SpecialServices() {
                 <p className="text-gray-500 font-medium leading-relaxed mb-10">
                   {item.desc}
                 </p>
+                
+                {/* Specific Service Link updated with source=special and specific service name */}
                 <Link 
-                  href="/order?service=Special" 
+                  href={`/order?source=special&service=${item.slug}`} 
                   className="text-gray-900 font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:gap-4 transition-all"
                 >
                   Discuss Project <ArrowRight size={16} className="text-orange-500" />
