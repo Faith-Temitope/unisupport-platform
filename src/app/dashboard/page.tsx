@@ -8,8 +8,10 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { usePaystackPayment } from "react-paystack";
+import dynamicImport from 'next/dynamic'; // Added for the SSR fix
 
-export default function UserDashboard() {
+// Internal Component Logic
+function UserDashboardContent() {
   const [orders, setOrders] = useState<any[]>([]);
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -17,7 +19,6 @@ export default function UserDashboard() {
   const supabase = createClient();
   const router = useRouter();
 
-  // --- DATA FETCHING & REAL-TIME ---
   const getDashboardData = useCallback(async () => {
     try {
       setLoading(true);
@@ -45,7 +46,6 @@ export default function UserDashboard() {
     return () => { supabase.removeChannel(channel); };
   }, [getDashboardData, supabase]);
 
-  // --- FILE HANDLERS ---
   const handlePreview = async (path: string) => {
     const { data } = await supabase.storage.from('submissions').createSignedUrl(path, 60);
     if (data) window.open(data.signedUrl, '_blank');
@@ -62,13 +62,12 @@ export default function UserDashboard() {
     }
   };
 
-  // --- PAYSTACK INTEGRATION ---
   const PayButton = ({ order, amount, isFinal }: { order: any, amount: number, isFinal: boolean }) => {
     const config = {
       reference: `TRANS_${Math.floor(Math.random() * 1000000000 + 1)}`,
       email: user?.email || "",
-      amount: Math.round(amount * 100), // Paystack uses Kobo
-      publicKey: 'YOUR_PAYSTACK_PUBLIC_KEY', // <--- PASTE YOUR KEY HERE
+      amount: Math.round(amount * 100), 
+      publicKey: 'YOUR_PAYSTACK_PUBLIC_KEY', // REPLACE THIS WITH YOUR KEY
     };
 
     const initializePayment = usePaystackPayment(config);
@@ -131,7 +130,6 @@ export default function UserDashboard() {
 
             return (
               <div key={order.id} className="group bg-white rounded-[3rem] p-8 md:p-12 border border-gray-100 flex flex-col md:flex-row gap-10 items-center hover:shadow-2xl transition-all duration-500">
-                
                 <div className="flex flex-col items-center gap-4 shrink-0">
                   <div className={`w-24 h-24 rounded-full flex items-center justify-center ${isFullyPaid ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'}`}>
                     {isFullyPaid ? <CheckCircle2 size={48} /> : <Clock size={48} />}
@@ -177,3 +175,10 @@ export default function UserDashboard() {
     </main>
   );
 }
+
+// THE DEPLOYMENT FIX:
+// This forces the entire dashboard to only load in the browser,
+// preventing the "window is not defined" error during build.
+export default dynamicImport(() => Promise.resolve(UserDashboardContent), {
+  ssr: false,
+});
