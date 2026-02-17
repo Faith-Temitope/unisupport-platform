@@ -1,29 +1,31 @@
 "use client";
 
-import { MessageSquare, Quote } from "lucide-react";
-
-const testimonials = [
-  {
-    name: "Tobi A.",
-    uni: "Unilag",
-    text: "The formatting was top-notch. My supervisor didn't find a single error in my Chapter 3. Saved me so much stress!",
-    type: "Undergraduate"
-  },
-  {
-    name: "Dr. Funmi",
-    uni: "LBS",
-    text: "Excellent proofreading for my research paper. The turn-around time was faster than expected. Highly professional.",
-    type: "Postgraduate"
-  },
-  {
-    name: "Emeka O.",
-    uni: "Corporate",
-    text: "The pitch deck they structured helped us secure our seed funding. They really understand the business landscape.",
-    type: "Corporate"
-  }
-];
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase";
+import { Quote, MessageSquare, Loader2 } from "lucide-react";
 
 export default function Testimonials() {
+  const supabase = createClient();
+  const [testimonials, setTestimonials] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function getTestimonials() {
+      const { data, error } = await supabase
+        .from("testimonials")
+        .select("*")
+        .eq("is_featured", true)
+        .order("created_at", { ascending: false })
+        .limit(6); // Limit to top 6 for the home page grid
+
+      if (!error && data) {
+        setTestimonials(data);
+      }
+      setLoading(false);
+    }
+    getTestimonials();
+  }, [supabase]);
+
   return (
     <section className="py-24 bg-white px-4 relative overflow-hidden">
       {/* Decorative background text */}
@@ -40,23 +42,49 @@ export default function Testimonials() {
           <div className="w-24 h-2 bg-emerald-500 mx-auto mt-6 rounded-full"></div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {testimonials.map((t, i) => (
-            <div key={i} className="p-8 rounded-3xl border border-gray-100 bg-gray-50/50 relative hover:border-emerald-200 transition-colors">
-              <Quote className="absolute top-6 right-8 text-emerald-100" size={40} />
-              <p className="text-gray-700 mb-6 italic relative z-10">"{t.text}"</p>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold">
-                  {t.name[0]}
-                </div>
-                <div>
-                  <p className="font-bold text-gray-900">{t.name}</p>
-                  <p className="text-xs text-gray-500">{t.uni} • {t.type}</p>
+        {loading ? (
+          <div className="flex justify-center items-center py-20">
+            <Loader2 className="animate-spin text-emerald-500" size={40} />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {testimonials.map((t) => (
+              <div 
+                key={t.id} 
+                className="p-8 rounded-[2.5rem] border border-gray-100 bg-gray-50/50 relative hover:border-emerald-200 transition-all hover:shadow-xl group"
+              >
+                <Quote className="absolute top-6 right-8 text-emerald-100 group-hover:text-emerald-200 transition-colors" size={40} />
+                
+                <p className="text-gray-700 mb-6 italic relative z-10 font-medium leading-relaxed">
+                  "{t.content}"
+                </p>
+
+                {/* WhatsApp Screenshot Preview (If exists) */}
+                {t.image_url && (
+                  <div className="mb-6 rounded-2xl overflow-hidden border border-gray-200 shadow-sm transition-transform hover:scale-[1.02]">
+                    <img 
+                      src={t.image_url} 
+                      alt="WhatsApp Review" 
+                      className="w-full h-auto object-cover"
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-emerald-600 flex items-center justify-center text-white font-black shadow-lg">
+                    {t.client_name[0]}
+                  </div>
+                  <div>
+                    <p className="font-black text-gray-900 leading-none mb-1">{t.client_name}</p>
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest italic">
+                      {t.university}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

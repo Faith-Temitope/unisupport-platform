@@ -1,65 +1,85 @@
+"use client";
+
 import Link from "next/link";
+import { MessageCircle, Globe, Shield, ArrowUpRight } from "lucide-react";
 
 export default function Footer() {
   return (
-    <footer className="bg-gray-900 text-gray-300 pt-20 pb-10 px-4">
-      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
-        {/* Brand Column */}
-        <div className="col-span-1 md:col-span-1">
-          <Link href="/" className="text-2xl font-black text-white mb-6 block tracking-tighter">
+    <footer className="bg-gray-900 text-gray-300 pt-24 pb-12 px-4 relative overflow-hidden">
+      {/* Ambient background glow to keep it premium */}
+      <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[100px] rounded-full"></div>
+
+      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-16 mb-20">
+        
+        {/* Brand Column - Wider Span */}
+        <div className="md:col-span-4">
+          <Link href="/" className="text-3xl font-black text-white mb-8 block tracking-tighter italic uppercase">
             uniSupport<span className="text-emerald-500">.</span>
           </Link>
-          <p className="text-sm leading-relaxed text-gray-400">
-            Premium academic and professional writing support for the next generation of African leaders and researchers.
+          <p className="text-sm leading-relaxed text-gray-400 font-medium italic mb-8 max-w-sm">
+            The definitive model research consultancy for the next generation of African leaders, researchers, and high-achievers.
           </p>
+          <div className="flex gap-4">
+            <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl border border-white/10 text-[10px] font-black uppercase tracking-widest text-emerald-400">
+               <Shield size={12} /> SECURE 256-BIT
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl border border-white/10 text-[10px] font-black uppercase tracking-widest text-blue-400">
+               <Globe size={12} /> GLOBAL OPS
+            </div>
+          </div>
         </div>
         
         {/* Services Column */}
-        <div>
-          <h4 className="text-white font-bold mb-6 uppercase text-xs tracking-widest">Services</h4>
-          <ul className="space-y-4 text-sm">
-            <li><Link href="/order?service=Standard" className="hover:text-emerald-400 transition-colors">Academic Research</Link></li>
-            <li><Link href="/lms" className="hover:text-emerald-400 transition-colors">LMS Management</Link></li>
-            <li><Link href="/special-services" className="hover:text-emerald-400 transition-colors">Specialized Projects</Link></li>
-            <li><Link href="/order?service=Special" className="hover:text-emerald-400 transition-colors">Business Pitch Decks</Link></li>
+        <div className="md:col-span-2">
+          <h4 className="text-white font-black mb-8 uppercase text-[10px] tracking-[0.3em] italic">Solutions</h4>
+          <ul className="space-y-4 text-xs font-bold uppercase tracking-widest">
+            <li><Link href="/order?service=Standard" className="hover:text-emerald-400 transition-colors flex items-center gap-1 group">Academic Research <ArrowUpRight size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" /></Link></li>
+            <li><Link href="/lms" className="hover:text-emerald-400 transition-colors flex items-center gap-1 group">LMS Management <ArrowUpRight size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" /></Link></li>
+            <li><Link href="/special-services" className="hover:text-emerald-400 transition-colors flex items-center gap-1 group">Specialized <ArrowUpRight size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" /></Link></li>
+            <li><Link href="/experts" className="hover:text-emerald-400 transition-colors flex items-center gap-1 group">Meet Experts <ArrowUpRight size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" /></Link></li>
           </ul>
         </div>
 
         {/* Company Column */}
-        <div>
-          <h4 className="text-white font-bold mb-6 uppercase text-xs tracking-widest">Legal & Links</h4>
-          <ul className="space-y-4 text-sm">
+        <div className="md:col-span-2">
+          <h4 className="text-white font-black mb-8 uppercase text-[10px] tracking-[0.3em] italic">Knowledge</h4>
+          <ul className="space-y-4 text-xs font-bold uppercase tracking-widest">
             <li><Link href="/blog" className="hover:text-emerald-400 transition-colors">Insights Blog</Link></li>
-            <li><Link href="/terms" className="hover:text-emerald-400 transition-colors">Terms of Service</Link></li>
-            <li><Link href="/privacy" className="hover:text-emerald-400 transition-colors">Privacy Policy</Link></li>
+            <li><Link href="/#legal" className="hover:text-emerald-400 transition-colors">Legality Policy</Link></li>
+            <li><Link href="/privacy" className="hover:text-emerald-400 transition-colors">Privacy Vault</Link></li>
+            <li><Link href="/terms" className="hover:text-emerald-400 transition-colors">Terms of Op</Link></li>
           </ul>
         </div>
 
-        {/* Contact Column */}
-        <div>
-          <h4 className="text-white font-bold mb-6 uppercase text-xs tracking-widest">Contact</h4>
-          <p className="text-sm mb-2 font-medium">Lagos, Nigeria</p>
-          <p className="text-xs text-gray-500 mb-6 italic">Serving students nationwide.</p>
-          <a 
-            href="https://wa.me/2349131352366" 
-            className="inline-block bg-emerald-600/10 text-emerald-400 px-4 py-2 rounded-lg font-bold hover:bg-emerald-600 hover:text-white transition-all text-sm"
-          >
-            Chat on WhatsApp
-          </a>
+        {/* Contact Column - Integrated WhatsApp */}
+        <div className="md:col-span-4">
+          <h4 className="text-white font-black mb-8 uppercase text-[10px] tracking-[0.3em] italic">Direct Line</h4>
+          <div className="bg-white/5 p-6 rounded-3xl border border-white/10">
+            <p className="text-xs font-bold text-gray-400 mb-4 uppercase tracking-widest">Lagos HQ • Available Nationwide</p>
+            <a 
+              href="https://wa.me/2349131352366" 
+              className="flex items-center justify-center gap-3 bg-emerald-500 text-white w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-emerald-400 transition-all shadow-xl shadow-emerald-500/10"
+            >
+              <MessageCircle size={18} /> Chat with Admin
+            </a>
+          </div>
         </div>
       </div>
       
       {/* Bottom Bar */}
-      <div className="max-w-7xl mx-auto pt-8 border-t border-gray-800 flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="text-xs text-gray-500">
-          © 2026 uniSupport Academic Services. All rights reserved.
+      <div className="max-w-7xl mx-auto pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-8">
+        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-600">
+          © 2026 UNISUPPORT ACADEMIC CONSULTANCY. ALL RIGHTS RESERVED.
         </div>
         
-        {/* Subtle Staff Link */}
-        <div className="flex gap-6 items-center">
-            <Link href="/admin/login" className="text-[10px] text-gray-600 hover:text-gray-400 uppercase tracking-widest font-bold">
-              Staff Portal
+        <div className="flex gap-8 items-center">
+            <Link href="/admin/login" className="text-[10px] text-gray-600 hover:text-emerald-500 uppercase tracking-widest font-black transition-colors">
+              Expert Portal
             </Link>
+            <div className="flex gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500/50">Systems Operational</span>
+            </div>
         </div>
       </div>
     </footer>

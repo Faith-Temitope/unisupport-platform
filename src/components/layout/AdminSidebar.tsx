@@ -1,19 +1,32 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase";
 import { 
   LayoutDashboard, 
   FileText, 
   Users, 
   PenTool, 
   Settings, 
-  MessageSquare
+  MessageSquare,
+  LogOut,
+  PlusCircle
 } from "lucide-react";
 
 export default function AdminSidebar() {
+  const router = useRouter();
+  const supabase = createClient();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/admin/login");
+    router.refresh();
+  };
+
   const menuItems = [
     { name: "Overview", icon: <LayoutDashboard size={20} />, href: "/admin" },
-    { name: "Orders", icon: <FileText size={20} />, href: "/admin/orders" },
+    { name: "Create Order", icon: <PlusCircle size={20} />, href: "/admin/create-order" },
     { name: "Writers", icon: <Users size={20} />, href: "/admin/writers" },
     { name: "Blog Posts", icon: <PenTool size={20} />, href: "/admin/blog" },
     { name: "Testimonials", icon: <MessageSquare size={20} />, href: "/admin/testimonials" },
@@ -37,10 +50,13 @@ export default function AdminSidebar() {
           </Link>
         ))}
       </nav>
-      <div className="absolute bottom-6 left-6">
-         <button className="flex items-center gap-3 text-gray-400 hover:text-red-400 transition-colors">
-            <Settings size={20} />
-            <span>Logout</span>
+      <div className="absolute bottom-6 left-6 w-[calc(100%-3rem)]">
+         <button 
+           onClick={handleLogout}
+           className="flex items-center gap-3 text-gray-400 hover:text-red-400 transition-colors w-full"
+         >
+            <LogOut size={20} />
+            <span className="font-medium">Logout</span>
          </button>
       </div>
     </aside>
