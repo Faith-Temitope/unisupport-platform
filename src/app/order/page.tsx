@@ -4,7 +4,17 @@ import { useForm } from "react-hook-form";
 import { useState, Suspense, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
-import { ShieldCheck, Zap, MessageCircle, Lock, Info, HelpCircle } from "lucide-react";
+import { 
+  ShieldCheck, 
+  Zap, 
+  MessageCircle, 
+  Lock, 
+  Info, 
+  UploadCloud, 
+  FileText, 
+  CheckCircle2,
+  Loader2 
+} from "lucide-react";
 
 type OrderFormData = {
   name: string;
@@ -15,6 +25,7 @@ type OrderFormData = {
   description: string;
   phone: string;
   writer_id: string;
+  file: FileList;
 };
 
 function OrderFormContent() {
@@ -27,11 +38,12 @@ function OrderFormContent() {
   const [dbServices, setDbServices] = useState<any[]>([]); 
   const [userId, setUserId] = useState<string | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [uploadProgress, setUploadProgress] = useState(false);
 
   const urlService = searchParams.get("service");
   const urlWriter = searchParams.get("writer_id");
 
-  const { register, handleSubmit, watch } = useForm<OrderFormData>({
+  const { register, handleSubmit, watch, setValue } = useForm<OrderFormData>({
     defaultValues: {
       serviceType: urlService || "",
       pages: 1,
@@ -39,9 +51,10 @@ function OrderFormContent() {
     }
   });
 
+  const selectedFile = watch("file");
+
   useEffect(() => {
     async function initializePage() {
-      // 1. Auth Check
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push(`/auth?callback=/order${window.location.search}`);
@@ -49,14 +62,12 @@ function OrderFormContent() {
       }
       setUserId(user.id);
 
-      // 2. Load Writers
       const { data: writers } = await supabase
         .from('writers')
         .select('id, name')
         .eq('is_available', true);
       if (writers) setAvailableWriters(writers);
 
-      // 3. Load Services from DB
       const { data: services } = await supabase
         .from('services')
         .select('*')
@@ -70,8 +81,6 @@ function OrderFormContent() {
 
   const selectedServiceName = watch("serviceType");
   const pageCount = watch("pages") || 1;
-
-  // Find selected service to get its price
   const selectedService = dbServices.find(s => s.title === selectedServiceName);
   
   const calculateEstimate = () => {
@@ -81,24 +90,32 @@ function OrderFormContent() {
 
   const whatsappNumber = "2349131352366";
 
-  // Price Negotiator direct button
-  const handleNegotiate = () => {
-    const msg = `Hi uniSupport, I am looking at the "${selectedServiceName || 'a project'}" service. I'd like to discuss a custom price for my specific requirements.`;
-    window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(msg)}`, "_blank");
-  };
-
   const onSubmit = async (data: OrderFormData) => {
-    if (!userId) {
-      alert("Session expired. Please log in.");
-      router.push("/auth");
-      return;
-    }
+    if (!userId) return;
 
     setIsSubmitting(true);
-    const total = calculateEstimate();
+    let uploadedFilePath = null;
 
     try {
-      const { data: newOrder, error } = await supabase
+      // 1. UPLOAD FILE TO SUPABASE STORAGE
+      if (data.file && data.file.length > 0) {
+        setUploadProgress(true);
+        const file = data.file[0];
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `${userId}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('order-files')
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+        uploadedFilePath = filePath;
+      }
+
+      // 2. SAVE ORDER TO DATABASE
+      const total = calculateEstimate();
+      const { data: newOrder, error: orderError } = await supabase
         .from('orders')
         .insert([{
           user_id: userId,
@@ -110,39 +127,35 @@ function OrderFormContent() {
           deadline: data.deadline,
           description: data.description,
           total_price: total,
+          file_url: uploadedFilePath,
           status: 'pending',
           writer_id: data.writer_id || null
         }])
         .select()
         .single();
 
-      if (error) throw error;
+      if (orderError) throw orderError;
 
-      // WhatsApp Message Formatting
-      const message = `*NEW ORDER SUBMITTED*%0A
-*Order ID:* ${newOrder.id.slice(0, 8)}%0A
-*Name:* ${data.name}%0A
-*Service:* ${data.serviceType}%0A
-*Estimate:* ₦${total.toLocaleString()}%0A
-*Deadline:* ${data.deadline}%0A
-*Brief:* ${data.description}`;
-
+      // 3. WHATSAPP REDIRECT
+      const message = `*NEW ORDER SUBMITTED*%0A*ID:* ${newOrder.id.slice(0, 8)}%0A*Client:* ${data.name}%0A*Service:* ${data.serviceType}%0A*Estimate:* ₦${total.toLocaleString()}%0A*File:* ${uploadedFilePath ? 'Attached' : 'None'}`;
+      
       window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`, "_blank");
       router.push("/dashboard");
 
     } catch (err: any) {
       console.error("Submission error:", err);
-      alert("Failed to save order. Please check your connection.");
+      alert("Error: " + err.message);
     } finally {
       setIsSubmitting(false);
+      setUploadProgress(false);
     }
   };
 
-  if (isCheckingAuth || !userId) {
+  if (isCheckingAuth) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-white space-y-4">
-        <Lock className="text-emerald-500 animate-bounce" size={40} />
-        <p className="font-black uppercase tracking-widest text-[10px] text-gray-400">Verifying Security Clearance...</p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+        <Loader2 className="text-emerald-500 animate-spin" size={40} />
+        <p className="font-black uppercase tracking-widest text-[10px] text-gray-400 mt-4">Securing Connection...</p>
       </div>
     );
   }
@@ -152,112 +165,115 @@ function OrderFormContent() {
       <div className="max-w-4xl mx-auto">
         <div className="bg-white p-8 md:p-16 rounded-[4rem] border border-gray-100 shadow-2xl relative overflow-hidden">
           
-          <div className="absolute top-0 right-0 p-8 opacity-5">
-            <ShieldCheck size={120} />
-          </div>
-
           <header className="mb-12">
             <div className="flex items-center gap-2 text-emerald-600 mb-4 font-black uppercase tracking-widest text-[10px]">
-              <Zap size={14} className="fill-emerald-600" /> Priority Processing Active
+              <ShieldCheck size={14} /> Encrypted Submission Portal
             </div>
             <h1 className="text-5xl md:text-7xl font-black mb-4 text-gray-900 tracking-tighter italic uppercase leading-[0.85]">
-              Secure Your <br /><span className="text-emerald-500">Success.</span>
+              Deploy Your <br /><span className="text-emerald-500">Project.</span>
             </h1>
-            <p className="text-gray-500 font-medium italic">Your research data is encrypted and secure.</p>
           </header>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-10">
+            {/* Identity & Contact */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">Client Identity</label>
-                <input {...register("name")} required className="w-full p-6 rounded-3xl border border-gray-100 bg-gray-50/50 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all font-bold" placeholder="Full Name" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">WhatsApp Contact</label>
-                <input {...register("phone")} required className="w-full p-6 rounded-3xl border border-gray-100 bg-gray-50/50 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all font-bold" placeholder="e.g. 09012345678" />
-              </div>
+              <input {...register("name")} required className="form-input-custom" placeholder="Full Name" />
+              <input {...register("phone")} required className="form-input-custom" placeholder="WhatsApp Number" />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">Assign Preferred Expert</label>
-              <select {...register("writer_id")} className="w-full p-6 rounded-3xl border border-gray-100 bg-gray-50/50 focus:bg-white outline-none font-bold appearance-none cursor-pointer">
-                <option value="">🚀 Auto-Assign (Fastest Turnaround)</option>
-                {availableWriters.map(w => (
-                  <option key={w.id} value={w.id}>Expert: {w.name}</option>
-                ))}
+            {/* Service & Expert */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <select {...register("serviceType")} required className="form-input-custom">
+                <option value="">Select Service...</option>
+                {dbServices.map(s => <option key={s.id} value={s.title}>{s.title}</option>)}
+              </select>
+              <select {...register("writer_id")} className="form-input-custom">
+                <option value="">🚀 Auto-Assign Expert</option>
+                {availableWriters.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
               </select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">Institution/Org</label>
-                <input {...register("university")} required className="w-full p-6 rounded-3xl border border-gray-100 bg-gray-50/50 outline-none font-bold" placeholder="e.g. UNILAG" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">Service Vertical</label>
-                <select {...register("serviceType")} required className="w-full p-6 rounded-3xl border border-gray-100 bg-gray-50/50 outline-none font-bold cursor-pointer">
-                  <option value="">Select Service...</option>
-                  {dbServices.map(s => (
-                    <option key={s.id} value={s.title}>{s.title}</option>
-                  ))}
-                </select>
+            {/* FILE UPLOAD ZONE */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">Reference Materials / Instructions</label>
+              <div className="relative group border-2 border-dashed border-gray-200 rounded-[2rem] p-10 flex flex-col items-center justify-center hover:border-emerald-500 hover:bg-emerald-50/30 transition-all cursor-pointer">
+                <input 
+                  type="file" 
+                  {...register("file")}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+                {selectedFile && selectedFile[0] ? (
+                  <div className="text-center">
+                    <CheckCircle2 className="text-emerald-500 mx-auto mb-2" size={32} />
+                    <p className="text-sm font-bold text-gray-900">{selectedFile[0].name}</p>
+                    <p className="text-[10px] text-gray-400 uppercase">Click to change file</p>
+                  </div>
+                ) : (
+                  <>
+                    <UploadCloud className="text-gray-300 group-hover:text-emerald-500 mb-2" size={40} />
+                    <p className="text-sm font-bold text-gray-400">Attach Briefing Documents (PDF, ZIP, DOCX)</p>
+                  </>
+                )}
               </div>
             </div>
 
+            {/* Project Specs */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-8 bg-gray-900 rounded-[3rem] text-white">
               <div className="space-y-2">
-                <label className="text-[9px] font-black uppercase tracking-widest text-gray-400">Project Volume (Pages)</label>
-                <input type="number" {...register("pages")} className="w-full p-4 bg-white/10 rounded-2xl border border-white/10 outline-none font-bold text-sm" />
+                <label className="text-[9px] font-black uppercase tracking-widest text-gray-400">Pages</label>
+                <input type="number" {...register("pages")} className="w-full bg-white/10 p-4 rounded-xl outline-none" />
               </div>
               <div className="space-y-2">
-                <label className="text-[9px] font-black uppercase tracking-widest text-gray-400">Target Deadline</label>
-                <input type="date" {...register("deadline")} required className="w-full p-4 bg-white/10 rounded-2xl border border-white/10 outline-none font-bold text-sm" />
+                <label className="text-[9px] font-black uppercase tracking-widest text-gray-400">Deadline</label>
+                <input type="date" {...register("deadline")} required className="w-full bg-white/10 p-4 rounded-xl outline-none" />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">Project Briefing</label>
-              <textarea {...register("description")} rows={5} className="w-full p-6 rounded-3xl border border-gray-100 bg-gray-50/50 outline-none font-bold" placeholder="Specific objectives, guidelines, and topic details..."></textarea>
-            </div>
+            <textarea {...register("description")} rows={4} className="form-input-custom w-full" placeholder="Detailed project instructions..."></textarea>
 
-            <div className="pt-10 border-t border-gray-100">
-              <div className="flex flex-col md:flex-row justify-between items-center gap-8 mb-10">
-                <div className="text-center md:text-left">
-                  <p className="text-emerald-600 font-black text-5xl italic tracking-tighter">
-                    ₦{calculateEstimate().toLocaleString()}
-                  </p>
-                  <div className="flex items-center gap-1 text-[10px] text-gray-400 font-black uppercase tracking-widest mt-1">
-                    <Info size={10} className="text-emerald-500" /> Automatic System Estimate
-                  </div>
-                </div>
-                
-                <button 
-                  type="button"
-                  onClick={handleNegotiate}
-                  className="flex items-center gap-2 text-blue-600 font-black uppercase text-[10px] bg-blue-50 px-8 py-4 rounded-full hover:bg-blue-100 transition-all border border-blue-100 shadow-sm"
-                >
-                  <MessageCircle size={16} /> Budget issues? Negotiate on WhatsApp
-                </button>
+            {/* Final Action */}
+            <div className="pt-10 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-6">
+              <div className="text-center md:text-left">
+                <p className="text-4xl font-black text-emerald-600 italic">₦{calculateEstimate().toLocaleString()}</p>
+                <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest flex items-center gap-1">
+                  <Info size={12}/> Est. Price
+                </p>
               </div>
-              
               <button 
                 type="submit" 
                 disabled={isSubmitting}
-                className="w-full py-8 bg-gray-900 text-white rounded-[2.5rem] font-black uppercase tracking-widest hover:bg-emerald-600 active:scale-[0.98] transition-all shadow-2xl disabled:opacity-50 flex items-center justify-center gap-3"
+                className="w-full md:w-auto px-12 py-6 bg-gray-900 text-white rounded-3xl font-black uppercase tracking-widest hover:bg-emerald-600 transition-all disabled:opacity-50"
               >
-                {isSubmitting ? "Vaulting Project..." : "Submit to Expert Vault"} <Zap size={18} />
+                {isSubmitting ? "Processing..." : "Secure Project Vault"}
               </button>
             </div>
           </form>
         </div>
       </div>
+      <style jsx>{`
+        .form-input-custom {
+          width: 100%;
+          padding: 1.5rem;
+          border-radius: 1.5rem;
+          border: 1px solid #f3f4f6;
+          background: #f9fafb;
+          font-weight: 700;
+          outline: none;
+          transition: all 0.2s;
+        }
+        .form-input-custom:focus {
+          background: white;
+          border-color: #10b981;
+          box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1);
+        }
+      `}</style>
     </main>
   );
 }
 
 export default function OrderPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center font-black text-gray-400 uppercase tracking-widest italic animate-pulse">Initializing Security...</div>}>
+    <Suspense fallback={<div>Loading...</div>}>
       <OrderFormContent />
     </Suspense>
   );
