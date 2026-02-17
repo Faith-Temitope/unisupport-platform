@@ -9,8 +9,8 @@ import {
   Banknote, Check, X, Download, Loader2, FileText, Paperclip 
 } from "lucide-react";
 
-// UPDATE THIS to your actual admin email
-const ADMIN_EMAIL = "your-admin-email@example.com"; 
+// UPDATED: Your Admin Email
+const ADMIN_EMAIL = "nationaldevs@gmail.com"; 
 
 export default function AdminDashboard() {
   const supabase = useMemo(() => createClient(), []);
@@ -23,7 +23,7 @@ export default function AdminDashboard() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
 
-  // --- NEW: UNIVERSAL DOWNLOAD FUNCTION ---
+  // --- UNIVERSAL DOWNLOAD FUNCTION ---
   const handleDownload = async (path: string, bucket: string = 'order-files') => {
     try {
       const { data, error } = await supabase.storage.from(bucket).download(path);
@@ -41,27 +41,7 @@ export default function AdminDashboard() {
     }
   };
 
-  const checkAdminAuth = useCallback(async () => {
-    const { data: { user }, error } = await supabase.auth.getUser();
-    if (error || !user || user.email !== ADMIN_EMAIL) {
-      router.push("/writer/login");
-      return;
-    }
-    const { data: isWriter } = await supabase.from("writers").select("id").eq("id", user.id).single();
-    if (isWriter) {
-      await supabase.auth.signOut();
-      alert("Access Denied: Writer accounts cannot access the Control Panel.");
-      router.push("/writer/login");
-      return;
-    }
-    fetchData();
-  }, [supabase, router]);
-
-  useEffect(() => {
-    checkAdminAuth();
-  }, [checkAdminAuth]);
-
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const { data: ordData } = await supabase.from("orders").select("*").order("created_at", { ascending: false });
@@ -76,7 +56,26 @@ export default function AdminDashboard() {
     } finally { 
       setLoading(false); 
     }
-  }
+  }, [supabase]);
+
+  // --- FIXED AUTH LOGIC ---
+  const checkAdminAuth = useCallback(async () => {
+    const { data: { user }, error } = await supabase.auth.getUser();
+
+    // 1. If not logged in or email doesn't match nationaldevs@gmail.com, go to login
+    if (error || !user || user.email !== ADMIN_EMAIL) {
+      router.push("/writer/login");
+      return;
+    }
+
+    // 2. Since the email matches your admin email, we allow it immediately 
+    // and skip the writer-check that was kicking you out.
+    fetchData();
+  }, [supabase, router, fetchData]);
+
+  useEffect(() => {
+    checkAdminAuth();
+  }, [checkAdminAuth]);
 
   const filteredOrders = useMemo(() => {
     if (filterStatus === "all") return orders;
@@ -121,14 +120,19 @@ export default function AdminDashboard() {
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]"><Loader2 className="animate-spin text-emerald-500" size={48} /></div>;
+  if (loading) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#F8FAFC]">
+      <Loader2 className="animate-spin text-emerald-500 mb-4" size={48} />
+      <p className="text-xs font-black uppercase tracking-widest text-gray-400">Securing Connection...</p>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
           <div className="flex items-start gap-4">
-            <Link href="/admin" className="mt-2 p-2 bg-white border border-gray-100 rounded-xl text-gray-400 hover:text-gray-900 shadow-sm"><ChevronLeft size={20} /></Link>
+            <Link href="/admin" className="mt-2 p-2 bg-white border border-gray-100 rounded-xl text-gray-400 hover:text-gray-900 shadow-sm transition-all"><ChevronLeft size={20} /></Link>
             <div>
               <h1 className="text-4xl font-black text-gray-900 tracking-tighter italic uppercase">Expert Control</h1>
               <p className="text-gray-500 font-medium italic">Monitor assignments and approve expert settlements.</p>
@@ -176,8 +180,6 @@ export default function AdminDashboard() {
                       {writers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                     </select>
                   </td>
-
-                  {/* --- UPDATED: DOWNLOAD COLUMN --- */}
                   <td className="p-8">
                     <div className="flex flex-col gap-2">
                       {order.file_url ? (
@@ -199,7 +201,6 @@ export default function AdminDashboard() {
                       ) : (order.status === 'preview-ready' && <span className="text-[9px] text-purple-400 font-black uppercase animate-pulse">Awaiting File...</span>)}
                     </div>
                   </td>
-
                   <td className="p-8">
                     <select value={order.status} onChange={(e) => handleStatusUpdate(order, e.target.value)} className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border outline-none ${getStatusStyle(order.status)}`}>
                       <option value="pending">Pending</option>
@@ -218,7 +219,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* PAYOUT MODAL REMAINS THE SAME */}
+      {/* PAYOUT MODAL */}
       {isPayoutModalOpen && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-6">
           <div className="bg-white w-full max-w-4xl rounded-[3rem] p-12 shadow-2xl relative max-h-[85vh] overflow-y-auto">

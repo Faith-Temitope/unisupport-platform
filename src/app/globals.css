@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@plugin "@tailwindcss/typography"; /* Add this line here */
+
 @theme {
   --font-sans: var(--font-inter);
   /* This defines the emerald shades for the new engine */
