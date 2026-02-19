@@ -6,10 +6,12 @@ import { MessageCircle, Globe, Shield, ArrowUpRight } from "lucide-react";
 export default function Footer() {
   return (
     <footer className="bg-gray-900 text-gray-300 pt-24 pb-12 px-4 relative overflow-hidden">
+      {/* Ambient background glow to keep it premium */}
       <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[100px] rounded-full"></div>
 
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-16 mb-20">
         
+        {/* Brand Column - Wider Span */}
         <div className="md:col-span-4">
           <Link href="/" className="text-3xl font-black text-white mb-8 block tracking-tighter italic uppercase">
             uniSupport<span className="text-emerald-500">.</span>
@@ -27,26 +29,29 @@ export default function Footer() {
           </div>
         </div>
         
+        {/* Services Column */}
         <div className="md:col-span-2">
           <h4 className="text-white font-black mb-8 uppercase text-[10px] tracking-[0.3em] italic">Solutions</h4>
           <ul className="space-y-4 text-xs font-bold uppercase tracking-widest">
-            <li><Link href="/order" className="hover:text-emerald-400 transition-colors flex items-center gap-1 group">Research Services <ArrowUpRight size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" /></Link></li>
-            <li><Link href="/lms" className="hover:text-emerald-400 transition-colors flex items-center gap-1 group">LMS Support <ArrowUpRight size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" /></Link></li>
+            <li><Link href="/order?service=Standard" className="hover:text-emerald-400 transition-colors flex items-center gap-1 group">Academic Research <ArrowUpRight size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" /></Link></li>
+            <li><Link href="/lms" className="hover:text-emerald-400 transition-colors flex items-center gap-1 group">LMS Management <ArrowUpRight size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" /></Link></li>
+            <li><Link href="/special-services" className="hover:text-emerald-400 transition-colors flex items-center gap-1 group">Specialized <ArrowUpRight size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" /></Link></li>
             <li><Link href="/experts" className="hover:text-emerald-400 transition-colors flex items-center gap-1 group">Meet Experts <ArrowUpRight size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" /></Link></li>
           </ul>
         </div>
 
+        {/* Company Column */}
         <div className="md:col-span-2">
           <h4 className="text-white font-black mb-8 uppercase text-[10px] tracking-[0.3em] italic">Knowledge</h4>
           <ul className="space-y-4 text-xs font-bold uppercase tracking-widest">
-            <li><Link href="/about" className="hover:text-emerald-400 transition-colors">About Us</Link></li>
-            <li><Link href="/faq" className="hover:text-emerald-400 transition-colors">Support FAQ</Link></li>
             <li><Link href="/blog" className="hover:text-emerald-400 transition-colors">Insights Blog</Link></li>
+            <li><Link href="/#legal" className="hover:text-emerald-400 transition-colors">Legality Policy</Link></li>
             <li><Link href="/privacy" className="hover:text-emerald-400 transition-colors">Privacy Vault</Link></li>
             <li><Link href="/terms" className="hover:text-emerald-400 transition-colors">Terms of Op</Link></li>
           </ul>
         </div>
 
+        {/* Contact Column - Integrated WhatsApp */}
         <div className="md:col-span-4">
           <h4 className="text-white font-black mb-8 uppercase text-[10px] tracking-[0.3em] italic">Direct Line</h4>
           <div className="bg-white/5 p-6 rounded-3xl border border-white/10">
@@ -61,6 +66,7 @@ export default function Footer() {
         </div>
       </div>
       
+      {/* Bottom Bar */}
       <div className="max-w-7xl mx-auto pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-8">
         <div className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-600">
           © 2026 UNISUPPORT ACADEMIC CONSULTANCY. ALL RIGHTS RESERVED.

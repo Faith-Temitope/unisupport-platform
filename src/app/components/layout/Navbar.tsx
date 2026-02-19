@@ -16,6 +16,7 @@ export default function Navbar() {
   const router = useRouter();
   const supabase = createClient();
 
+  // Handle Auth
   useEffect(() => {
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -30,6 +31,7 @@ export default function Navbar() {
     return () => subscription.unsubscribe();
   }, [supabase]);
 
+  // Lock body scroll when the modal is open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
@@ -58,8 +60,7 @@ export default function Navbar() {
     { name: "Experts", href: "/experts" },
     { name: "LMS Support", href: "/lms" },
     { name: "Templates", href: "/resources" },
-    { name: "About", href: "/about" }, // Integrated
-    { name: "FAQ", href: "/faq" },     // Integrated
+    { name: "Insights", href: "/blog" },
   ];
 
   return (
@@ -67,12 +68,14 @@ export default function Navbar() {
       <nav className="fixed w-full z-50 bg-white/90 backdrop-blur-xl border-b border-gray-100 h-24 flex items-center">
         <div className="max-w-7xl mx-auto px-6 w-full flex justify-between items-center">
           
+          {/* LOGO */}
           <div className="shrink-0 flex items-center">
             <Link href="/" className="text-3xl font-black text-gray-900 tracking-tighter italic uppercase">
               uniSupport<span className="text-emerald-500">.</span>
             </Link>
           </div>
 
+          {/* Desktop Links */}
           <div className="hidden md:flex space-x-10 items-center">
             {navLinks.map((link) => (
               <Link
@@ -107,6 +110,7 @@ export default function Navbar() {
             </Link>
           </div>
 
+          {/* Mobile Right Icons */}
           <div className="md:hidden flex items-center gap-4">
             {user?.id && <NotificationBell />}
             <button 
@@ -125,6 +129,7 @@ export default function Navbar() {
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
+        {/* Modal Header */}
         <div className="flex justify-between items-center h-24 px-6 border-b border-gray-50">
           <span className="text-2xl font-black italic uppercase">Menu</span>
           <button 
@@ -135,7 +140,10 @@ export default function Navbar() {
           </button>
         </div>
 
+        {/* Modal Content */}
         <div className="flex flex-col h-[calc(100vh-6rem)] p-8 overflow-y-auto">
+          
+          {/* MOBILE SEARCH BAR */}
           <form onSubmit={handleSearch} className="mb-10 relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
             <input 
