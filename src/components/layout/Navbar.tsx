@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, X, User, LayoutDashboard, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import NotificationBell from "./NotificationBell"; // Import the bell
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -78,23 +79,29 @@ export default function Navbar() {
               </Link>
             ))}
 
-            {authLoaded && user?.id ? (
-              <Link href="/dashboard" className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 hover:text-gray-900 flex items-center gap-2">
-                <LayoutDashboard size={14} /> My Vault
-              </Link>
-            ) : (
+            {authLoaded && user?.id && (
+              <div className="flex items-center gap-4 border-l border-gray-100 pl-6">
+                <NotificationBell /> {/* Desktop Notification Bell */}
+                <Link href="/dashboard" className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 hover:text-gray-900 flex items-center gap-2">
+                  <LayoutDashboard size={14} /> My Vault
+                </Link>
+              </div>
+            )}
+
+            {!user?.id && authLoaded && (
               <Link href="/auth" className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 hover:text-gray-900 flex items-center gap-2">
                 <User size={14} /> Login
               </Link>
             )}
             
-            <Link href="/order" className="bg-gray-900 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-emerald-600 shadow-xl">
+            <Link href="/order" className="bg-gray-900 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-emerald-600 shadow-xl transition-all">
               Start Project
             </Link>
           </div>
 
-          {/* Trigger Button */}
-          <div className="md:hidden">
+          {/* Mobile Right Icons */}
+          <div className="md:hidden flex items-center gap-4">
+            {user?.id && <NotificationBell />} {/* Mobile Notification Bell */}
             <button 
               onClick={() => setIsOpen(true)} 
               className="p-3 rounded-2xl bg-gray-50 text-gray-900 active:scale-90 transition-transform"
@@ -167,7 +174,6 @@ export default function Navbar() {
             </div>
           </div>
 
-          {/* CTA at Bottom of Modal */}
           <div className="mt-auto pt-10">
             <Link 
               href="/order" 

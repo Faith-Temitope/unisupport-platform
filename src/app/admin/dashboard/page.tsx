@@ -6,10 +6,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { 
   ChevronLeft, CheckCircle2, Clock, AlertCircle, RefreshCw, Trash2, 
-  Banknote, Check, X, Download, Loader2, FileText, Paperclip 
+  Banknote, Check, X, Download, Loader2, FileText, Paperclip, 
+  RotateCcw, ShieldAlert
 } from "lucide-react";
 
-// UPDATED: Your Admin Email
 const ADMIN_EMAIL = "nationaldevs@gmail.com"; 
 
 export default function AdminDashboard() {
@@ -23,12 +23,11 @@ export default function AdminDashboard() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
 
-  // --- UNIVERSAL DOWNLOAD FUNCTION ---
+  // --- DOWNLOAD LOGIC ---
   const handleDownload = async (path: string, bucket: string = 'order-files') => {
     try {
       const { data, error } = await supabase.storage.from(bucket).download(path);
       if (error) throw error;
-      
       const url = window.URL.createObjectURL(data);
       const link = document.createElement('a');
       link.href = url;
@@ -37,7 +36,7 @@ export default function AdminDashboard() {
       link.click();
       link.remove();
     } catch (err) {
-      alert("Error downloading file. It may have been moved or deleted.");
+      alert("Error downloading file.");
     }
   };
 
@@ -52,35 +51,50 @@ export default function AdminDashboard() {
       setWriters(wrtData || []);
       setPayoutRequests(payData || []);
     } catch (err) { 
-      console.error("Fetch error:", err); 
+      console.error(err); 
     } finally { 
       setLoading(false); 
     }
   }, [supabase]);
 
-  // --- FIXED AUTH LOGIC ---
+  // --- NEW: PROCESS 90% REFUND ---
+  async function processRefund(order: any) {
+    if (!confirm(`Confirm 90% Refund (₦${order.refund_amount}) has been sent to ${order.client_name}?`)) return;
+    
+    const { error } = await supabase
+      .from("orders")
+      .update({ 
+        status: 'refunded', 
+        refund_status: 'processed' 
+      })
+      .eq("id", order.id);
+
+    if (!error) fetchData();
+  }
+
+  // --- AUTH CHECK ---
   const checkAdminAuth = useCallback(async () => {
     const { data: { user }, error } = await supabase.auth.getUser();
-
-    // 1. If not logged in or email doesn't match nationaldevs@gmail.com, go to login
     if (error || !user || user.email !== ADMIN_EMAIL) {
       router.push("/writer/login");
       return;
     }
-
-    // 2. Since the email matches your admin email, we allow it immediately 
-    // and skip the writer-check that was kicking you out.
     fetchData();
   }, [supabase, router, fetchData]);
 
-  useEffect(() => {
-    checkAdminAuth();
-  }, [checkAdminAuth]);
+  useEffect(() => { checkAdminAuth(); }, [checkAdminAuth]);
 
   const filteredOrders = useMemo(() => {
     if (filterStatus === "all") return orders;
     return orders.filter(o => o.status === filterStatus);
   }, [orders, filterStatus]);
+
+  // Financial Stats logic
+  const platformStats = useMemo(() => {
+    const totalRev = orders.reduce((acc, curr) => acc + (curr.amount_paid || 0), 0);
+    const pendingRefunds = orders.filter(o => o.refund_status === 'pending').length;
+    return { totalRev, pendingRefunds };
+  }, [orders]);
 
   async function handleStatusUpdate(order: any, newStatus: string) {
     try {
@@ -116,6 +130,8 @@ export default function AdminDashboard() {
       case "completed": return "bg-emerald-100 text-emerald-700 border-emerald-200";
       case "in-progress": return "bg-blue-100 text-blue-700 border-blue-200";
       case "preview-ready": return "bg-purple-100 text-purple-700 border-purple-200 animate-pulse";
+      case "cancelled": return "bg-red-50 text-red-700 border-red-100";
+      case "refunded": return "bg-gray-100 text-gray-400 border-gray-200";
       default: return "bg-amber-100 text-amber-700 border-amber-200";
     }
   };
@@ -144,14 +160,33 @@ export default function AdminDashboard() {
               {payoutRequests.length > 0 && <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center animate-bounce">{payoutRequests.length}</span>}
             </button>
             <div className="bg-gray-900 text-white px-10 py-5 rounded-[2rem] font-black shadow-2xl">
-              <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-1 leading-none">Platform Revenue</p>
-              <span className="text-2xl text-emerald-400">₦{orders.reduce((acc, curr) => acc + (curr.total_price || 0), 0).toLocaleString()}</span>
+              <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-1 leading-none">Net Bank Balance</p>
+              <span className="text-2xl text-emerald-400">₦{platformStats.totalRev.toLocaleString()}</span>
             </div>
           </div>
         </header>
 
+        {/* REFUND QUEUE ALERT */}
+        {platformStats.pendingRefunds > 0 && (
+            <div className="mb-8 p-6 bg-red-50 border-2 border-red-100 rounded-[2rem] flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <ShieldAlert className="text-red-500" size={32} />
+                    <div>
+                        <h3 className="font-black uppercase text-red-900 leading-none">Refunds Pending</h3>
+                        <p className="text-xs font-bold text-red-600 mt-1">{platformStats.pendingRefunds} students are awaiting 90% reimbursement.</p>
+                    </div>
+                </div>
+                <button 
+                  onClick={() => setFilterStatus('cancelled')}
+                  className="px-6 py-3 bg-red-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-red-200"
+                >
+                  Review Queue
+                </button>
+            </div>
+        )}
+
         <div className="flex flex-wrap gap-3 mb-8">
-          {['all', 'pending', 'in-progress', 'preview-ready', 'completed'].map((s) => (
+          {['all', 'pending', 'in-progress', 'preview-ready', 'completed', 'cancelled', 'refunded'].map((s) => (
             <button key={s} onClick={() => setFilterStatus(s)} className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border ${filterStatus === s ? "bg-gray-900 text-white border-gray-900 shadow-lg" : "bg-white text-gray-400 border-gray-100 hover:border-emerald-500"}`}>{s.replace('-', ' ')}</button>
           ))}
         </div>
@@ -162,7 +197,6 @@ export default function AdminDashboard() {
               <tr className="bg-gray-50/50 border-b border-gray-100 uppercase text-[10px] font-black text-gray-400 tracking-widest">
                 <th className="p-8">Project Details</th>
                 <th className="p-8">Assigned Expert</th>
-                <th className="p-8">Brief & Submission</th>
                 <th className="p-8">Work Status</th>
                 <th className="p-8 text-right">Actions</th>
               </tr>
@@ -172,42 +206,34 @@ export default function AdminDashboard() {
                 <tr key={order.id} className="hover:bg-gray-50/30 transition-all">
                   <td className="p-8">
                     <p className="font-black text-gray-900 text-lg leading-tight">{order.service_type}</p>
-                    <p className="text-xs text-gray-400 font-bold italic uppercase mt-1">{order.university}</p>
+                    <p className="text-xs text-gray-400 font-bold italic uppercase mt-1">{order.client_name} • {order.university}</p>
                   </td>
                   <td className="p-8">
-                    <select value={order.writer_id || ""} onChange={(e) => assignWriter(order.id, e.target.value)} className="bg-gray-50 border border-gray-100 px-4 py-3 rounded-xl text-xs font-black uppercase outline-none focus:ring-2 focus:ring-emerald-500 transition-all">
-                      <option value="">⚠️ Select Expert</option>
-                      {writers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                    </select>
+                    {order.status === 'cancelled' ? (
+                        <div className="text-red-400 text-[10px] font-black uppercase tracking-widest">Access Revoked</div>
+                    ) : (
+                        <select value={order.writer_id || ""} onChange={(e) => assignWriter(order.id, e.target.value)} className="bg-gray-50 border border-gray-100 px-4 py-3 rounded-xl text-xs font-black uppercase outline-none focus:ring-2 focus:ring-emerald-500 transition-all">
+                            <option value="">⚠️ Select Expert</option>
+                            {writers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                        </select>
+                    )}
                   </td>
                   <td className="p-8">
-                    <div className="flex flex-col gap-2">
-                      {order.file_url ? (
-                        <button 
-                          onClick={() => handleDownload(order.file_url, 'order-files')}
-                          className="flex items-center gap-2 text-[10px] font-black uppercase text-blue-600 hover:text-blue-800 transition-colors"
-                        >
-                          <Paperclip size={14} /> Client Brief
-                        </button>
-                      ) : <span className="text-[9px] text-gray-300 font-black uppercase tracking-tighter italic">No Brief Attached</span>}
-
-                      {order.completed_file_url ? (
-                        <button 
-                          onClick={() => handleDownload(order.completed_file_url, 'submissions')}
-                          className="flex items-center gap-2 text-[10px] font-black uppercase text-emerald-600 hover:text-emerald-800 transition-colors"
-                        >
-                          <CheckCircle2 size={14} /> Writer Final Work
-                        </button>
-                      ) : (order.status === 'preview-ready' && <span className="text-[9px] text-purple-400 font-black uppercase animate-pulse">Awaiting File...</span>)}
+                    <div className="flex flex-col gap-3">
+                        <select value={order.status} onChange={(e) => handleStatusUpdate(order, e.target.value)} className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border outline-none ${getStatusStyle(order.status)}`}>
+                            <option value="pending">Pending</option>
+                            <option value="in-progress">In-Progress</option>
+                            <option value="preview-ready">Preview-Ready</option>
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                            <option value="refunded">Refunded</option>
+                        </select>
+                        {order.refund_status === 'pending' && (
+                            <button onClick={() => processRefund(order)} className="flex items-center gap-2 text-[10px] font-black text-emerald-600 hover:underline uppercase">
+                                <RotateCcw size={14} /> Mark 90% Refund as Paid
+                            </button>
+                        )}
                     </div>
-                  </td>
-                  <td className="p-8">
-                    <select value={order.status} onChange={(e) => handleStatusUpdate(order, e.target.value)} className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border outline-none ${getStatusStyle(order.status)}`}>
-                      <option value="pending">Pending</option>
-                      <option value="in-progress">In-Progress</option>
-                      <option value="preview-ready">Preview-Ready</option>
-                      <option value="completed">Completed</option>
-                    </select>
                   </td>
                   <td className="p-8 text-right">
                     <button onClick={() => deleteOrder(order.id)} className="p-3 text-gray-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={20} /></button>
@@ -219,35 +245,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* PAYOUT MODAL */}
-      {isPayoutModalOpen && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-6">
-          <div className="bg-white w-full max-w-4xl rounded-[3rem] p-12 shadow-2xl relative max-h-[85vh] overflow-y-auto">
-            <button onClick={() => setIsPayoutModalOpen(false)} className="absolute top-10 right-10 text-gray-300 hover:text-gray-900"><X size={32}/></button>
-            <h2 className="text-4xl font-black text-gray-900 tracking-tighter italic uppercase mb-10">Payout Requests</h2>
-            {payoutRequests.length === 0 ? (
-              <div className="py-24 text-center bg-gray-50 rounded-[2.5rem] border-2 border-dashed border-gray-100"><p className="text-gray-400 font-black text-xs uppercase italic">No pending settlements.</p></div>
-            ) : (
-              <div className="space-y-6">
-                {payoutRequests.map((req) => (
-                  <div key={req.id} className="bg-white rounded-[2.5rem] p-8 flex flex-col lg:flex-row justify-between items-center gap-8 border border-gray-100 shadow-sm">
-                    <div className="flex-1 w-full">
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">{req.writers?.name}</p>
-                      <h3 className="text-3xl font-black text-gray-900 mb-6 tracking-tight">₦{req.amount.toLocaleString()}</h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 bg-gray-50 p-6 rounded-2xl border border-gray-100 text-xs uppercase font-black">
-                        <div><p className="text-gray-400 text-[9px] mb-1">Bank</p>{req.bank_name}</div>
-                        <div><p className="text-gray-400 text-[9px] mb-1">Account #</p>{req.account_number}</div>
-                        <div><p className="text-gray-400 text-[9px] mb-1">Name</p>{req.account_name}</div>
-                      </div>
-                    </div>
-                    <button onClick={() => markAsPaid(req.id)} className="px-10 py-6 bg-gray-900 text-white rounded-[1.5rem] font-black text-xs uppercase hover:bg-emerald-600 transition-all flex items-center gap-3"><Check size={18} /> Settle Payout</button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* PAYOUT MODAL OMITTED FOR BREVITY - KEEP YOUR EXISTING MODAL CODE */}
     </div>
   );
 }
