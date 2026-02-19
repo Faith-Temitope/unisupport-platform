@@ -3,14 +3,15 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, X, User, LayoutDashboard, LogOut } from "lucide-react";
+import { Menu, X, User, LayoutDashboard, LogOut, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase";
-import NotificationBell from "./NotificationBell"; // Import the bell
+import NotificationBell from "./NotificationBell";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [authLoaded, setAuthLoaded] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -46,10 +47,19 @@ export default function Navbar() {
     setIsOpen(false);
   };
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchTerm.trim()) {
+      router.push(`/resources?search=${encodeURIComponent(searchTerm)}`);
+      setIsOpen(false);
+      setSearchTerm("");
+    }
+  };
+
   const navLinks = [
     { name: "Experts", href: "/experts" },
     { name: "LMS Support", href: "/lms" },
-    { name: "Specialized", href: "/special-services" },
+    { name: "Templates", href: "/resources" },
     { name: "Insights", href: "/blog" },
   ];
 
@@ -76,12 +86,13 @@ export default function Navbar() {
                 }`}
               >
                 {link.name}
+                <span className={`absolute -bottom-1 left-0 w-0 h-0.5 bg-emerald-500 transition-all group-hover:w-full ${pathname === link.href ? "w-full" : ""}`}></span>
               </Link>
             ))}
 
             {authLoaded && user?.id && (
               <div className="flex items-center gap-4 border-l border-gray-100 pl-6">
-                <NotificationBell /> {/* Desktop Notification Bell */}
+                <NotificationBell />
                 <Link href="/dashboard" className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 hover:text-gray-900 flex items-center gap-2">
                   <LayoutDashboard size={14} /> My Vault
                 </Link>
@@ -94,14 +105,14 @@ export default function Navbar() {
               </Link>
             )}
             
-            <Link href="/order" className="bg-gray-900 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-emerald-600 shadow-xl transition-all">
+            <Link href="/order" className="bg-gray-900 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-emerald-600 shadow-xl transition-all active:scale-95">
               Start Project
             </Link>
           </div>
 
           {/* Mobile Right Icons */}
           <div className="md:hidden flex items-center gap-4">
-            {user?.id && <NotificationBell />} {/* Mobile Notification Bell */}
+            {user?.id && <NotificationBell />}
             <button 
               onClick={() => setIsOpen(true)} 
               className="p-3 rounded-2xl bg-gray-50 text-gray-900 active:scale-90 transition-transform"
@@ -131,6 +142,19 @@ export default function Navbar() {
 
         {/* Modal Content */}
         <div className="flex flex-col h-[calc(100vh-6rem)] p-8 overflow-y-auto">
+          
+          {/* MOBILE SEARCH BAR */}
+          <form onSubmit={handleSearch} className="mb-10 relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+            <input 
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search blueprints..."
+              className="w-full bg-gray-50 border-none rounded-2xl py-5 pl-12 pr-4 text-sm focus:ring-2 ring-emerald-500 transition-all font-bold"
+            />
+          </form>
+
           <div className="space-y-8">
             {navLinks.map((link) => (
               <Link

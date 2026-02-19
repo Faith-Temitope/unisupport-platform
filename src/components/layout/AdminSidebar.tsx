@@ -12,7 +12,9 @@ import {
   PlusCircle,
   Radio, // Icon for Broadcasts
   ShieldCheck,
-  ChevronRight
+  ChevronRight,
+  LayoutGrid,
+  Target,
 } from "lucide-react";
 
 export default function AdminSidebar() {
@@ -29,10 +31,12 @@ export default function AdminSidebar() {
   const menuItems = [
     { name: "Overview", icon: <LayoutDashboard size={18} />, href: "/admin" },
     { name: "Create Order", icon: <PlusCircle size={18} />, href: "/admin/orders/new/" },
+    { name: "Template Vault", icon: <LayoutGrid size={18} />, href: "/admin/templates" },
     { name: "Broadcast", icon: <Radio size={18} />, href: "/admin/broadcast" }, // NEW: Broadcast feature
     { name: "Writers", icon: <Users size={18} />, href: "/admin/writers" },
     { name: "Blog Posts", icon: <PenTool size={18} />, href: "/admin/blog" },
     { name: "Testimonials", icon: <MessageSquare size={18} />, href: "/admin/testimonials" },
+    { name: "Captured Leads", icon: <Target size={18} />, href: "/admin/leads" },
   ];
 
   return (
