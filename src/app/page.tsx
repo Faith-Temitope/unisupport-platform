@@ -60,8 +60,8 @@ export default function HomePage() {
       if (activeCategory !== "All") {
         query = query.eq('category', activeCategory);
       } else {
-        // Show a curated selection of 9 on the main page
-        query = query.in('category', ['Undergraduate', 'Post-Graduate', 'STEM & Tech', 'Law & Arts', 'Management']).limit(9);
+        // Limited to 6 for a cleaner grid as requested
+        query = query.in('category', ['Undergraduate', 'Post-Graduate', 'STEM & Tech', 'Law & Arts', 'Management']).limit(6);
       }
 
       const { data } = await query;
@@ -144,11 +144,11 @@ export default function HomePage() {
       <section className="py-32 bg-gray-50/50 border-y border-gray-100">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center max-w-3xl mx-auto mb-24">
-             <span className="text-emerald-600 font-black uppercase tracking-[0.4em] text-[10px] mb-4 block">Academic Workflow</span>
-             <h2 className="text-5xl md:text-7xl font-black uppercase italic tracking-tighter mb-6">How to Navigate.</h2>
-             <p className="text-gray-500 font-bold italic text-lg leading-relaxed">
+              <span className="text-emerald-600 font-black uppercase tracking-[0.4em] text-[10px] mb-4 block">Academic Workflow</span>
+              <h2 className="text-5xl md:text-7xl font-black uppercase italic tracking-tighter mb-6">How to Navigate.</h2>
+              <p className="text-gray-500 font-bold italic text-lg leading-relaxed">
                 Our protocol is designed for students. From the first click to the final submission-ready asset, here is how we handle your research.
-             </p>
+              </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -252,8 +252,8 @@ export default function HomePage() {
                 )}
               </div>
 
-              {/* VIEW ALL BUTTON - Only visible when "All" is selected to handle the .limit(9) */}
-              {activeCategory === "All" && (
+              {/* VIEW ALL BUTTON - Visible only on "All" when more than 5 assets exist */}
+              {activeCategory === "All" && services.length >= 6 && (
                 <div className="mt-20 text-center">
                   <Link 
                     href="/services" 
@@ -312,7 +312,6 @@ function ServiceCard({ title, desc, iconName, href, color, category, price, deli
             <Link href={href} className="block group h-full">
                 <div className="p-10 bg-white rounded-[3.5rem] border border-gray-100 shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 h-full flex flex-col relative overflow-hidden">
                     
-                    {/* Top Badges */}
                     <div className="absolute top-8 right-8 flex flex-col items-end gap-2">
                       <span className="text-[9px] font-black uppercase tracking-widest text-gray-300 group-hover:text-emerald-400 transition-colors">
                         {category}
