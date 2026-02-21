@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { createClient } from "@/lib/supabase";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Lock, Mail, User, ArrowRight, ShieldCheck } from "lucide-react";
+import { Lock, Mail, User, ArrowRight, ShieldCheck, Users } from "lucide-react";
 
-export default function AuthPage() {
+function AuthForm() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -16,7 +16,8 @@ export default function AuthPage() {
   const searchParams = useSearchParams();
   const supabase = createClient();
 
-  // Where to send the user after login
+  // Capture the referral code from the URL (e.g., ?ref=SAM123)
+  const referralCode = searchParams.get("ref");
   const callback = searchParams.get("callback") || "/dashboard";
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -25,24 +26,23 @@ export default function AuthPage() {
 
     if (isLogin) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        alert(error.message);
-      } else {
-        router.push(callback);
-      }
+      if (error) { alert(error.message); } else { router.push(callback); }
     } else {
-      // SIGNUP: We pass the full_name to user_metadata so our SQL Trigger picks it up
+      // SIGNUP: We pass full_name AND the referral code to metadata
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: { full_name: fullName }
+          data: { 
+            full_name: fullName,
+            referred_by_code: referralCode // This is how we track the reward
+          }
         }
       });
       if (error) {
         alert(error.message);
       } else {
-        alert("Account created! You can now access your vault.");
+        alert("Account created! Welcome to the Vault.");
         router.push(callback);
       }
     }
@@ -50,19 +50,25 @@ export default function AuthPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 flex items-center justify-center px-4 pt-20">
-      <div className="max-w-md w-full">
+    <div className="max-w-md w-full">
         {/* Brand Header */}
         <div className="text-center mb-10">
           <h1 className="text-4xl font-black uppercase italic tracking-tighter text-gray-900">
-            uniSupport<span className="text-emerald-500">.</span>Vault
+            uniSupport<span className="text-emerald-500">.xyz</span>
           </h1>
           <p className="text-gray-400 font-bold text-[10px] uppercase tracking-[0.3em] mt-2">
-            End-to-End Encrypted Academic Portal
+            Secure Academic Research & Intelligence
           </p>
         </div>
 
         <div className="bg-white p-10 md:p-12 rounded-[3.5rem] shadow-2xl border border-gray-100">
+          {referralCode && !isLogin && (
+            <div className="mb-6 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-3">
+              <Users className="text-emerald-600" size={16} />
+              <p className="text-[10px] font-black uppercase text-emerald-700">Referral Code Active: {referralCode}</p>
+            </div>
+          )}
+
           <div className="flex gap-4 mb-10 p-2 bg-gray-50 rounded-2xl">
             <button 
               onClick={() => setIsLogin(true)}
@@ -140,7 +146,16 @@ export default function AuthPage() {
             <ShieldCheck size={14} className="text-emerald-500" /> AES-256 Bit Encryption Active
           </div>
         </div>
-      </div>
+    </div>
+  );
+}
+
+export default function AuthPage() {
+  return (
+    <main className="min-h-screen bg-gray-50 flex items-center justify-center px-4 pt-20">
+      <Suspense fallback={<div>Loading...</div>}>
+        <AuthForm />
+      </Suspense>
     </main>
   );
 }

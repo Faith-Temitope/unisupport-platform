@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase";
 import { 
   Clock, Download, Loader2, Lock, 
   ShieldCheck, AlertCircle, Edit3, User, Phone,
-  CheckCircle, XCircle, RotateCcw
+  CheckCircle, XCircle, RotateCcw, Copy, Share2, Save, X
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import dynamic from 'next/dynamic';
@@ -24,6 +24,7 @@ export default function UserDashboard() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
+  const [updating, setUpdating] = useState(false);
   
   const [newName, setNewName] = useState("");
   const [newWhatsapp, setNewWhatsapp] = useState("");
@@ -50,56 +51,59 @@ export default function UserDashboard() {
     setLoading(false);
   }, [supabase, router]);
 
-  // --- REALTIME & INITIAL LOAD ---
   useEffect(() => {
     getDashboardData();
-
-    // Listen for status changes (e.g., when writer uploads work)
     const channel = supabase
       .channel('user-updates')
-      .on('postgres_changes', 
-        { event: 'UPDATE', schema: 'public', table: 'orders' }, 
-        () => getDashboardData()
-      )
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, () => getDashboardData())
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [getDashboardData, supabase]);
 
-  // --- SECURE DOWNLOAD HANDLER ---
+  // --- PROFILE UPDATE LOGIC ---
+  const handleUpdateProfile = async () => {
+    setUpdating(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        full_name: newName,
+        whatsapp_number: newWhatsapp
+      })
+      .eq("id", user.id);
+
+    if (error) {
+      alert("Update failed: " + error.message);
+    } else {
+      await getDashboardData();
+      setIsEditing(false);
+    }
+    setUpdating(false);
+  };
+
+  const copyReferral = () => {
+    const link = `https://getunisupport.xyz/auth?ref=${profile?.referral_code}`;
+    navigator.clipboard.writeText(link);
+    alert("Referral link copied! Start earning ₦1,000 per project.");
+  };
+
   const handleDownload = async (filePath: string, serviceType: string) => {
     try {
-      // 1. Generate a signed URL for the private file (expires in 60s)
-      const { data, error } = await supabase.storage
-        .from('submissions')
-        .createSignedUrl(filePath, 60);
-
+      const { data, error } = await supabase.storage.from('submissions').createSignedUrl(filePath, 60);
       if (error) throw error;
-
-      // 2. Force download in browser
       const link = document.createElement('a');
       link.href = data.signedUrl;
       link.setAttribute('download', `${serviceType.replace(/\s+/g, '-')}-Final.pdf`);
       document.body.appendChild(link);
       link.click();
       link.remove();
-    } catch (err) {
-      alert("Security Error: Could not verify file access.");
-    }
+    } catch (err) { alert("Security Error: Could not verify file access."); }
   };
 
   const handleCancelOrder = async (order: any) => {
     const refundAmount = order.amount_paid * 0.9;
-    const isConfirmed = confirm(
-      `Terminate Order?\n\nYou're eligible for a 90% refund (₦${refundAmount.toLocaleString()}). Proceed?`
-    );
-
+    const isConfirmed = confirm(`Terminate Order?\n\nYou're eligible for a 90% refund (₦${refundAmount.toLocaleString()}). Proceed?`);
     if (isConfirmed) {
-      const { error } = await supabase
-        .from("orders")
-        .update({ status: 'cancelled', refund_status: 'pending', refund_amount: refundAmount })
-        .eq("id", order.id);
-
+      const { error } = await supabase.from("orders").update({ status: 'cancelled', refund_status: 'pending', refund_amount: refundAmount }).eq("id", order.id);
       if (!error) getDashboardData();
     }
   };
@@ -107,12 +111,7 @@ export default function UserDashboard() {
   const handlePaymentSuccess = async (order: any, amountPaid: number, isFinal: boolean) => {
     const newPaidTotal = (order.amount_paid || 0) + amountPaid;
     const newStatus = isFinal ? 'completed' : 'in-progress';
-    
-    const { error } = await supabase
-      .from("orders")
-      .update({ amount_paid: newPaidTotal, status: newStatus })
-      .eq("id", order.id);
-
+    const { error } = await supabase.from("orders").update({ amount_paid: newPaidTotal, status: newStatus }).eq("id", order.id);
     if (!error) getDashboardData();
   };
 
@@ -127,29 +126,92 @@ export default function UserDashboard() {
     <main className="pt-32 pb-20 px-4 min-h-screen bg-white font-sans">
       <div className="max-w-6xl mx-auto">
         
-        {/* Profile Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start mb-16 gap-8">
-          <div>
+        {/* Profile & Referral Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-16">
+          <div className="lg:col-span-2">
             <div className="flex items-center gap-2 text-emerald-600 mb-2">
               <ShieldCheck size={16} />
               <span className="text-[10px] font-black uppercase tracking-widest">Secure Scholar Portal</span>
             </div>
-            <h1 className="text-6xl md:text-8xl font-black uppercase italic tracking-tighter leading-none">
+            <h1 className="text-6xl md:text-8xl font-black uppercase italic tracking-tighter leading-none mb-8">
               Your <span className="text-emerald-600">Vault.</span>
             </h1>
+            
+            {isEditing ? (
+              <div className="bg-gray-50 p-8 rounded-[3rem] border-2 border-emerald-500/20 space-y-4 max-w-xl">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black uppercase text-gray-400 ml-2">Full Name</label>
+                    <input 
+                      type="text" value={newName} onChange={(e) => setNewName(e.target.value)}
+                      className="w-full p-4 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-emerald-500 outline-none font-bold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black uppercase text-gray-400 ml-2">WhatsApp Number</label>
+                    <input 
+                      type="text" value={newWhatsapp} onChange={(e) => setNewWhatsapp(e.target.value)}
+                      className="w-full p-4 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-emerald-500 outline-none font-bold"
+                      placeholder="080XXXXXXXX"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button onClick={handleUpdateProfile} disabled={updating} className="flex-1 bg-emerald-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2">
+                    {updating ? <Loader2 className="animate-spin" size={14}/> : <Save size={14}/>} Save Changes
+                  </button>
+                  <button onClick={() => setIsEditing(false)} className="px-6 bg-white border border-gray-200 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest"><X size={14}/></button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-4">
+                <div className="bg-gray-50 p-6 rounded-[2rem] border border-gray-100 flex items-center gap-4 group">
+                  <div className="w-12 h-12 bg-gray-900 text-white rounded-full flex items-center justify-center"><User size={20}/></div>
+                  <div>
+                    <p className="text-[9px] font-black uppercase text-gray-400">Identity</p>
+                    <p className="font-black italic text-sm">{profile?.full_name}</p>
+                  </div>
+                  <button onClick={() => setIsEditing(true)} className="ml-4 p-2 opacity-0 group-hover:opacity-100 hover:bg-gray-200 rounded-full transition-all"><Edit3 size={14} /></button>
+                </div>
+                <div className="bg-gray-50 p-6 rounded-[2rem] border border-gray-100 flex items-center gap-4">
+                  <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center"><Phone size={20}/></div>
+                  <div>
+                    <p className="text-[9px] font-black uppercase text-gray-400">WhatsApp</p>
+                    <p className="font-black italic text-sm">{profile?.whatsapp_number || "Add Number"}</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="w-full md:w-80 bg-gray-950 text-white p-8 rounded-[2.5rem] relative overflow-hidden shadow-2xl">
-            <div className="relative z-10">
-              <div className="flex justify-between items-start mb-6">
-                <div className="w-12 h-12 bg-emerald-600 rounded-full flex items-center justify-center"><User size={24} /></div>
-                <button onClick={() => setIsEditing(true)} className="p-2 hover:bg-white/10 rounded-full transition-colors"><Edit3 size={18} /></button>
-              </div>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500 mb-1">Scholar Identity</p>
-              <h2 className="text-2xl font-black uppercase italic tracking-tight truncate">{profile?.full_name || "Unidentified"}</h2>
-              <p className="text-[10px] text-gray-400 font-bold mt-2 flex items-center gap-2"><Phone size={10} /> {profile?.whatsapp_number || "Add Number"}</p>
-            </div>
-            <Lock className="absolute -bottom-4 -right-4 text-white/5" size={120} />
+          {/* REFERRAL CARD */}
+          <div className="bg-gray-900 text-white p-8 rounded-[3rem] relative overflow-hidden shadow-2xl flex flex-col justify-between">
+             <div className="relative z-10">
+                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-2">Agent Rewards</p>
+                <h3 className="text-2xl font-black uppercase italic leading-tight mb-4">Earn ₦1,000 <br/> per referral.</h3>
+                
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[9px] font-black uppercase opacity-50 mb-2 text-white">Your Referral Link</p>
+                    <button 
+                      onClick={copyReferral}
+                      className="w-full bg-white/10 hover:bg-white/20 border border-white/10 p-3 rounded-xl flex items-center justify-between transition-all"
+                    >
+                      <span className="text-[10px] font-bold truncate opacity-80">unisupport.xyz/auth?ref={profile?.referral_code}</span>
+                      <Copy size={14} className="text-emerald-400" />
+                    </button>
+                  </div>
+                  
+                  <div className="pt-4 border-t border-white/10 flex justify-between items-end">
+                    <div>
+                      <p className="text-[9px] font-black uppercase opacity-50">Balance</p>
+                      <p className="text-2xl font-black italic">₦{profile?.referral_balance || 0}</p>
+                    </div>
+                    <button className="bg-emerald-600 text-[10px] font-black uppercase px-4 py-2 rounded-lg hover:bg-white hover:text-gray-900 transition-all">Withdraw</button>
+                  </div>
+                </div>
+             </div>
+             <Share2 className="absolute -bottom-6 -right-6 text-white/5" size={120} />
           </div>
         </div>
 
@@ -180,11 +242,6 @@ export default function UserDashboard() {
                         }`}>
                           {order.status?.replace('-', ' ')}
                         </span>
-                        {order.refund_status === 'pending' && (
-                          <span className="px-4 py-1.5 bg-purple-50 text-purple-700 rounded-full text-[9px] font-black uppercase tracking-widest animate-pulse">
-                            90% Refund Processing
-                          </span>
-                        )}
                       </div>
 
                       <h3 className="text-4xl md:text-5xl font-black uppercase italic tracking-tighter leading-none group-hover:text-emerald-600 transition-colors">
@@ -202,68 +259,47 @@ export default function UserDashboard() {
                           <p className="text-xl font-black italic text-emerald-600">₦{amountPaid.toLocaleString()}</p>
                         </div>
                       </div>
-
-                      {order.status !== 'cancelled' && order.status !== 'completed' && (
-                        <button onClick={() => handleCancelOrder(order)} className="text-[10px] font-black uppercase text-red-400 hover:text-red-600 flex items-center gap-1">
-                          <XCircle size={12} /> Terminate Order & Request 90% Refund
-                        </button>
-                      )}
                     </div>
 
                     <div className="w-full lg:w-80 space-y-4">
-                      {order.status === 'cancelled' ? (
-                         <div className="p-8 bg-gray-50 rounded-[2rem] text-center border border-gray-100">
-                            <RotateCcw className="mx-auto text-gray-400 mb-2" size={24} />
-                            <p className="text-[10px] font-black uppercase text-gray-400 italic">Order Terminated</p>
-                         </div>
-                      ) : (
-                        <>
-                          {order.status === 'awaiting-quote' && (
+                        {order.status === 'awaiting-quote' && (
                             <div className="p-8 bg-gray-50 rounded-[2rem] text-center animate-pulse">
                               <Clock className="mx-auto text-orange-400 mb-2" size={24} />
                               <p className="text-[10px] font-black uppercase text-gray-500">Awaiting Analysis</p>
                             </div>
-                          )}
-                          
-                          {order.status !== 'awaiting-quote' && !isDepositPaid && (
-                            <PaystackButton 
-                              order={order} amount={depositNeeded} isFinal={false} 
-                              userEmail={user?.email} publicKey={process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!} 
-                              onSuccess={() => handlePaymentSuccess(order, depositNeeded, false)} 
-                            />
-                          )}
+                        )}
+                        
+                        {order.status !== 'awaiting-quote' && !isDepositPaid && (
+                          <PaystackButton 
+                            order={order} amount={depositNeeded} isFinal={false} 
+                            userEmail={user?.email} publicKey={process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!} 
+                            onSuccess={() => handlePaymentSuccess(order, depositNeeded, false)} 
+                          />
+                        )}
 
-                          {isDepositPaid && !isFullyPaid && order.status === 'in-progress' && (
-                            <div className="p-8 bg-emerald-50 rounded-[2rem] text-center">
-                              <Loader2 className="animate-spin text-emerald-600 mx-auto mb-2" size={24} />
-                              <p className="text-[10px] font-black uppercase text-emerald-700">Writing in Progress</p>
-                            </div>
-                          )}
+                        {isDepositPaid && !isFullyPaid && (order.status === 'in-progress' || order.status === 'awaiting-quote') && (
+                          <div className="p-8 bg-emerald-50 rounded-[2rem] text-center">
+                            <Loader2 className="animate-spin text-emerald-600 mx-auto mb-2" size={24} />
+                            <p className="text-[10px] font-black uppercase text-emerald-700">Writing in Progress</p>
+                          </div>
+                        )}
 
-                          {order.status === 'preview-ready' && !isFullyPaid && (
-                            <div className="space-y-4">
-                                <div className="bg-purple-50 p-4 rounded-2xl flex items-center gap-3 border border-purple-100">
-                                    <CheckCircle className="text-purple-600" size={18} />
-                                    <p className="text-[10px] font-black text-purple-700 uppercase">Expert has uploaded work!</p>
-                                </div>
-                                <PaystackButton 
-                                  order={order} amount={balanceRemaining} isFinal={true} 
-                                  userEmail={user?.email} publicKey={process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!} 
-                                  onSuccess={() => handlePaymentSuccess(order, balanceRemaining, true)} 
-                                />
-                            </div>
-                          )}
+                        {order.status === 'preview-ready' && !isFullyPaid && (
+                          <PaystackButton 
+                            order={order} amount={balanceRemaining} isFinal={true} 
+                            userEmail={user?.email} publicKey={process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!} 
+                            onSuccess={() => handlePaymentSuccess(order, balanceRemaining, true)} 
+                          />
+                        )}
 
-                          {isFullyPaid && (
-                            <button 
-                                onClick={() => handleDownload(order.completed_file_url, order.service_type)}
-                                className="w-full py-6 bg-emerald-600 text-white rounded-[1.8rem] font-black uppercase text-xs flex items-center justify-center gap-3 shadow-xl hover:bg-emerald-700 transition-all active:scale-95"
-                            >
-                              <Download size={20} /> Download Final Asset
-                            </button>
-                          )}
-                        </>
-                      )}
+                        {isFullyPaid && (
+                          <button 
+                              onClick={() => handleDownload(order.completed_file_url, order.service_type)}
+                              className="w-full py-6 bg-emerald-600 text-white rounded-[1.8rem] font-black uppercase text-xs flex items-center justify-center gap-3 shadow-xl hover:bg-emerald-700 transition-all active:scale-95"
+                          >
+                            <Download size={20} /> Download Final Asset
+                          </button>
+                        )}
                     </div>
                   </div>
                 </div>

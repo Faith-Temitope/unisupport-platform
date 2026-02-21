@@ -23,7 +23,7 @@ export default function PaystackButton({
 }: PaystackButtonProps) {
 
   const config = {
-    reference: `TRANS_${Math.floor(Math.random() * 1000000000 + 1)}`,
+    reference: `VAULT_${Math.floor(Math.random() * 1000000000 + 1)}`,
     email: userEmail || "",
     amount: Math.round(amount * 100), // Kobo conversion
     publicKey: publicKey,
@@ -33,6 +33,16 @@ export default function PaystackButton({
           display_name: "Order ID",
           variable_name: "order_id",
           value: order.id,
+        },
+        {
+          display_name: "Service Type",
+          variable_name: "service_type",
+          value: order.service_type,
+        },
+        {
+          display_name: "Platform",
+          variable_name: "platform",
+          value: "uniSupport_xyz",
         }
       ]
     }
@@ -40,12 +50,12 @@ export default function PaystackButton({
 
   const initializePayment = usePaystackPayment(config);
 
-  // Error check for missing API Key
+  // Error check for missing API Key (Common in deployment)
   if (!publicKey || publicKey === "") {
     return (
       <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-2 text-red-600">
         <AlertTriangle size={16} />
-        <span className="text-[10px] font-black uppercase tracking-tighter">Missing API Key</span>
+        <span className="text-[10px] font-black uppercase tracking-tighter">Missing Live API Key</span>
       </div>
     );
   }
@@ -56,18 +66,21 @@ export default function PaystackButton({
         type="button"
         onClick={() => {
           if (!userEmail) {
-            alert("Security Error: No user email found.");
+            alert("Security Error: No user identity found. Please log in.");
             return;
           }
-          // The fix: Passing as a single object with named keys
+          
           initializePayment({
-            onSuccess: (reference: any) => onSuccess(reference.reference),
-            onClose: () => console.log("Vault: Payment window closed.")
+            onSuccess: (reference: any) => {
+              // We pass the reference string back to the dashboard to update Supabase
+              onSuccess(reference.reference);
+            },
+            onClose: () => console.log("Vault: Payment session terminated by user.")
           });
         }}
-        className={`w-full py-5 rounded-[1.5rem] font-black uppercase text-[10px] tracking-[0.15em] flex items-center justify-center gap-3 shadow-xl transition-all active:scale-95 hover:brightness-110 ${
+        className={`w-full py-5 rounded-[1.8rem] font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-3 shadow-xl transition-all active:scale-95 hover:brightness-110 disabled:opacity-50 ${
           isFinal 
-            ? 'bg-gray-900 text-white shadow-gray-900/10' 
+            ? 'bg-gray-900 text-white shadow-gray-900/20' 
             : 'bg-emerald-600 text-white shadow-emerald-600/20'
         }`}
       >
@@ -82,10 +95,10 @@ export default function PaystackButton({
         )}
       </button>
       
-      <div className="flex items-center justify-center gap-1.5 mt-3 opacity-30">
+      <div className="flex items-center justify-center gap-1.5 mt-4 opacity-40">
         <ShieldCheck size={10} className="text-emerald-600" />
-        <span className="text-[8px] font-bold uppercase tracking-widest">
-          PCI-DSS Compliant Encryption
+        <span className="text-[7px] font-black uppercase tracking-[0.25em] text-gray-500">
+          Military-Grade PCI-DSS Payment Encryption
         </span>
       </div>
     </div>

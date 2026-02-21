@@ -1,38 +1,41 @@
-"use client";
-
 import { Inter } from "next/font/google";
 import "./globals.css";
-import Navbar from "@/components/layout/Navbar";
-import MobileFAB from "@/components/ui/MobileFAB"; // Import the new FAB
-import { usePathname } from "next/navigation";
+import { Metadata } from "next";
+import ClientLayoutWrapper from "@/components/layout/ClientLayoutWrapper";
 
 const inter = Inter({ subsets: ["latin"] });
+
+// HIGH-LEVEL SEO FOR getunisupport.xyz
+export const metadata: Metadata = {
+  metadataBase: new URL('https://getunisupport.xyz'),
+  title: {
+    default: 'uniSupport | The Academic Research Vault',
+    template: '%s | uniSupport'
+  },
+  description: 'Secure, encrypted portal for premium academic research blueprints and project intelligence.',
+  openGraph: {
+    title: 'uniSupport Vault',
+    description: 'Get premium academic blueprints and earn rewards.',
+    url: 'https://getunisupport.xyz',
+    siteName: 'uniSupport',
+    images: [{ url: '/og-image.png' }], // Make sure to add this image to your public folder later
+    locale: 'en_NG',
+    type: 'website',
+  },
+};
 
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  // Check if the current page starts with /admin
-  const isAdminPage = pathname?.startsWith("/admin");
-  // Don't show the FAB on auth or order pages either, as it might be redundant
-  const isAuthOrOrder = pathname === "/auth" || pathname === "/order";
-
   return (
-    <html lang="en" className="scroll-smooth" data-scroll-behavior="smooth">
+    <html lang="en" className="scroll-smooth">
       <body className={inter.className}>
-        {/* Only show Navbar and FAB if we are NOT on an admin page */}
-        {!isAdminPage && (
-          <>
-            <Navbar />
-            {!isAuthOrOrder && <MobileFAB />}
-          </>
-        )}
-        
-        <main className={!isAdminPage ? "pt-20" : ""}>
+        {/* We move the logic for Navbar/FAB here to keep the layout clean */}
+        <ClientLayoutWrapper>
           {children}
-        </main>
+        </ClientLayoutWrapper>
       </body>
     </html>
   );
