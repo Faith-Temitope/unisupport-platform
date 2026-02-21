@@ -112,7 +112,7 @@ export default function TermsOfService() {
         {/* Support CTA */}
         <div className="mt-20 text-center">
             <p className="text-gray-400 text-xs font-bold uppercase mb-6">Confused about a clause?</p>
-            <a href="https://wa.me/2349131352366" className="inline-flex items-center gap-2 bg-gray-900 text-white px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all">
+            <a href="https://wa.me/2349052740695" className="inline-flex items-center gap-2 bg-gray-900 text-white px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all">
                 Speak with Legal Support <HelpCircle size={14} />
             </a>
             <p className="mt-12 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">

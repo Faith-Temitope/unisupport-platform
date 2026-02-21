@@ -17,7 +17,7 @@ export default function WriterSidebar() {
   const supabase = createClient();
 
   // WhatsApp Support Config
-  const WHATSAPP_NUMBER = "2349131352366"; 
+  const WHATSAPP_NUMBER = "2349052740695"; 
   const supportMsg = encodeURIComponent("Hello Admin, I am an Expert Writer on uniSupport and I need assistance.");
   const supportLink = `https://wa.me/${WHATSAPP_NUMBER}?text=${supportMsg}`;
 

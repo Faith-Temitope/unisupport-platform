@@ -52,7 +52,7 @@ export default function Footer() {
           <div className="bg-white/5 p-6 rounded-3xl border border-white/10">
             <p className="text-xs font-bold text-gray-400 mb-4 uppercase tracking-widest">Lagos HQ • Available Nationwide</p>
             <a 
-              href="https://wa.me/2349131352366" 
+              href="https://wa.me/2349052740695" 
               className="flex items-center justify-center gap-3 bg-emerald-500 text-white w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-emerald-400 transition-all shadow-xl shadow-emerald-500/10"
             >
               <MessageCircle size={18} /> Chat with Admin

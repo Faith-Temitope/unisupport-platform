@@ -66,7 +66,7 @@ export async function middleware(request: NextRequest) {
   /** * 1. CONFIGURE ADMIN ACCESS
    * Replace with your actual administrative email address.
    */
-  const ADMIN_EMAIL = "nationaldevs@gmail.com"
+  const ADMIN_EMAIL = "vault@getunisupport.xyz"
 
   /**
    * 2. ADMIN SECURITY LOGIC

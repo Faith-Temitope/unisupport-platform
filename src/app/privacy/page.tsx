@@ -100,7 +100,7 @@ export default function PrivacyPolicy() {
                 <UserCheck size={14} /> Secure Payment Gateways
               </li>
               <li className="flex items-center gap-2 border border-white/10 p-4 rounded-2xl bg-white/5">
-                <Lock size={14} /> Vercel (Edge Security)
+                <Lock size={14} /> PXXL (Edge Security)
               </li>
             </ul>
           </section>

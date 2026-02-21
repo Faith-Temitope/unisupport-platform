@@ -10,7 +10,7 @@ import {
   RotateCcw, ShieldAlert, Search, ExternalLink, Bell 
 } from "lucide-react";
 
-const ADMIN_EMAIL = "nationaldevs@gmail.com"; 
+const ADMIN_EMAIL = "vault@getunisupport.xyz"; 
 
 export default function AdminDashboard() {
   const supabase = useMemo(() => createClient(), []);

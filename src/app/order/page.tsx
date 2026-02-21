@@ -96,7 +96,7 @@ function OrderFormContent() {
     return (selectedService.base_price_per_page || 0) * (watch("pages") || 1);
   };
 
-  const whatsappNumber = "2349131352366";
+  const whatsappNumber = "2349052740695";
 
   const processOrder = async (data: OrderFormData, notifyWhatsApp: boolean) => {
     if (!userId) return;
