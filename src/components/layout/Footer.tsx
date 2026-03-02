@@ -50,7 +50,7 @@ export default function Footer() {
         <div className="md:col-span-4">
           <h4 className="text-white font-black mb-8 uppercase text-[10px] tracking-[0.3em] italic">Direct Line</h4>
           <div className="bg-white/5 p-6 rounded-3xl border border-white/10">
-            <p className="text-xs font-bold text-gray-400 mb-4 uppercase tracking-widest">Lagos HQ • Available Nationwide</p>
+            <p className="text-xs font-bold text-gray-400 mb-4 uppercase tracking-widest">Global HQ • Available Worldwide</p>
             <a 
               href="https://wa.me/2349052740695" 
               className="flex items-center justify-center gap-3 bg-emerald-500 text-white w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-emerald-400 transition-all shadow-xl shadow-emerald-500/10"

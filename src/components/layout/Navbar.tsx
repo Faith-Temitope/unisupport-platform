@@ -58,6 +58,7 @@ export default function Navbar() {
     { name: "Experts", href: "/experts" },
     { name: "LMS Support", href: "/lms" },
     { name: "Templates", href: "/resources" },
+    { name: "Insights", href: "/blog" },
     { name: "About", href: "/about" }, // Integrated
     { name: "FAQ", href: "/faq" },     // Integrated
   ];

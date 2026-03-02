@@ -15,7 +15,8 @@ import {
   ChevronLeft,
   Settings,
   Search,
-  X
+  X,
+  AlertTriangle
 } from "lucide-react";
 
 type OrderFormData = {
@@ -60,6 +61,7 @@ function OrderFormContent() {
 
   const selectedServiceName = watch("serviceType");
   const selectedFile = watch("file");
+  const selectedDeadline = watch("deadline");
 
   useEffect(() => {
     async function initializePage() {
@@ -81,7 +83,6 @@ function OrderFormContent() {
     initializePage();
   }, [supabase, router]);
 
-  // FILTERED SERVICES LOGIC
   const filteredServices = useMemo(() => {
     return dbServices.filter(s => 
       s.title.toLowerCase().includes(searchTerm.toLowerCase())
@@ -90,11 +91,28 @@ function OrderFormContent() {
 
   const selectedService = dbServices.find(s => s.title === selectedServiceName);
   
+  // CALCULATE SURCHARGE & TOTAL
   const calculateEstimate = () => {
-    if (isCustomQuote) return 0; 
-    if (!selectedService) return 0;
-    return (selectedService.base_price_per_page || 0) * (watch("pages") || 1);
+    if (isCustomQuote || !selectedService) return 0;
+    
+    let basePrice = (selectedService.base_price_per_page || 0) * (watch("pages") || 1);
+    
+    // URGENCY CHECK: Less than 48 hours?
+    if (selectedDeadline) {
+      const hoursLeft = (new Date(selectedDeadline).getTime() - new Date().getTime()) / (1000 * 60 * 60);
+      if (hoursLeft > 0 && hoursLeft < 48) {
+        basePrice = basePrice * 1.25; // 25% Surcharge
+      }
+    }
+    
+    return basePrice;
   };
+
+  const isUrgent = useMemo(() => {
+    if (!selectedDeadline) return false;
+    const hoursLeft = (new Date(selectedDeadline).getTime() - new Date().getTime()) / (1000 * 60 * 60);
+    return hoursLeft > 0 && hoursLeft < 48;
+  }, [selectedDeadline]);
 
   const whatsappNumber = "2349052740695";
 
@@ -135,7 +153,7 @@ function OrderFormContent() {
 
       if (notifyWhatsApp) {
         const priceLabel = isCustomQuote ? "Awaiting Custom Quote" : `₦${total.toLocaleString()}`;
-        const message = `*NEW VAULT DEPLOYMENT*%0A*ID:* ${newOrder.id.slice(0, 8)}%0A*Client:* ${data.name}%0A*Service:* ${urlService || data.serviceType}%0A*Price:* ${priceLabel}`;
+        const message = `*NEW VAULT DEPLOYMENT*%0A*ID:* ${newOrder.id.slice(0, 8)}%0A*Client:* ${data.name}%0A*Service:* ${urlService || data.serviceType}%0A*Price:* ${priceLabel}%0A*Urgent:* ${isUrgent ? 'YES' : 'NO'}`;
         window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`, "_blank");
       }
 
@@ -160,11 +178,11 @@ function OrderFormContent() {
           <ChevronLeft size={14} /> Back to Terminal
         </button>
 
-        <div className="bg-white p-8 md:p-16 rounded-[4rem] border border-gray-100 shadow-2xl relative">
+        <div className="bg-white p-8 md:p-16 rounded-[4rem] border border-gray-100 shadow-2xl relative overflow-hidden">
           <header className="mb-12">
             <div className="flex items-center gap-2 text-emerald-600 mb-4 font-black uppercase tracking-widest text-[10px]">
               {isCustomQuote ? <Settings size={14} className="animate-spin" /> : <ShieldCheck size={14} />} 
-              {isCustomQuote ? `Configure: ${urlService}` : "Automated Price Calculation"}
+              {isCustomQuote ? `Configure: ${urlService}` : "Secure Node Deployment"}
             </div>
             <h1 className="text-5xl md:text-7xl font-black mb-4 text-gray-900 tracking-tighter italic uppercase leading-[0.85]">
               {isCustomQuote ? "Initialize" : "Secure"} <br /><span className="text-emerald-500">{isCustomQuote ? "Project." : "The Vault."}</span>
@@ -177,7 +195,6 @@ function OrderFormContent() {
               <input {...register("phone")} required className="form-input-custom" placeholder="WhatsApp Number" />
             </div>
 
-            {/* SEARCHABLE SERVICE SELECTOR */}
             {!isCustomQuote && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="relative">
@@ -197,12 +214,11 @@ function OrderFormContent() {
                         <Search size={14} className="text-emerald-500" />
                         <input 
                           autoFocus
-                          placeholder="Type to search 200+ services..." 
+                          placeholder="Type to search..." 
                           className="w-full outline-none text-sm font-bold bg-transparent"
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
                         />
-                        {searchTerm && <X size={14} className="cursor-pointer" onClick={() => setSearchTerm("")} />}
                       </div>
                       <div className="max-h-60 overflow-y-auto custom-scrollbar">
                         {filteredServices.length > 0 ? (
@@ -234,7 +250,6 @@ function OrderFormContent() {
               </div>
             )}
 
-            {/* File Upload Zone */}
             <div className="relative group border-2 border-dashed border-gray-200 rounded-4xl p-10 flex flex-col items-center justify-center hover:border-emerald-500 hover:bg-emerald-50/30 transition-all cursor-pointer">
               <input type="file" {...register("file")} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
               {selectedFile?.[0] ? (
@@ -245,13 +260,12 @@ function OrderFormContent() {
               ) : (
                 <>
                   <UploadCloud className="text-gray-300 mb-2" size={40} />
-                  <p className="text-sm font-bold text-gray-400">Attach Briefing Materials</p>
+                  <p className="text-sm font-bold text-gray-400 uppercase tracking-widest text-[10px]">Attach Briefing Materials</p>
                 </>
               )}
             </div>
 
-            {/* Project Specs */}
-            <div className={`grid grid-cols-1 ${isCustomQuote ? 'md:grid-cols-1' : 'md:grid-cols-2'} gap-6 p-8 bg-gray-900 rounded-[3rem] text-white`}>
+            <div className={`grid grid-cols-1 ${isCustomQuote ? 'md:grid-cols-1' : 'md:grid-cols-2'} gap-6 p-8 bg-gray-900 rounded-[3rem] text-white relative`}>
               {!isCustomQuote && (
                 <div className="space-y-2">
                   <label className="text-[9px] font-black uppercase tracking-widest text-gray-400">Volume (Pages)</label>
@@ -262,9 +276,16 @@ function OrderFormContent() {
                 <label className="text-[9px] font-black uppercase tracking-widest text-gray-400">Submission Deadline</label>
                 <input type="date" {...register("deadline")} required className="w-full bg-white/10 p-4 rounded-xl outline-none font-bold" />
               </div>
+              
+              {isUrgent && (
+                <div className="absolute -top-4 -right-4 bg-orange-500 text-white px-4 py-2 rounded-full flex items-center gap-2 animate-pulse shadow-lg">
+                  <AlertTriangle size={14} />
+                  <span className="text-[9px] font-black uppercase tracking-widest">Rapid Deployment Activated</span>
+                </div>
+              )}
             </div>
 
-            <textarea {...register("description")} rows={4} required className="form-input-custom w-full" placeholder="Enter all specific instructions..."></textarea>
+            <textarea {...register("description")} rows={4} required className="form-input-custom w-full" placeholder="Project brief..."></textarea>
 
             <div className="pt-10 border-t border-gray-100 flex flex-col gap-8">
               <div className="flex justify-between items-end">
@@ -273,27 +294,35 @@ function OrderFormContent() {
                     {isCustomQuote ? "MANUAL QUOTE" : `₦${calculateEstimate().toLocaleString()}`}
                   </p>
                   <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest flex items-center gap-1 mt-2">
-                    <Info size={12}/> {isCustomQuote ? "Expert review required" : "Estimated investment"}
+                    <Info size={12}/> {isUrgent ? "+25% Priority Surcharge Included" : "Standard Estimated investment"}
                   </p>
                 </div>
               </div>
 
+              {/* ACTION BUTTONS: REDESIGNED FOR CLARITY */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <button 
                   type="button"
                   disabled={isSubmitting}
                   onClick={handleSubmit((data) => processOrder(data, false))}
-                  className="px-8 py-6 bg-gray-100 text-gray-900 rounded-3xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 hover:bg-gray-200 transition-all disabled:opacity-50"
+                  className="px-8 py-6 bg-gray-100 text-gray-900 rounded-3xl font-black uppercase text-[10px] tracking-widest flex flex-col items-center justify-center gap-1 hover:bg-gray-200 transition-all disabled:opacity-50 border border-gray-200"
                 >
-                  <Database size={16} /> Save to Vault
+                  <div className="flex items-center gap-2">
+                    <Database size={16} /> Submit Only
+                  </div>
+                  <span className="text-[8px] opacity-60 normal-case font-bold italic">Process through my dashboard</span>
                 </button>
+
                 <button 
                   type="button"
                   disabled={isSubmitting}
                   onClick={handleSubmit((data) => processOrder(data, true))}
-                  className="px-8 py-6 bg-emerald-600 text-white rounded-3xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 hover:bg-emerald-700 shadow-xl shadow-emerald-600/20 transition-all disabled:opacity-50"
+                  className="px-8 py-6 bg-emerald-600 text-white rounded-3xl font-black uppercase text-[10px] tracking-widest flex flex-col items-center justify-center gap-1 hover:bg-emerald-700 shadow-xl shadow-emerald-600/20 transition-all disabled:opacity-50"
                 >
-                  <MessageCircle size={16} /> Vault + WhatsApp
+                  <div className="flex items-center gap-2">
+                    <MessageCircle size={16} /> Submit & Start Chat
+                  </div>
+                  <span className="text-[8px] text-emerald-100 normal-case font-bold italic">Get immediate support via WhatsApp</span>
                 </button>
               </div>
             </div>

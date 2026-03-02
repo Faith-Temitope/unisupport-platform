@@ -141,56 +141,83 @@ export default function HomePage() {
       </section>
 
       {/* 3. NAVIGATION GUIDE */}
+      {/* 3. NAVIGATION GUIDE */}
       <section className="py-32 bg-gray-50/50 border-y border-gray-100">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center max-w-3xl mx-auto mb-24">
-              <span className="text-emerald-600 font-black uppercase tracking-[0.4em] text-[10px] mb-4 block">Academic Workflow</span>
+              <span className="text-emerald-600 font-black uppercase tracking-[0.4em] text-[10px] mb-4 block">Operational Protocol</span>
               <h2 className="text-5xl md:text-7xl font-black uppercase italic tracking-tighter mb-6">How to Navigate.</h2>
               <p className="text-gray-500 font-bold italic text-lg leading-relaxed">
-                Our protocol is designed for students. From the first click to the final submission-ready asset, here is how we handle your research.
+                Our workflow is automated for speed and human-verified for quality. From onboarding to final download, here is the Vault protocol.
               </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-             <div className="bg-white p-8 rounded-[3rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group">
-                <div className="w-14 h-14 bg-gray-900 text-white rounded-2xl flex items-center justify-center mb-8 text-xl font-black italic group-hover:bg-emerald-600 transition-colors">
-                  <MousePointerClick size={24} />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+              {/* STEP 1: AUTH */}
+              <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group">
+                <div className="w-12 h-12 bg-gray-900 text-white rounded-2xl flex items-center justify-center mb-6 text-xl font-black italic group-hover:bg-emerald-600 transition-colors">
+                  <User size={20} />
                 </div>
-                <h3 className="text-xl font-black uppercase italic mb-4">01. Briefing</h3>
-                <p className="text-gray-500 text-sm font-medium leading-relaxed mb-4">
-                  Select your academic level and assign a specific writer or use <strong>Smart-Match</strong> for your discipline.
+                <h3 className="text-sm font-black uppercase italic mb-2">01. Join</h3>
+                <p className="text-gray-500 text-[11px] font-medium leading-relaxed">
+                  Sign up and <span className="text-emerald-600 font-bold">confirm your email</span> to activate your encrypted portal.
                 </p>
-             </div>
+              </div>
 
-             <div className="bg-white p-8 rounded-[3rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group">
-                <div className="w-14 h-14 bg-gray-900 text-white rounded-2xl flex items-center justify-center mb-8 text-xl font-black italic group-hover:bg-emerald-600 transition-colors">
-                  <Lock size={24} />
+              {/* STEP 2: THE FORM */}
+              <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group">
+                <div className="w-12 h-12 bg-gray-900 text-white rounded-2xl flex items-center justify-center mb-6 text-xl font-black italic group-hover:bg-emerald-600 transition-colors">
+                  <BookOpen size={20} />
                 </div>
-                <h3 className="text-xl font-black uppercase italic mb-4">02. Security</h3>
-                <p className="text-gray-500 text-sm font-medium leading-relaxed mb-4">
-                  Your requirements are stored in the <strong>Encrypted Vault</strong>. We maintain 100% student confidentiality.
+                <h3 className="text-sm font-black uppercase italic mb-2">02. Briefing</h3>
+                <p className="text-gray-500 text-[11px] font-medium leading-relaxed">
+                  Choose your service, deadline, and <span className="text-emerald-600 font-bold">attach reference files</span> for our writers.
                 </p>
-             </div>
+              </div>
 
-             <div className="bg-white p-8 rounded-[3rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group">
-                <div className="w-14 h-14 bg-gray-900 text-white rounded-2xl flex items-center justify-center mb-8 text-xl font-black italic group-hover:bg-emerald-600 transition-colors">
-                  <CreditCard size={24} />
+              {/* STEP 3: WRITER ASSIGNMENT */}
+              <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group">
+                <div className="w-12 h-12 bg-gray-900 text-white rounded-2xl flex items-center justify-center mb-6 text-xl font-black italic group-hover:bg-emerald-600 transition-colors">
+                  <User size={20} />
                 </div>
-                <h3 className="text-xl font-black uppercase italic mb-4">03. Activation</h3>
-                <p className="text-gray-500 text-sm font-medium leading-relaxed">
-                  A <strong>50% deposit</strong> triggers the research phase. Track progress in real-time via your dashboard.
+                <h3 className="text-sm font-black uppercase italic mb-2">03. Pairing</h3>
+                <p className="text-gray-500 text-[11px] font-medium leading-relaxed">
+                  Select a preferred expert or let the system <span className="text-emerald-600 font-bold">Auto-Assign</span> the best discipline specialist.
                 </p>
-             </div>
+              </div>
 
-             <div className="bg-emerald-600 p-8 rounded-[3rem] text-white shadow-2xl shadow-emerald-600/20 group">
-                <div className="w-14 h-14 bg-white text-emerald-600 rounded-2xl flex items-center justify-center mb-8 text-xl font-black italic">
-                  <Download size={24} />
+              {/* STEP 4: DEPOSIT */}
+              <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group">
+                <div className="w-12 h-12 bg-gray-900 text-white rounded-2xl flex items-center justify-center mb-6 text-xl font-black italic group-hover:bg-emerald-600 transition-colors">
+                  <CreditCard size={20} />
                 </div>
-                <h3 className="text-xl font-black uppercase italic mb-4">04. Delivery</h3>
-                <p className="text-emerald-50 text-sm font-medium leading-relaxed mb-4">
-                  Review your <strong>Research Draft</strong>. Settle the balance to download the final submission-ready file.
+                <h3 className="text-sm font-black uppercase italic mb-2">04. Deposit</h3>
+                <p className="text-gray-500 text-[11px] font-medium leading-relaxed">
+                  A <span className="text-emerald-600 font-bold">50% Deposit</span> initiates the research. You'll be notified of progress in real-time.
                 </p>
-             </div>
+              </div>
+
+              {/* STEP 5: PREVIEW */}
+              <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group">
+                <div className="w-12 h-12 bg-gray-900 text-white rounded-2xl flex items-center justify-center mb-6 text-xl font-black italic group-hover:bg-emerald-600 transition-colors">
+                  <Lock size={20} />
+                </div>
+                <h3 className="text-sm font-black uppercase italic mb-2">05. Preview</h3>
+                <p className="text-gray-500 text-[11px] font-medium leading-relaxed">
+                  Review a watermarked <span className="text-emerald-600 font-bold">Draft Preview</span>. Request adjustments or proceed to final.
+                </p>
+              </div>
+
+              {/* STEP 6: DOWNLOAD */}
+              <div className="bg-emerald-600 p-6 rounded-[2.5rem] text-white shadow-2xl shadow-emerald-600/20 group">
+                <div className="w-12 h-12 bg-white text-emerald-600 rounded-2xl flex items-center justify-center mb-6 text-xl font-black italic">
+                  <Download size={20} />
+                </div>
+                <h3 className="text-sm font-black uppercase italic mb-2">06. Settle</h3>
+                <p className="text-emerald-50 text-[11px] font-medium leading-relaxed">
+                  Pay the balance to <span className="font-bold underline">Unlock & Download</span> your final submission-ready assets.
+                </p>
+              </div>
           </div>
         </div>
       </section>
