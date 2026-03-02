@@ -11,7 +11,8 @@ import {
   ShieldCheck, 
   Users, 
   ChevronLeft,
-  Fingerprint
+  Fingerprint,
+  Loader2
 } from "lucide-react";
 
 function AuthForm() {
@@ -44,14 +45,15 @@ function AuthForm() {
         router.push(callback); 
       }
     } else {
-      // --- SIGNUP LOGIC ---
+      // --- SIGNUP LOGIC (SYNCHRONIZED WITH SQL TRIGGER) ---
       const { error, data } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: { 
             full_name: fullName,
-            referred_by_code: referralCode 
+            // CRITICAL: Key must be 'referral_code' to trigger the ₦1,000 bonus in SQL
+            referral_code: referralCode 
           }
         }
       });
@@ -60,7 +62,7 @@ function AuthForm() {
         alert(error.message);
         setLoading(false);
       } else {
-        // If Supabase is configured to require email confirmation, session will be null
+        // Handle Email Confirmation Flow
         if (data.user && !data.session) {
           setIsSubmitted(true);
         } else {
@@ -70,12 +72,10 @@ function AuthForm() {
     }
   };
 
-  // --- STATE 1: VERIFICATION UI (Shown after 'Join') ---
   if (isSubmitted) {
     return (
       <div className="max-w-md w-full animate-in fade-in zoom-in duration-500">
         <div className="bg-white p-10 md:p-12 rounded-[3.5rem] shadow-2xl border-2 border-emerald-500/10 text-center relative overflow-hidden">
-          {/* Decorative background element */}
           <div className="absolute top-0 left-0 w-full h-2 bg-emerald-500" />
           
           <div className="w-20 h-20 bg-emerald-50 rounded-3xl flex items-center justify-center text-emerald-600 mx-auto mb-8 shadow-inner">
@@ -93,9 +93,6 @@ function AuthForm() {
             <div className="bg-gray-50 py-3 px-4 rounded-2xl border border-gray-100 inline-block">
               <span className="text-gray-900 font-black text-sm">{email}</span>
             </div>
-            <p className="text-gray-400 font-medium text-[11px] leading-relaxed px-6">
-              Please check your inbox and spam folder. You must confirm your identity before accessing the Vault.
-            </p>
           </div>
 
           <button 
@@ -109,10 +106,8 @@ function AuthForm() {
     );
   }
 
-  // --- STATE 2: AUTH FORM UI ---
   return (
     <div className="max-w-md w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
-        {/* Brand Header */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-12 h-12 bg-gray-900 text-emerald-500 rounded-2xl mb-4 shadow-xl">
              <Fingerprint size={28} />
@@ -120,21 +115,20 @@ function AuthForm() {
           <h1 className="text-4xl font-black uppercase italic tracking-tighter text-gray-900">
             uniSupport<span className="text-emerald-500">.xyz</span>
           </h1>
-          <p className="text-gray-400 font-bold text-[10px] uppercase tracking-[0.3em] mt-2">
+          <p className="text-gray-400 font-bold text-[10px] uppercase tracking-[0.3em] mt-2 leading-tight">
             Secure Academic Intelligence Portal
           </p>
         </div>
 
         <div className="bg-white p-10 md:p-12 rounded-[3.5rem] shadow-2xl border border-gray-100 relative">
-          {/* Referral Badge */}
+          {/* Referral Badge - Only shown on Join */}
           {referralCode && !isLogin && (
-            <div className="mb-6 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-3">
-              <Users className="text-emerald-600" size={16} />
-              <p className="text-[10px] font-black uppercase text-emerald-700">Agent Referral Active: {referralCode}</p>
+            <div className="mb-6 p-4 bg-emerald-600 text-white rounded-2xl flex items-center gap-3 animate-pulse">
+              <Users size={16} />
+              <p className="text-[10px] font-black uppercase tracking-widest">Commission Link Active</p>
             </div>
           )}
 
-          {/* Tab Switcher */}
           <div className="flex gap-4 mb-10 p-2 bg-gray-50 rounded-2xl">
             <button 
               onClick={() => setIsLogin(true)}
@@ -162,7 +156,7 @@ function AuthForm() {
                     onChange={(e) => setFullName(e.target.value)}
                     required={!isLogin}
                     className="w-full p-5 pl-14 rounded-2xl border border-gray-100 bg-gray-50/50 outline-none font-bold focus:bg-white focus:ring-4 focus:ring-emerald-500/10 transition-all text-sm" 
-                    placeholder="e.g. Samuel Adekunle" 
+                    placeholder="Samuel Adekunle" 
                   />
                 </div>
               </div>
@@ -203,8 +197,8 @@ function AuthForm() {
               disabled={loading}
               className="w-full py-5 bg-gray-900 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-emerald-600 transition-all flex items-center justify-center gap-3 shadow-xl active:scale-95 disabled:opacity-50"
             >
-              {loading ? "Processing..." : isLogin ? "Access My Vault" : "Initialize Identity"}
-              <ArrowRight size={18} />
+              {loading ? <Loader2 className="animate-spin" size={18} /> : isLogin ? "Access My Vault" : "Initialize Identity"}
+              {!loading && <ArrowRight size={18} />}
             </button>
           </form>
 
@@ -216,7 +210,6 @@ function AuthForm() {
   );
 }
 
-// --- MAIN EXPORT WITH SUSPENSE BOUNDARY ---
 export default function AuthPage() {
   return (
     <main className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-20">
