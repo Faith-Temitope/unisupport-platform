@@ -8,11 +8,6 @@ import {
   Search, 
   ArrowLeft, 
   BookOpen, 
-  GraduationCap, 
-  Microscope, 
-  Scale, 
-  Briefcase,
-  Tag,
   Clock,
   ArrowRight
 } from "lucide-react";
@@ -101,7 +96,10 @@ function ServiceDirectoryCard({ service }: { service: any }) {
             </div>
             <div className="flex flex-col items-end">
               <span className="text-[9px] font-black uppercase tracking-tighter text-gray-300">{service.category}</span>
-              <span className="text-emerald-600 font-black text-sm">₦{service.base_price_per_page}/pg</span>
+              {/* Updated to USD with 2 decimal places */}
+              <span className="text-emerald-600 font-black text-sm">
+                ${Number(service.base_price_per_page || 0).toFixed(2)}/pg
+              </span>
             </div>
           </div>
           <h3 className="text-2xl font-black uppercase italic mb-3 group-hover:text-emerald-600 transition-colors line-clamp-1">{service.title}</h3>

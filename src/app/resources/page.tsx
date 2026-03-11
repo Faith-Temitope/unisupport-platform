@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase";
-import { FileText, Download, Search, Loader2 } from "lucide-react";
+import { FileText, Download, Search, Loader2, Eye, X } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import FadeIn from "@/components/ui/FadeIn";
-import DownloadGate from "@/components/resources/DownloadGate"; // Import the gate we built
+import DownloadGate from "@/components/resources/DownloadGate";
 import Link from "next/link";
 
 export default function TemplateLibrary() {
@@ -16,8 +16,9 @@ export default function TemplateLibrary() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   
-  // Modal State for Lead Capture
-  const [activeTemplate, setActiveTemplate] = useState<any>(null);
+  // MODAL STATES
+  const [activeTemplate, setActiveTemplate] = useState<any>(null); // For DownloadGate
+  const [previewTemplate, setPreviewTemplate] = useState<any>(null); // For Quick Preview
 
   useEffect(() => {
     async function fetchTemplates() {
@@ -35,12 +36,6 @@ export default function TemplateLibrary() {
     (t.title.toLowerCase().includes(search.toLowerCase()))
   );
 
-  // Triggered when user clicks "Download"
-  const handleDownloadClick = (template: any) => {
-    setActiveTemplate(template);
-  };
-
-  // Triggered after user enters email in the DownloadGate
   const executeDownload = () => {
     if (activeTemplate) {
       const link = document.createElement("a");
@@ -49,15 +44,62 @@ export default function TemplateLibrary() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      setActiveTemplate(null); // Close modal
+      setActiveTemplate(null);
     }
   };
 
   return (
     <main className="bg-white min-h-screen">
-      {/* <Navbar /> */}
+      {/* 1. PREVIEW MODAL (The Peek) */}
+      {previewTemplate && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-300">
+          <div className="absolute inset-0 bg-gray-900/90 backdrop-blur-xl" onClick={() => setPreviewTemplate(null)} />
+          <div className="relative w-full max-w-5xl bg-white rounded-[3rem] overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">{previewTemplate.category}</span>
+                <h2 className="text-xl font-black uppercase italic tracking-tight">{previewTemplate.title} — Preview</h2>
+              </div>
+              <button onClick={() => setPreviewTemplate(null)} className="p-3 bg-gray-50 rounded-2xl hover:bg-red-50 hover:text-red-500 transition-all">
+                <X size={20} />
+              </button>
+            </div>
 
-      {/* LEAD CAPTURE MODAL */}
+            {/* Content Area */}
+            <div className="flex-1 overflow-y-auto p-8 bg-gray-50/50">
+              {previewTemplate.preview_url ? (
+                <img 
+                  src={previewTemplate.preview_url} 
+                  alt="Preview" 
+                  className="w-full h-auto rounded-2xl shadow-lg border border-gray-200"
+                />
+              ) : (
+                <div className="bg-white p-12 rounded-3xl border border-gray-200 shadow-sm min-h-[600px] whitespace-pre-wrap font-serif text-gray-700 leading-relaxed">
+                  {/* Fallback to text content if no image exists */}
+                  {previewTemplate.content_preview || "Detailed structure preview loading..."}
+                </div>
+              )}
+            </div>
+
+            {/* Footer Action */}
+            <div className="p-8 border-t border-gray-100 bg-white flex flex-col md:flex-row gap-4 items-center justify-between">
+              <p className="text-xs text-gray-400 italic font-bold">Ready to use this blueprint for your project?</p>
+              <button 
+                onClick={() => {
+                  setPreviewTemplate(null);
+                  setActiveTemplate(previewTemplate);
+                }}
+                className="w-full md:w-auto px-12 py-5 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-gray-900 transition-all flex items-center justify-center gap-3"
+              >
+                Unlock Full Access <Download size={18} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. DOWNLOAD GATE MODAL */}
       {activeTemplate && (
         <DownloadGate 
           template={activeTemplate} 
@@ -122,6 +164,13 @@ export default function TemplateLibrary() {
                     <div className="absolute inset-0 flex items-center justify-center opacity-20 group-hover:scale-110 transition-transform duration-700">
                         <FileText size={80} className="text-gray-900" />
                     </div>
+                    {/* Floating Preview Button */}
+                    <button 
+                      onClick={() => setPreviewTemplate(template)}
+                      className="absolute top-6 right-6 p-4 bg-white rounded-2xl shadow-xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 text-emerald-600 hover:bg-gray-900 hover:text-white"
+                    >
+                      <Eye size={20} />
+                    </button>
                     <div className="absolute top-6 left-6 px-4 py-1.5 bg-white/90 backdrop-blur rounded-full text-[9px] font-black uppercase tracking-widest">
                         {template.category}
                     </div>
@@ -134,9 +183,8 @@ export default function TemplateLibrary() {
                     {template.description || "Professional academic structure and formatting guide."}
                   </p>
                   
-                  {/* Updated: This now triggers the modal instead of direct download */}
                   <button 
-                    onClick={() => handleDownloadClick(template)}
+                    onClick={() => setActiveTemplate(template)}
                     className="flex items-center justify-between w-full p-6 bg-gray-50 group-hover:bg-emerald-600 group-hover:text-white rounded-2xl transition-all duration-300"
                   >
                     <span className="text-[10px] font-black uppercase tracking-widest">Download Asset</span>

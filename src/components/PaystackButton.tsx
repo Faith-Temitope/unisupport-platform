@@ -25,8 +25,9 @@ export default function PaystackButton({
   const config = {
     reference: `VAULT_${Math.floor(Math.random() * 1000000000 + 1)}`,
     email: userEmail || "",
-    amount: Math.round(amount * 100), // Kobo conversion
+    amount: Math.round(amount * 100), // Converted to Cents for USD
     publicKey: publicKey,
+    currency: "USD", // Explicitly set to USD for global transactions
     metadata: {
       custom_fields: [
         {
@@ -48,14 +49,17 @@ export default function PaystackButton({
     }
   };
 
+  // Prevent hook initialization if config is invalid
   const initializePayment = usePaystackPayment(config);
 
-  // Error check for missing API Key (Common in deployment)
-  if (!publicKey || publicKey === "") {
+  // Error check for missing API Key or User Email
+  if (!publicKey || publicKey === "" || !userEmail) {
     return (
       <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-2 text-red-600">
         <AlertTriangle size={16} />
-        <span className="text-[10px] font-black uppercase tracking-tighter">Missing Live API Key</span>
+        <span className="text-[10px] font-black uppercase tracking-tighter">
+          {!publicKey ? "Missing API Key" : "User Identity Required"}
+        </span>
       </div>
     );
   }
@@ -65,14 +69,8 @@ export default function PaystackButton({
       <button 
         type="button"
         onClick={() => {
-          if (!userEmail) {
-            alert("Security Error: No user identity found. Please log in.");
-            return;
-          }
-          
           initializePayment({
             onSuccess: (reference: any) => {
-              // We pass the reference string back to the dashboard to update Supabase
               onSuccess(reference.reference);
             },
             onClose: () => console.log("Vault: Payment session terminated by user.")
@@ -98,7 +96,7 @@ export default function PaystackButton({
       <div className="flex items-center justify-center gap-1.5 mt-4 opacity-40">
         <ShieldCheck size={10} className="text-emerald-600" />
         <span className="text-[7px] font-black uppercase tracking-[0.25em] text-gray-500">
-          Military-Grade PCI-DSS Payment Encryption
+          Secure Global USD Transaction • PCI-DSS
         </span>
       </div>
     </div>

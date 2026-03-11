@@ -52,7 +52,7 @@ function AuthForm() {
         options: {
           data: { 
             full_name: fullName,
-            // CRITICAL: Key must be 'referral_code' to trigger the ₦1,000 bonus in SQL
+            // Pass referral_code to raw_user_meta_data for the SQL trigger
             referral_code: referralCode 
           }
         }
@@ -125,7 +125,7 @@ function AuthForm() {
           {referralCode && !isLogin && (
             <div className="mb-6 p-4 bg-emerald-600 text-white rounded-2xl flex items-center gap-3 animate-pulse">
               <Users size={16} />
-              <p className="text-[10px] font-black uppercase tracking-widest">Commission Link Active</p>
+              <p className="text-[10px] font-black uppercase tracking-widest">Growth Link Active: 10% Discount Pending</p>
             </div>
           )}
 

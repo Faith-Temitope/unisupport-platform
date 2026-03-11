@@ -122,7 +122,7 @@ export default function HomePage() {
               <ShieldCheck size={12} /> The Gold Standard in Academic Research
             </div>
             <h1 className="text-6xl md:text-[10rem] font-black text-gray-900 mb-8 tracking-tighter uppercase italic leading-[0.8]">
-              The <span className="text-emerald-600">Vault.</span>
+              Uni<span className="text-emerald-600">Support.</span>
             </h1>
             <p className="text-xl md:text-2xl text-gray-500 max-w-3xl mx-auto mb-12 font-bold italic leading-tight">
               From Undergraduate Essays to PhD Dissertations. <br className="hidden md:block"/>

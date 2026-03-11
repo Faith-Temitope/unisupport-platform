@@ -15,8 +15,8 @@ import {
   ChevronLeft,
   Settings,
   Search,
-  X,
-  AlertTriangle
+  AlertTriangle,
+  Percent
 } from "lucide-react";
 
 type OrderFormData = {
@@ -40,9 +40,9 @@ function OrderFormContent() {
   const [availableWriters, setAvailableWriters] = useState<any[]>([]);
   const [dbServices, setDbServices] = useState<any[]>([]); 
   const [userId, setUserId] = useState<string | null>(null);
+  const [referralCount, setReferralCount] = useState(0);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-  // SEARCH LOGIC STATES
   const [searchTerm, setSearchTerm] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
@@ -62,6 +62,7 @@ function OrderFormContent() {
   const selectedServiceName = watch("serviceType");
   const selectedFile = watch("file");
   const selectedDeadline = watch("deadline");
+  const pageCount = watch("pages");
 
   useEffect(() => {
     async function initializePage() {
@@ -72,11 +73,16 @@ function OrderFormContent() {
       }
       setUserId(user.id);
 
-      const { data: writers } = await supabase.from('writers').select('id, name').eq('is_available', true);
-      if (writers) setAvailableWriters(writers);
+      // Parallel fetch: Writers, Services, and Referral Count
+      const [writersRes, servicesRes, referralsRes] = await Promise.all([
+        supabase.from('writers').select('id, name').eq('is_available', true),
+        supabase.from('services').select('*').order('title'),
+        supabase.from('referrals').select('*', { count: 'exact', head: true }).eq('referrer_id', user.id).eq('status', 'completed')
+      ]);
 
-      const { data: services } = await supabase.from('services').select('*').order('title');
-      if (services) setDbServices(services);
+      if (writersRes.data) setAvailableWriters(writersRes.data);
+      if (servicesRes.data) setDbServices(servicesRes.data);
+      if (referralsRes.count !== null) setReferralCount(referralsRes.count);
 
       setIsCheckingAuth(false);
     }
@@ -91,22 +97,28 @@ function OrderFormContent() {
 
   const selectedService = dbServices.find(s => s.title === selectedServiceName);
   
-  // CALCULATE SURCHARGE & TOTAL
   const calculateEstimate = () => {
-    if (isCustomQuote || !selectedService) return 0;
+    if (isCustomQuote || !selectedService) return { subtotal: 0, discount: 0, total: 0 };
     
-    let basePrice = (selectedService.base_price_per_page || 0) * (watch("pages") || 1);
+    let basePrice = (selectedService.base_price_per_page || 0) * (pageCount || 1);
     
-    // URGENCY CHECK: Less than 48 hours?
+    // Rush Surcharge
     if (selectedDeadline) {
       const hoursLeft = (new Date(selectedDeadline).getTime() - new Date().getTime()) / (1000 * 60 * 60);
       if (hoursLeft > 0 && hoursLeft < 48) {
-        basePrice = basePrice * 1.25; // 25% Surcharge
+        basePrice = basePrice * 1.25; 
       }
     }
+
+    // Apply 10% discount per referral
+    const discountPercentage = (referralCount * 10) / 100;
+    const discountAmount = basePrice * discountPercentage;
+    const finalTotal = Math.max(0, basePrice - discountAmount);
     
-    return basePrice;
+    return { subtotal: basePrice, discount: discountAmount, total: finalTotal };
   };
+
+  const pricing = calculateEstimate();
 
   const isUrgent = useMemo(() => {
     if (!selectedDeadline) return false;
@@ -130,7 +142,7 @@ function OrderFormContent() {
         uploadedFilePath = filePath;
       }
 
-      const total = calculateEstimate();
+      const { total } = calculateEstimate();
 
       const { data: newOrder, error: orderError } = await supabase
         .from('orders')
@@ -152,7 +164,7 @@ function OrderFormContent() {
       if (orderError) throw orderError;
 
       if (notifyWhatsApp) {
-        const priceLabel = isCustomQuote ? "Awaiting Custom Quote" : `₦${total.toLocaleString()}`;
+        const priceLabel = isCustomQuote ? "Awaiting Custom Quote" : `$${total.toFixed(2)}`;
         const message = `*NEW VAULT DEPLOYMENT*%0A*ID:* ${newOrder.id.slice(0, 8)}%0A*Client:* ${data.name}%0A*Service:* ${urlService || data.serviceType}%0A*Price:* ${priceLabel}%0A*Urgent:* ${isUrgent ? 'YES' : 'NO'}`;
         window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`, "_blank");
       }
@@ -290,8 +302,16 @@ function OrderFormContent() {
             <div className="pt-10 border-t border-gray-100 flex flex-col gap-8">
               <div className="flex justify-between items-end">
                 <div>
+                  {referralCount > 0 && !isCustomQuote && (
+                    <div className="flex items-center gap-2 text-emerald-600 mb-2">
+                      <Percent size={14} className="animate-bounce" />
+                      <p className="text-[10px] font-black uppercase tracking-widest italic">
+                        Loyalty Discount Applied: -${pricing.discount.toFixed(2)} ({referralCount * 10}%)
+                      </p>
+                    </div>
+                  )}
                   <p className="text-4xl font-black text-emerald-600 italic leading-none">
-                    {isCustomQuote ? "MANUAL QUOTE" : `₦${calculateEstimate().toLocaleString()}`}
+                    {isCustomQuote ? "MANUAL QUOTE" : `$${pricing.total.toFixed(2)}`}
                   </p>
                   <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest flex items-center gap-1 mt-2">
                     <Info size={12}/> {isUrgent ? "+25% Priority Surcharge Included" : "Standard Estimated investment"}
@@ -299,7 +319,6 @@ function OrderFormContent() {
                 </div>
               </div>
 
-              {/* ACTION BUTTONS: REDESIGNED FOR CLARITY */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <button 
                   type="button"
@@ -322,7 +341,7 @@ function OrderFormContent() {
                   <div className="flex items-center gap-2">
                     <MessageCircle size={16} /> Submit & Start Chat
                   </div>
-                  <span className="text-[8px] text-emerald-100 normal-case font-bold italic">Get immediate support via WhatsApp</span>
+                  <span className="text-[8px] text-emerald-100 normal-case font-bold italic">Get support via WhatsApp</span>
                 </button>
               </div>
             </div>
