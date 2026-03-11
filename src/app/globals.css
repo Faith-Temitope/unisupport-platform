@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-@plugin "@tailwindcss/typography"; /* Add this line here */
+@plugin "@tailwindcss/typography";
 
 /* src/app/globals.css */
 @layer base {
