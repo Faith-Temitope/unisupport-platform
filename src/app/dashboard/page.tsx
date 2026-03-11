@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase";
 import { 
   Clock, Download, Loader2, ShieldCheck, AlertCircle, Edit3, User, Phone,
-  CheckCircle, Copy, Share2, Save, X, Percent, Tag
+  CheckCircle, Copy, Share2, Save, X, Percent
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import dynamic from 'next/dynamic';
@@ -34,7 +34,6 @@ export default function UserDashboard() {
     if (!authUser) return router.push("/auth");
     setUser(authUser);
 
-    // Fetch Profile, Orders, and count successful referrals
     const [profileRes, ordersRes, referralCountRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", authUser.id).single(),
       supabase.from("orders")
@@ -61,40 +60,67 @@ export default function UserDashboard() {
 
   useEffect(() => {
     getDashboardData();
+  }, [getDashboardData]);
+
+  // FIXED: Robust Copy Function for Mobile & Desktop
+  const copyReferral = async () => {
+    const link = `https://getunisupport.xyz/auth?ref=${profile?.referral_code}`;
     
-    const profileChannel = supabase
-      .channel('profile-updates')
-      .on('postgres_changes', { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'profiles', 
-        filter: `id=eq.${user?.id}` 
-      }, () => getDashboardData())
-      .subscribe();
+    // Attempt Modern Clipboard API
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(link);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+        return;
+      } catch (err) {
+        console.error("Clipboard API failed", err);
+      }
+    }
 
-    const orderChannel = supabase
-      .channel('order-updates')
-      .on('postgres_changes', { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'orders' 
-      }, () => getDashboardData())
-      .subscribe();
+    // Fallback: Textarea Method (Crucial for mobile/older browsers)
+    const textArea = document.createElement("textarea");
+    textArea.value = link;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    textArea.style.top = "0";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+      document.execCommand('copy');
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Fallback copy failed", err);
+    }
+    document.body.removeChild(textArea);
+  };
 
-    return () => { 
-      supabase.removeChannel(profileChannel); 
-      supabase.removeChannel(orderChannel);
-    };
-  }, [getDashboardData, supabase, user?.id]);
+  // NEW: Native Share Sheet for Mobile (WhatsApp/Socials)
+  const shareReferral = async () => {
+    const link = `https://getunisupport.xyz/auth?ref=${profile?.referral_code}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'uniSupport Network',
+          text: 'Get professional research help and stack your discounts.',
+          url: link,
+        });
+      } catch (err) {
+        copyReferral(); // Fallback to copy if share is cancelled
+      }
+    } else {
+      copyReferral(); // Default to copy if Web Share API is missing
+    }
+  };
 
   const handleUpdateProfile = async () => {
     setUpdating(true);
     const { error } = await supabase
       .from("profiles")
-      .update({
-        full_name: newName,
-        whatsapp_number: newWhatsapp
-      })
+      .update({ full_name: newName, whatsapp_number: newWhatsapp })
       .eq("id", user.id);
 
     if (error) {
@@ -104,13 +130,6 @@ export default function UserDashboard() {
       setIsEditing(false);
     }
     setUpdating(false);
-  };
-
-  const copyReferral = () => {
-    const link = `https://getunisupport.xyz/auth?ref=${profile?.referral_code}`;
-    navigator.clipboard.writeText(link);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleDownload = async (filePath: string, serviceType: string) => {
@@ -143,7 +162,6 @@ export default function UserDashboard() {
   return (
     <main className="pt-32 pb-20 px-4 min-h-screen bg-white font-sans">
       <div className="max-w-6xl mx-auto">
-        
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-16">
           <div className="lg:col-span-2">
             <div className="flex items-center gap-2 text-emerald-600 mb-2">
@@ -155,22 +173,15 @@ export default function UserDashboard() {
             </h1>
             
             {isEditing ? (
-              <div className="bg-gray-50 p-6 md:p-8 rounded-[2rem] md:rounded-[3.5rem] border-2 border-emerald-500/20 space-y-4 max-w-xl">
+              <div className="bg-gray-50 p-6 md:p-8 rounded-[2rem] border-2 border-emerald-500/20 space-y-4 max-w-xl">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black uppercase text-gray-400 ml-2">Full Name</label>
-                    <input 
-                      type="text" value={newName} onChange={(e) => setNewName(e.target.value)}
-                      className="w-full p-4 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-sm"
-                    />
+                    <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} className="w-full p-4 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-sm" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[9px] font-black uppercase text-gray-400 ml-2">WhatsApp Number</label>
-                    <input 
-                      type="text" value={newWhatsapp} onChange={(e) => setNewWhatsapp(e.target.value)}
-                      className="w-full p-4 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-sm"
-                      placeholder="080XXXXXXXX"
-                    />
+                    <input type="text" value={newWhatsapp} onChange={(e) => setNewWhatsapp(e.target.value)} className="w-full p-4 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-sm" placeholder="080XXXXXXXX" />
                   </div>
                 </div>
                 <div className="flex gap-3 pt-2">
@@ -205,7 +216,7 @@ export default function UserDashboard() {
             )}
           </div>
 
-          {/* DISCOUNT & REFERRAL CARD - STACKED PERCENTAGE SYSTEM */}
+          {/* LOYALTY CARD WITH MOBILE-FIRST COPY/SHARE */}
           <div className="bg-gray-900 text-white p-8 rounded-[3.5rem] relative overflow-hidden shadow-2xl flex flex-col justify-between border border-white/5">
              <div className="relative z-10">
                 <div className="flex justify-between items-start mb-2">
@@ -221,16 +232,24 @@ export default function UserDashboard() {
                 
                 <div className="space-y-4">
                   <div>
-                    <p className="text-[9px] font-black uppercase opacity-50 mb-2 text-white/70">Share Referral Link</p>
-                    <button 
-                      onClick={copyReferral}
-                      className={`w-full ${copied ? 'bg-emerald-600 border-emerald-500' : 'bg-white/5 hover:bg-white/10 border-white/10'} border p-4 rounded-2xl flex items-center justify-between transition-all group`}
-                    >
-                      <span className="text-[10px] font-bold truncate pr-4 opacity-80">
-                        {copied ? "LINK COPIED" : `ref=${profile?.referral_code}`}
-                      </span>
-                      {copied ? <CheckCircle size={14} /> : <Copy size={14} className="text-emerald-400 group-hover:scale-110 transition-transform" />}
-                    </button>
+                    <p className="text-[9px] font-black uppercase opacity-50 mb-2 text-white/70">Secure Referral Asset</p>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={copyReferral}
+                        className={`flex-1 ${copied ? 'bg-emerald-600 border-emerald-500' : 'bg-white/5 hover:bg-white/10 border-white/10'} border p-4 rounded-2xl flex items-center justify-between transition-all group overflow-hidden`}
+                      >
+                        <span className="text-[10px] font-bold truncate pr-4 opacity-80 uppercase tracking-tighter">
+                          {copied ? "COPIED TO VAULT" : `REF: ${profile?.referral_code || '...'}`}
+                        </span>
+                        {copied ? <CheckCircle size={14} /> : <Copy size={14} className="text-emerald-400" />}
+                      </button>
+                      <button 
+                        onClick={shareReferral}
+                        className="p-4 bg-emerald-600 rounded-2xl hover:bg-emerald-500 transition-all active:scale-90"
+                      >
+                        <Share2 size={16} />
+                      </button>
+                    </div>
                   </div>
                   
                   <div className="pt-6 border-t border-white/10 flex justify-between items-end">
@@ -251,6 +270,7 @@ export default function UserDashboard() {
           </div>
         </div>
 
+        {/* ORDERS SECTION */}
         <div className="grid gap-8">
           {orders.length === 0 ? (
             <div className="py-32 border-2 border-dashed border-gray-100 rounded-[4rem] text-center bg-gray-50/50">
@@ -260,11 +280,11 @@ export default function UserDashboard() {
             </div>
           ) : (
             orders.map((order) => {
-              const depositNeeded = order.total_price * 0.5;
+              const depositNeeded = (order.total_price || 0) * 0.5;
               const amountPaid = order.amount_paid || 0;
               const isDepositPaid = amountPaid >= depositNeeded;
-              const isFullyPaid = amountPaid >= order.total_price;
-              const balanceRemaining = order.total_price - amountPaid;
+              const isFullyPaid = amountPaid >= (order.total_price || 0);
+              const balanceRemaining = (order.total_price || 0) - amountPaid;
 
               return (
                 <div key={order.id} className="group relative bg-white border border-gray-100 p-8 md:p-12 rounded-[3.5rem] shadow-sm hover:shadow-2xl transition-all duration-500 overflow-hidden">
@@ -284,11 +304,9 @@ export default function UserDashboard() {
                         </span>
                         <span className="text-[9px] font-black text-gray-300 uppercase tracking-tighter">ID: {order.id.slice(0, 8)}</span>
                       </div>
-
                       <h3 className="text-4xl md:text-5xl font-black uppercase italic tracking-tighter leading-[0.9] group-hover:text-emerald-600 transition-colors">
                         {order.service_type}
                       </h3>
-
                       <div className="flex items-center gap-6 pt-2">
                         <div>
                           <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Fee</p>
@@ -313,11 +331,7 @@ export default function UserDashboard() {
                         {order.status !== 'awaiting-quote' && !isDepositPaid && order.status !== 'cancelled' && (
                           <div className="space-y-3">
                             <p className="text-[9px] font-black uppercase text-center text-gray-400">Required: 50% Deposit</p>
-                            <PaystackButton 
-                              order={order} amount={depositNeeded} isFinal={false} 
-                              userEmail={user?.email} publicKey={process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!} 
-                              onSuccess={() => handlePaymentSuccess(order, depositNeeded, false)} 
-                            />
+                            <PaystackButton order={order} amount={depositNeeded} isFinal={false} userEmail={user?.email} publicKey={process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!} onSuccess={() => handlePaymentSuccess(order, depositNeeded, false)} />
                           </div>
                         )}
 
@@ -334,19 +348,12 @@ export default function UserDashboard() {
                               <AlertCircle className="text-orange-500 shrink-0" size={18} />
                               <p className="text-[10px] font-bold text-orange-800 leading-tight uppercase">Settle balance to download final asset.</p>
                             </div>
-                            <PaystackButton 
-                              order={order} amount={balanceRemaining} isFinal={true} 
-                              userEmail={user?.email} publicKey={process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!} 
-                              onSuccess={() => handlePaymentSuccess(order, balanceRemaining, true)} 
-                            />
+                            <PaystackButton order={order} amount={balanceRemaining} isFinal={true} userEmail={user?.email} publicKey={process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!} onSuccess={() => handlePaymentSuccess(order, balanceRemaining, true)} />
                           </div>
                         )}
 
                         {isFullyPaid && order.status === 'completed' && (
-                          <button 
-                              onClick={() => handleDownload(order.completed_file_url, order.service_type)}
-                              className="w-full py-6 bg-gray-900 text-white rounded-[2rem] font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 shadow-xl hover:bg-emerald-600 transition-all active:scale-95 group"
-                          >
+                          <button onClick={() => handleDownload(order.completed_file_url, order.service_type)} className="w-full py-6 bg-gray-900 text-white rounded-[2rem] font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 shadow-xl hover:bg-emerald-600 transition-all active:scale-95 group">
                             <Download size={18} className="group-hover:translate-y-0.5 transition-transform" /> Download Asset
                           </button>
                         )}
