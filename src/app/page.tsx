@@ -40,14 +40,15 @@ export default function HomePage() {
   const categories = [
     { name: "All", icon: Sparkles },
     { name: "Undergraduate", icon: BookOpen },
-    { name: "Post-Graduate", icon: GraduationCap },
-    { name: "STEM & Tech", icon: Microscope },
-    { name: "Law & Arts", icon: Scale },
-    { name: "Management", icon: Briefcase },
+    { name: "Post-graduate", icon: GraduationCap },
+    { name: "stem-tech", icon: Microscope },
+    { name: "law-arts", icon: Scale },
+    { name: "corporate", icon: Briefcase },
   ];
 
   useEffect(() => {
     async function fetchData() {
+      // Get auth user info
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (authUser) {
         setUser(authUser);
@@ -60,12 +61,14 @@ export default function HomePage() {
       if (activeCategory !== "All") {
         query = query.eq('category', activeCategory);
       } else {
-        // Limited to 6 for a cleaner grid as requested
-        query = query.in('category', ['Undergraduate', 'Post-Graduate', 'STEM & Tech', 'Law & Arts', 'Management']).limit(6);
+        // Landing state: Show a curated selection from all major categories
+        query = query.in('category', ['Undergraduate', 'post-graduate', 'stem-tech', 'law-arts', 'public','Graduate', 'corporate', 'Management']).limit(6);
       }
 
-      const { data } = await query;
-      if (data) setServices(data);
+      const { data, error } = await query;
+      if (!error && data) {
+        setServices(data);
+      }
       setLoadingServices(false);
     }
     fetchData();
@@ -141,7 +144,6 @@ export default function HomePage() {
       </section>
 
       {/* 3. NAVIGATION GUIDE */}
-      {/* 3. NAVIGATION GUIDE */}
       <section className="py-32 bg-gray-50/50 border-y border-gray-100">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center max-w-3xl mx-auto mb-24">
@@ -153,7 +155,7 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
-              {/* STEP 1: AUTH */}
+              {/* STEP 1 */}
               <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group">
                 <div className="w-12 h-12 bg-gray-900 text-white rounded-2xl flex items-center justify-center mb-6 text-xl font-black italic group-hover:bg-emerald-600 transition-colors">
                   <User size={20} />
@@ -164,7 +166,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              {/* STEP 2: THE FORM */}
+              {/* STEP 2 */}
               <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group">
                 <div className="w-12 h-12 bg-gray-900 text-white rounded-2xl flex items-center justify-center mb-6 text-xl font-black italic group-hover:bg-emerald-600 transition-colors">
                   <BookOpen size={20} />
@@ -175,7 +177,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              {/* STEP 3: WRITER ASSIGNMENT */}
+              {/* STEP 3 */}
               <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group">
                 <div className="w-12 h-12 bg-gray-900 text-white rounded-2xl flex items-center justify-center mb-6 text-xl font-black italic group-hover:bg-emerald-600 transition-colors">
                   <User size={20} />
@@ -186,7 +188,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              {/* STEP 4: DEPOSIT */}
+              {/* STEP 4 */}
               <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group">
                 <div className="w-12 h-12 bg-gray-900 text-white rounded-2xl flex items-center justify-center mb-6 text-xl font-black italic group-hover:bg-emerald-600 transition-colors">
                   <CreditCard size={20} />
@@ -197,7 +199,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              {/* STEP 5: PREVIEW */}
+              {/* STEP 5 */}
               <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group">
                 <div className="w-12 h-12 bg-gray-900 text-white rounded-2xl flex items-center justify-center mb-6 text-xl font-black italic group-hover:bg-emerald-600 transition-colors">
                   <Lock size={20} />
@@ -208,7 +210,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              {/* STEP 6: DOWNLOAD */}
+              {/* STEP 6 */}
               <div className="bg-emerald-600 p-6 rounded-[2.5rem] text-white shadow-2xl shadow-emerald-600/20 group">
                 <div className="w-12 h-12 bg-white text-emerald-600 rounded-2xl flex items-center justify-center mb-6 text-xl font-black italic">
                   <Download size={20} />
@@ -236,10 +238,7 @@ export default function HomePage() {
               {categories.map((cat) => (
                 <button
                   key={cat.name}
-                  onClick={() => {
-                    setLoadingServices(true);
-                    setActiveCategory(cat.name);
-                  }}
+                  onClick={() => setActiveCategory(cat.name)}
                   className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
                     activeCategory === cat.name 
                     ? 'bg-gray-900 text-white' 
@@ -279,7 +278,6 @@ export default function HomePage() {
                 )}
               </div>
 
-              {/* VIEW ALL BUTTON - Visible only on "All" when more than 5 assets exist */}
               {activeCategory === "All" && services.length >= 6 && (
                 <div className="mt-20 text-center">
                   <Link 

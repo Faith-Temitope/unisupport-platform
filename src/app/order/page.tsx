@@ -16,7 +16,8 @@ import {
   Settings,
   Search,
   AlertTriangle,
-  Percent
+  Percent,
+  Filter
 } from "lucide-react";
 
 type OrderFormData = {
@@ -44,6 +45,7 @@ function OrderFormContent() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeCategory, setActiveCategory] = useState("all");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const source = searchParams.get("source"); 
@@ -73,7 +75,6 @@ function OrderFormContent() {
       }
       setUserId(user.id);
 
-      // Parallel fetch: Writers, Services, and Referral Count
       const [writersRes, servicesRes, referralsRes] = await Promise.all([
         supabase.from('writers').select('id, name').eq('is_available', true),
         supabase.from('services').select('*').order('title'),
@@ -89,11 +90,19 @@ function OrderFormContent() {
     initializePage();
   }, [supabase, router]);
 
+  // CATEGORY LOGIC
+  const categories = useMemo(() => {
+    const cats = dbServices.map(s => s.category);
+    return ["all", ...Array.from(new Set(cats))];
+  }, [dbServices]);
+
   const filteredServices = useMemo(() => {
-    return dbServices.filter(s => 
-      s.title.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [searchTerm, dbServices]);
+    return dbServices.filter(s => {
+      const matchesSearch = s.title.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = activeCategory === "all" || s.category === activeCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [searchTerm, dbServices, activeCategory]);
 
   const selectedService = dbServices.find(s => s.title === selectedServiceName);
   
@@ -102,7 +111,6 @@ function OrderFormContent() {
     
     let basePrice = (selectedService.base_price_per_page || 0) * (pageCount || 1);
     
-    // Rush Surcharge
     if (selectedDeadline) {
       const hoursLeft = (new Date(selectedDeadline).getTime() - new Date().getTime()) / (1000 * 60 * 60);
       if (hoursLeft > 0 && hoursLeft < 48) {
@@ -110,7 +118,6 @@ function OrderFormContent() {
       }
     }
 
-    // Apply 10% discount per referral
     const discountPercentage = (referralCount * 10) / 100;
     const discountAmount = basePrice * discountPercentage;
     const finalTotal = Math.max(0, basePrice - discountAmount);
@@ -221,34 +228,50 @@ function OrderFormContent() {
                   </div>
 
                   {isDropdownOpen && (
-                    <div className="absolute z-50 top-full left-0 w-full mt-2 bg-white border border-gray-100 shadow-2xl rounded-3xl overflow-hidden animate-in fade-in zoom-in duration-200">
-                      <div className="p-4 border-b border-gray-50 flex items-center gap-2">
+                    <div className="absolute z-50 top-full left-0 w-full mt-2 bg-white border border-gray-100 shadow-2xl rounded-3xl overflow-hidden animate-in fade-in zoom-in duration-200 min-w-[320px] md:min-w-[450px]">
+                      <div className="p-4 border-b border-gray-50 flex items-center gap-2 bg-gray-50/50">
                         <Search size={14} className="text-emerald-500" />
                         <input 
                           autoFocus
-                          placeholder="Type to search..." 
+                          placeholder="Search..." 
                           className="w-full outline-none text-sm font-bold bg-transparent"
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
                         />
                       </div>
-                      <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                      
+                      {/* CATEGORY TABS INSIDE DROPDOWN */}
+                      <div className="flex gap-2 p-3 overflow-x-auto no-scrollbar border-b border-gray-50 bg-white">
+                         {categories.map(cat => (
+                           <button
+                            key={cat}
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setActiveCategory(cat); }}
+                            className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap transition-all ${activeCategory === cat ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-400'}`}
+                           >
+                             {cat}
+                           </button>
+                         ))}
+                      </div>
+
+                      <div className="max-h-64 overflow-y-auto custom-scrollbar">
                         {filteredServices.length > 0 ? (
                           filteredServices.map(s => (
                             <div 
                               key={s.id} 
-                              className="px-6 py-4 hover:bg-emerald-50 cursor-pointer text-sm font-bold transition-colors border-b border-gray-50 last:border-0"
+                              className="px-6 py-4 hover:bg-emerald-50 cursor-pointer text-sm font-bold transition-colors border-b border-gray-50 last:border-0 flex justify-between items-center group"
                               onClick={() => {
                                 setValue("serviceType", s.title);
                                 setIsDropdownOpen(false);
                                 setSearchTerm("");
                               }}
                             >
-                              {s.title}
+                              <span>{s.title}</span>
+                              <span className="text-[10px] text-gray-300 group-hover:text-emerald-600 font-black">${s.base_price_per_page}/pg</span>
                             </div>
                           ))
                         ) : (
-                          <div className="px-6 py-10 text-center text-xs text-gray-400 font-bold uppercase italic">No services found</div>
+                          <div className="px-6 py-10 text-center text-xs text-gray-400 font-bold uppercase italic">No matches in this category</div>
                         )}
                       </div>
                     </div>
