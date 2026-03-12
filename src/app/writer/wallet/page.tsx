@@ -70,7 +70,7 @@ export default function WriterWallet() {
     if (!writerId || !profile) return;
     
     if (profile.earnings < 1000) {
-      return alert("Minimum withdrawal balance required is ₦1,000");
+      return alert("Minimum withdrawal balance required is $1,000");
     }
 
     setIsSubmitting(true);
@@ -126,7 +126,7 @@ export default function WriterWallet() {
                 <Banknote className="absolute -right-8 -bottom-8 text-white/5 group-hover:scale-110 group-hover:-rotate-12 transition-all duration-700" size={240} />
                 <div className="relative z-10">
                   <p className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-400 mb-4">Available for Withdrawal</p>
-                  <h2 className="text-6xl font-black mb-10 tracking-tighter">₦{profile?.earnings?.toLocaleString() || "0"}</h2>
+                  <h2 className="text-6xl font-black mb-10 tracking-tighter">${profile?.earnings?.toLocaleString() || "0"}</h2>
                   <button 
                     onClick={() => setIsModalOpen(true)}
                     disabled={!profile?.earnings || profile.earnings < 1000}
@@ -141,7 +141,7 @@ export default function WriterWallet() {
               <div className="bg-white border border-gray-100 rounded-[3rem] p-10 flex flex-col justify-center shadow-sm">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-2">Lifetime Settled</p>
                 <h2 className="text-4xl font-black text-gray-900 italic tracking-tighter">
-                   ₦{profile?.total_paid_out?.toLocaleString() || 0}
+                   ${profile?.total_paid_out?.toLocaleString() || 0}
                 </h2>
                 <div className="mt-4 flex items-center gap-2 text-emerald-500">
                   <CheckCircle2 size={14} />
@@ -178,7 +178,7 @@ export default function WriterWallet() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-black text-gray-900 text-xl tracking-tighter">₦{p.amount.toLocaleString()}</p>
+                      <p className="font-black text-gray-900 text-xl tracking-tighter">${p.amount.toLocaleString()}</p>
                       <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${
                         p.status === 'paid' ? 'text-emerald-500' : 'text-amber-500'
                       }`}>

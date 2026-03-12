@@ -168,7 +168,7 @@ export default function AdminDashboard() {
                 <tr key={order.id} className="hover:bg-gray-50/20 transition-all group">
                   <td className="p-8">
                     <p className="font-black text-gray-900 uppercase italic leading-none">{order.client_name}</p>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase mt-2">{order.service_type} • ₦{order.amount_paid?.toLocaleString()}</p>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase mt-2">{order.service_type} • ${order.amount_paid?.toLocaleString()}</p>
                   </td>
                   <td className="p-8">
                     <select 

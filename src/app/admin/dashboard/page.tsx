@@ -59,7 +59,7 @@ export default function AdminDashboard() {
 
   // --- NEW: PROCESS 90% REFUND ---
   async function processRefund(order: any) {
-    if (!confirm(`Confirm 90% Refund (₦${order.refund_amount}) has been sent to ${order.client_name}?`)) return;
+    if (!confirm(`Confirm 90% Refund ($${order.refund_amount}) has been sent to ${order.client_name}?`)) return;
     
     const { error } = await supabase
       .from("orders")
@@ -161,7 +161,7 @@ export default function AdminDashboard() {
             </button>
             <div className="bg-gray-900 text-white px-10 py-5 rounded-[2rem] font-black shadow-2xl">
               <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-1 leading-none">Net Bank Balance</p>
-              <span className="text-2xl text-emerald-400">₦{platformStats.totalRev.toLocaleString()}</span>
+              <span className="text-2xl text-emerald-400">${platformStats.totalRev.toLocaleString()}</span>
             </div>
           </div>
         </header>

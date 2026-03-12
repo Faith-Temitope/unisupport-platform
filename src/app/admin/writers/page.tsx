@@ -34,7 +34,7 @@ export default function WritersPage() {
   }, [supabase]);
 
   async function handleResetPayout(id: string, name: string) {
-    if (!confirm(`Confirm payout to ${name}? This resets their balance to ₦0.`)) return;
+    if (!confirm(`Confirm payout to ${name}? This resets their balance to $0.`)) return;
     
     const { error } = await supabase
       .from("writers")
@@ -155,7 +155,7 @@ export default function WritersPage() {
                     </td>
                     <td className="px-8 py-6">
                       <div className="flex items-center gap-3">
-                         <span className="font-black text-gray-900 text-sm">₦{writer.earnings?.toLocaleString()}</span>
+                         <span className="font-black text-gray-900 text-sm">${writer.earnings?.toLocaleString()}</span>
                          {writer.earnings > 0 && (
                             <button 
                               onClick={() => handleResetPayout(writer.id, writer.name)}

@@ -154,7 +154,7 @@ export default function WriterDashboard() {
           
           <div className="bg-gray-900 px-10 py-8 rounded-[3rem] shadow-2xl text-right">
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Writer Revenue</p>
-            <p className="text-4xl font-black text-emerald-400 tracking-tighter">₦{profile?.earnings?.toLocaleString() || "0"}</p>
+            <p className="text-4xl font-black text-emerald-400 tracking-tighter">${profile?.earnings?.toLocaleString() || "0"}</p>
           </div>
         </header>
 

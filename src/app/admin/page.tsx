@@ -150,7 +150,7 @@ export default function AdminOverview() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-           <StatCard label="Gross Revenue" val={`₦${stats.revenue.toLocaleString()}`} icon={<TrendingUp />} color="text-emerald-500" bg="bg-emerald-50" />
+           <StatCard label="Gross Revenue" val={`$${stats.revenue.toLocaleString()}`} icon={<TrendingUp />} color="text-emerald-500" bg="bg-emerald-50" />
            <StatCard label="Live Jobs" val={stats.active} icon={<Clock />} color="text-blue-500" bg="bg-blue-50" />
            <StatCard label="In Review" val={stats.pending} icon={<AlertCircle />} color="text-orange-500" bg="bg-orange-50" />
            <StatCard label="Refund Queue" val={stats.pendingRefunds} icon={<Banknote />} color="text-red-500" bg="bg-red-50" />
@@ -171,7 +171,7 @@ export default function AdminOverview() {
                   </div>
                   <div className="my-4 md:my-0 text-center">
                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Payout Amount</p>
-                    <p className="text-2xl font-black text-emerald-600 tracking-tighter">₦{order.refund_amount?.toLocaleString()}</p>
+                    <p className="text-2xl font-black text-emerald-600 tracking-tighter">${order.refund_amount?.toLocaleString()}</p>
                   </div>
                   <div className="flex gap-2">
                     <a href={`https://wa.me/${order.client_phone?.replace(/\D/g, '')}`} target="_blank" className="p-4 bg-gray-900 text-white rounded-2xl hover:scale-105 transition-all">
@@ -222,7 +222,7 @@ export default function AdminOverview() {
                       </select>
                     </td>
                     <td className="px-8 py-6 font-black text-gray-900 italic">
-                      ₦{order.amount_paid?.toLocaleString()}
+                      ${order.amount_paid?.toLocaleString()}
                     </td>
                     <td className="px-8 py-6 text-right">
                        <button onClick={() => { if(confirm("Delete?")) supabase.from('orders').delete().eq('id', order.id).then(()=>getDashboardData()) }} className="text-gray-200 hover:text-red-500 transition-colors">

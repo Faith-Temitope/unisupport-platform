@@ -105,7 +105,7 @@ export default function NewOrderPage() {
               onChange={(e) => setFormData({...formData, service_id: e.target.value})}
             >
               <option value="">Select Service</option>
-              {services.map(s => <option key={s.id} value={s.id}>{s.title} (₦{s.base_price_per_page}/pg)</option>)}
+              {services.map(s => <option key={s.id} value={s.id}>{s.title} (${s.base_price_per_page}/pg)</option>)}
             </select>
 
             <div className="grid grid-cols-2 gap-4">
@@ -117,7 +117,7 @@ export default function NewOrderPage() {
               />
               <div className="bg-emerald-50 rounded-2xl p-4 flex flex-col justify-center border border-emerald-100">
                 <p className="text-[8px] font-black text-emerald-600 uppercase">Total Quote</p>
-                <p className="font-black text-emerald-700">₦{formData.total_price.toLocaleString()}</p>
+                <p className="font-black text-emerald-700">${formData.total_price.toLocaleString()}</p>
               </div>
             </div>
           </div>

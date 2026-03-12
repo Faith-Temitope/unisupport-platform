@@ -91,7 +91,7 @@ export default function WriterHistory() {
                     <div className="text-right">
                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Total Earned</p>
                        <p className="text-2xl font-black text-emerald-600 tracking-tighter">
-                         ₦{(job.total_price * 0.5).toLocaleString()}
+                         ${(job.total_price * 0.5).toLocaleString()}
                        </p>
                     </div>
                     

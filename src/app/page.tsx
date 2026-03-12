@@ -345,7 +345,7 @@ function ServiceCard({ title, desc, iconName, href, color, category, price, deli
                       </span>
                       <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full border border-emerald-100">
                         <Tag size={10} />
-                        <span className="text-[10px] font-black">₦{price}/pg</span>
+                        <span className="text-[10px] font-black">${price}/pg</span>
                       </div>
                     </div>
 
