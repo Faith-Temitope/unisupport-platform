@@ -49,3 +49,19 @@ body {
     @apply scale-95 translate-y-0;
   }
 }
+
+/* ---- Prototype (Birdie x Unisupport) ---- */
+html:has(.proto-root) { font-size: 16px; }
+.proto-root {
+  --ink: #120B1C; --ink-soft: #1D1229; --paper: #FAF7FD; --paper-dim: #F1EAF8; --line: #E6DCF0;
+  --text: #1E1428; --dim: #6E6480;
+  --birdie: #A63FBD; --birdie-soft: #F5E8FA; --birdie-text: #6E2A80;
+  --uni: #A63FBD; --uni-deep: #7B2A91; --uni-soft: #F5E8FA;
+  --study: #7C4DDB; --study-soft: #EDE6FB;
+  --help: #FF6F59; --help-soft: #FFE9E4;
+}
+.proto-root .disp { font-family: var(--font-display), system-ui, sans-serif; }
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+.dys, .dys * { font-family: Verdana, "Trebuchet MS", sans-serif !important; letter-spacing: 0.03em; line-height: 1.7 !important; }

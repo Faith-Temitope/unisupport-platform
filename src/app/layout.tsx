@@ -5,52 +5,25 @@ import ClientLayoutWrapper from "@/components/layout/ClientLayoutWrapper";
 
 const inter = Inter({ subsets: ["latin"] });
 
-// HIGH-LEVEL SEO & BRANDING FOR getunisupport.xyz
+// The favicon comes from src/app/icon.svg (Birdie's face) via Next's file convention.
 export const metadata: Metadata = {
-  metadataBase: new URL('https://getunisupport.xyz'),
-  title: {
-    default: 'uniSupport | The Academic Research Vault',
-    template: '%s | uniSupport'
-  },
-  description: 'Secure, encrypted portal for premium academic research blueprints and project intelligence.',
-  
-  // THE FIX: Explicitly defining the icons kills the default Next.js favicon
-  icons: {
-    icon: [
-      { url: '/icon.png' }, // Ensure icon.png is in your /public folder or /app folder
-      { url: '/favicon.ico', sizes: 'any' },
-    ],
-    apple: [
-      { url: '/icon.png' },
-    ],
-  },
-
+  title: { default: "Birdie | Your study partner", template: "%s | Birdie" },
+  description: "Birdie turns every course you take into a study partner that knows what you were taught. Study, explore, and get real help when you need it.",
+  applicationName: "Birdie",
   openGraph: {
-    title: 'uniSupport Vault',
-    description: 'Get premium academic blueprints and earn rewards.',
-    url: 'https://getunisupport.xyz',
-    siteName: 'uniSupport',
-    images: [{ url: '/og-image.png' }], 
-    locale: 'en_NG',
-    type: 'website',
+    title: "Birdie",
+    description: "A study partner that knows your courses.",
+    siteName: "Birdie",
+    locale: "en_NG",
+    type: "website",
   },
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="scroll-smooth">
-      <head>
-        {/* Secondary backup for stubborn browsers */}
-        <link rel="icon" href="/icon.png" />
-      </head>
       <body className={inter.className}>
-        <ClientLayoutWrapper>
-          {children}
-        </ClientLayoutWrapper>
+        <ClientLayoutWrapper>{children}</ClientLayoutWrapper>
       </body>
     </html>
   );
