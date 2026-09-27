@@ -393,7 +393,7 @@ export function Learn({ onBack }: { onBack: () => void }) {
 }
 
 export function JustDoIt({ onBack }: { onBack: () => void }) {
-  const { courses, spend, setWalletOpen, flash, goBirdie, addNote, setTab } = useApp();
+  const { courses, spend, spendWallet, walletLive, setWalletOpen, flash, goBirdie, addNote, setTab } = useApp();
   const [courseId, setCourseId] = useState<string | null>(courses[0]?.id ?? null);
   const [task, setTask] = useState("");
   const [warn, setWarn] = useState(false);
@@ -402,11 +402,12 @@ export function JustDoIt({ onBack }: { onBack: () => void }) {
   const COST = 500;
   const course = courses.find((c) => c.id === courseId);
 
-  function go() {
+  async function go() {
     setWarn(false);
     const a = course ? answer(docsOf(course), task) : null;
     if (!a) { setResult("none"); return; }                       // nothing found: nothing charged
-    if (!spend(COST, "Birdie: Just Do It")) { flash("Top up your balance first"); setWalletOpen(true); return; }
+    const ok = walletLive ? await spendWallet(COST, "Birdie: Just Do It") : spend(COST, "Birdie: Just Do It");
+    if (!ok) { flash("Top up your balance first"); setWalletOpen(true); return; }
     setBusy(true); setTimeout(() => { setBusy(false); setResult(a); }, 1400);
   }
 

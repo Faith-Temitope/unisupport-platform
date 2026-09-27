@@ -3,6 +3,7 @@
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { BookOpen, Check, Compass, FastForward, LifeBuoy, RotateCcw, Users, PenLine, Headset, LayoutDashboard } from "lucide-react";
 import Link from "next/link";
+import { useEffect } from "react";
 import Birdie from "./Birdie";
 import Entry from "./Entry";
 import Explore from "./Explore";
@@ -20,8 +21,23 @@ const NAV: [TabId, string, typeof Compass | null][] = [["study", "Study", BookOp
 const ZOOM = { s: 0.92, m: 1, l: 1.1 } as const;
 
 function Shell() {
-  const { tab, setTab, toast, setPhone, setSlot, settings, resetAll, resetKey, demoOn, setDemo, skipHours, recommendation } = useApp();
+  const { tab, setTab, toast, setPhone, setSlot, settings, resetAll, resetKey, demoOn, setDemo, skipHours, recommendation, flash, refreshWallet, setWalletOpen } = useApp();
   const show = (id: TabId) => ({ display: tab === id ? "flex" : "none" });
+
+  // Coming back from the Paystack checkout: confirm the payment and credit the wallet.
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get("topup");
+    if (!ref) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    (async () => {
+      try {
+        const r = await fetch(`/api/wallet/topup/verify?reference=${encodeURIComponent(ref)}`);
+        const j = await r.json();
+        if (j.status === "paid") { await refreshWallet(); flash("Top-up successful"); setWalletOpen(true); }
+        else flash(j.status === "failed" ? "Payment failed" : "Payment not completed");
+      } catch { flash("Couldn't confirm the payment"); }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <MotionConfig reducedMotion={settings.reduceMotion ? "always" : "user"}>
