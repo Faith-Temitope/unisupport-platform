@@ -85,7 +85,7 @@ interface AppCtx {
   notices: Notice[]; notify: (title: string, body?: string) => void; markNoticesRead: () => void; clearNotices: () => void;
   focusEndsAt: number | null; startFocus: (minutes: number) => void; stopFocus: (completed?: boolean) => void;
   mascotEvent: MascotEvent | null; emote: (kind: Emote, text?: string) => void;
-  balance: number; txs: Tx[]; walletLive: boolean; refreshWallet: () => Promise<void>; spend: (amount: number, label: string) => boolean; topUp: (amount: number) => void;
+  balance: number; txs: Tx[]; walletLive: boolean; refreshWallet: () => Promise<void>; spend: (amount: number, label: string) => boolean; topUp: (amount: number) => void; spendWallet: (amount: number, label: string) => Promise<boolean>; topUpLive: (amount: number) => Promise<string | null>;
   people: Person[]; contacts: string[]; following: string[]; convos: Record<string, CMsg[]>; blocked: string[];
   addContact: (id: string) => void; removeContact: (id: string) => void; toggleFollow: (id: string) => void; sendChat: (id: string, text: string) => void; toggleBlock: (id: string) => void;
   posts: Post[]; addPost: (p: Omit<Post, "id" | "createdAt" | "likes" | "liked" | "authorId">) => void; toggleLike: (id: string) => void; deletePost: (id: string) => void;
@@ -381,8 +381,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (amount > balance) return false; setBalance((b) => b - amount); if (amount > 0) setTxs((t) => [{ id: uid(), label, amount: -amount, t: "Just now" }, ...t]); return true;
     },
     topUp: (amount) => {
-      if (walletLive) { flash("Paystack top-up is being connected"); return; }
+      if (walletLive) { flash("Use the top-up screen to pay with Paystack"); return; }
       setBalance((b) => b + amount); setTxs((t) => [{ id: uid(), label: "Top up (simulated)", amount, t: "Just now" }, ...t]);
+    },
+    spendWallet: async (amount, label) => {
+      if (!walletLive) return true; // guest/demo balance already deducted by callers via spend()
+      try {
+        const { data, error } = await createClient().rpc("spend_wallet", { p_amount: amount, p_label: label });
+        if (error) throw error;
+        if (data) void refreshWallet();
+        return !!data;
+      } catch { return false; }
+    },
+    topUpLive: async (amount) => {
+      try {
+        const r = await fetch("/api/wallet/topup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount }) });
+        const j = await r.json();
+        if (!r.ok) { flash(j.error === "payments_not_configured" ? "Payments aren't set up yet" : "Couldn't start the top-up"); return null; }
+        return j.authorization_url as string;
+      } catch { flash("Couldn't reach the payment server"); return null; }
     },
     people, contacts, following, convos, blocked,
     addContact: (id) => { setContacts((c) => (c.includes(id) ? c : [...c, id])); emote("happy", "New study buddy!"); },

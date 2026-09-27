@@ -10,8 +10,15 @@ const LEVELS = ["100 Level", "200 Level", "300 Level", "400 Level", "500 Level",
 const detectCountry = () => { try { const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; if (tz.includes("Lagos")) return "Nigeria"; if (tz.includes("Accra")) return "Ghana"; if (tz.includes("Nairobi")) return "Kenya"; if (tz.startsWith("America")) return "United States"; if (tz.includes("London")) return "United Kingdom"; } catch { /* ignore */ } return ""; };
 
 export default function Sheets() {
-  const { walletOpen, setWalletOpen, brainOpen, setBrainOpen, balance, txs, topUp, flash, profile, setProfile, ready, walletLive } = useApp();
+  const { walletOpen, setWalletOpen, brainOpen, setBrainOpen, balance, txs, topUp, topUpLive, flash, profile, setProfile, ready, walletLive } = useApp();
   const [amt, setAmt] = useState(20000);
+  const [payBusy, setPayBusy] = useState(false);
+  async function payWithPaystack() {
+    setPayBusy(true);
+    const url = await topUpLive(amt);
+    setPayBusy(false);
+    if (url) window.location.href = url;
+  }
   const [f, setF] = useState({ name: "", level: "", program: "", country: "" });
   const [detected, setDetected] = useState("");
   useEffect(() => { const c = detectCountry(); setDetected(c); setF((x) => ({ ...x, country: c })); }, []);
@@ -26,9 +33,12 @@ export default function Sheets() {
     <>
       <Sheet open={walletOpen} onClose={() => setWalletOpen(false)} title="Your Birdie balance">
         <div className="rounded-[20px] bg-[var(--ink)] p-4 text-[var(--paper)]"><div className="text-[11px] font-semibold uppercase tracking-wider text-white/50">Available</div><div className="disp text-[30px] font-bold">{naira(balance)}</div></div>
-        {walletLive ? (
-          <div className="mt-4 rounded-2xl bg-[var(--paper-dim)] p-4 text-[13px] leading-snug text-[var(--dim)]"><b className="text-[var(--text)]">This is your real balance.</b> It pays for paid AI brains and writer sessions. Top-ups with Paystack are being connected next.</div>
-        ) : (<>
+        {walletLive ? (<>
+          <div className="mb-2 mt-4 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Top up with Paystack</div>
+          <div className="mb-3 flex gap-2">{[2000, 5000, 10000, 20000].map((a) => (<button key={a} onClick={() => setAmt(a)} className={`flex-1 rounded-xl border-2 py-2.5 text-[12.5px] font-bold transition active:scale-95 ${amt === a ? "border-[var(--birdie)] bg-[var(--birdie-soft)] text-[var(--birdie-text)]" : "border-[var(--line)] text-[var(--dim)]"}`}>{naira(a)}</button>))}</div>
+          <Btn variant="birdie" disabled={payBusy} onClick={payWithPaystack}><span className="inline-flex items-center gap-2"><CreditCard size={16} /> {payBusy ? "Starting..." : `Pay ${naira(amt)} with Paystack`}</span></Btn>
+          <p className="mt-2 text-center text-[11.5px] text-[var(--dim)]">This is your real balance. It pays for paid AI brains, session fees and writer work.</p>
+        </>) : (<>
           <div className="mb-2 mt-4 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Top up</div>
           <div className="mb-3 flex gap-2">{[5000, 10000, 20000, 50000].map((a) => (<button key={a} onClick={() => setAmt(a)} className={`flex-1 rounded-xl border-2 py-2.5 text-[12.5px] font-bold transition active:scale-95 ${amt === a ? "border-[var(--birdie)] bg-[var(--birdie-soft)] text-[var(--birdie-text)]" : "border-[var(--line)] text-[var(--dim)]"}`}>{naira(a)}</button>))}</div>
           <Btn variant="birdie" onClick={() => { topUp(amt); setWalletOpen(false); flash(`Loaded ${naira(amt)}`); }}><span className="inline-flex items-center gap-2"><CreditCard size={16} /> Add {naira(amt)} (demo)</span></Btn>
