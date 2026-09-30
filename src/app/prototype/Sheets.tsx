@@ -7,7 +7,36 @@ import { Btn, Screen, Sheet, TextField } from "./ui";
 import { BrainPicker } from "./BrainPicker";
 
 const LEVELS = ["100 Level", "200 Level", "300 Level", "400 Level", "500 Level", "Year 1", "Year 2", "Year 3", "Year 4", "Postgraduate"];
-const detectCountry = () => { try { const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; if (tz.includes("Lagos")) return "Nigeria"; if (tz.includes("Accra")) return "Ghana"; if (tz.includes("Nairobi")) return "Kenya"; if (tz.startsWith("America")) return "United States"; if (tz.includes("London")) return "United Kingdom"; } catch { /* ignore */ } return ""; };
+
+// IANA time zone -> country, just for a sensible onboarding default. Students can always correct it.
+const TZ_COUNTRY: Record<string, string> = {
+  "Africa/Lagos": "Nigeria", "Africa/Abuja": "Nigeria", "Africa/Accra": "Ghana", "Africa/Nairobi": "Kenya",
+  "Africa/Johannesburg": "South Africa", "Africa/Cairo": "Egypt", "Africa/Casablanca": "Morocco",
+  "Africa/Algiers": "Algeria", "Africa/Tunis": "Tunisia", "Africa/Addis_Ababa": "Ethiopia", "Africa/Kampala": "Uganda",
+  "Africa/Dar_es_Salaam": "Tanzania", "Africa/Kigali": "Rwanda", "Africa/Khartoum": "Sudan", "Africa/Harare": "Zimbabwe",
+  "Africa/Lusaka": "Zambia", "Africa/Maputo": "Mozambique", "Africa/Dakar": "Senegal", "Africa/Abidjan": "Ivory Coast",
+  "Africa/Freetown": "Sierra Leone", "Africa/Monrovia": "Liberia", "Africa/Bamako": "Mali", "Africa/Niamey": "Niger",
+  "Africa/Douala": "Cameroon", "Africa/Libreville": "Gabon", "Africa/Kinshasa": "DR Congo", "Africa/Windhoek": "Namibia",
+  "Africa/Gaborone": "Botswana", "Africa/Maseru": "Lesotho", "Africa/Mbabane": "Eswatini", "Africa/Tripoli": "Libya",
+  "Europe/London": "United Kingdom", "Europe/Dublin": "Ireland", "Europe/Paris": "France", "Europe/Berlin": "Germany",
+  "Europe/Madrid": "Spain", "Europe/Rome": "Italy", "Europe/Amsterdam": "Netherlands", "Europe/Brussels": "Belgium",
+  "Europe/Lisbon": "Portugal", "Europe/Zurich": "Switzerland", "Europe/Vienna": "Austria", "Europe/Stockholm": "Sweden",
+  "Europe/Oslo": "Norway", "Europe/Copenhagen": "Denmark", "Europe/Helsinki": "Finland", "Europe/Warsaw": "Poland",
+  "Europe/Athens": "Greece", "Europe/Istanbul": "Turkey", "Europe/Moscow": "Russia", "Europe/Kyiv": "Ukraine",
+  "America/New_York": "United States", "America/Chicago": "United States", "America/Denver": "United States",
+  "America/Los_Angeles": "United States", "America/Anchorage": "United States", "America/Phoenix": "United States",
+  "America/Toronto": "Canada", "America/Vancouver": "Canada", "America/Mexico_City": "Mexico",
+  "America/Sao_Paulo": "Brazil", "America/Bogota": "Colombia", "America/Lima": "Peru", "America/Santiago": "Chile",
+  "America/Buenos_Aires": "Argentina", "America/Jamaica": "Jamaica", "America/Port_of_Spain": "Trinidad and Tobago",
+  "Asia/Dubai": "United Arab Emirates", "Asia/Riyadh": "Saudi Arabia", "Asia/Qatar": "Qatar", "Asia/Kuwait": "Kuwait",
+  "Asia/Karachi": "Pakistan", "Asia/Kolkata": "India", "Asia/Dhaka": "Bangladesh", "Asia/Kathmandu": "Nepal",
+  "Asia/Colombo": "Sri Lanka", "Asia/Bangkok": "Thailand", "Asia/Jakarta": "Indonesia", "Asia/Manila": "Philippines",
+  "Asia/Kuala_Lumpur": "Malaysia", "Asia/Singapore": "Singapore", "Asia/Hong_Kong": "Hong Kong", "Asia/Shanghai": "China",
+  "Asia/Tokyo": "Japan", "Asia/Seoul": "South Korea", "Asia/Ho_Chi_Minh": "Vietnam",
+  "Australia/Sydney": "Australia", "Australia/Melbourne": "Australia", "Australia/Perth": "Australia",
+  "Pacific/Auckland": "New Zealand",
+};
+const detectCountry = () => { try { return TZ_COUNTRY[Intl.DateTimeFormat().resolvedOptions().timeZone] ?? ""; } catch { return ""; } };
 
 export default function Sheets() {
   const { walletOpen, setWalletOpen, brainOpen, setBrainOpen, balance, txs, topUp, topUpLive, flash, profile, setProfile, ready, walletLive } = useApp();
