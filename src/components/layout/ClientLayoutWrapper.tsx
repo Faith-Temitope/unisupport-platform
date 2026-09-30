@@ -1,27 +1,6 @@
-"use client";
-
-import { usePathname } from "next/navigation";
-import Navbar from "@/components/layout/Navbar";
-import MobileFAB from "@/components/ui/MobileFAB";
-
+// The old marketing site's Navbar/MobileFAB are gone (moved to the standalone Unisupport website
+// repo). Every route left here — the app, /terms, /privacy — draws its own chrome, so this is just
+// a pass-through kept for the layout.tsx import site.
 export default function ClientLayoutWrapper({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  
-  const isAdminPage = pathname?.startsWith("/admin") || pathname?.startsWith("/prototype") || pathname === "/" || pathname === "/terms" || pathname === "/privacy";
-  const isAuthOrOrder = pathname === "/auth" || pathname === "/order";
-
-  return (
-    <>
-      {!isAdminPage && (
-        <>
-          <Navbar />
-          {!isAuthOrOrder && <MobileFAB />}
-        </>
-      )}
-      
-      <main className={!isAdminPage ? "pt-20" : ""}>
-        {children}
-      </main>
-    </>
-  );
+  return <>{children}</>;
 }
