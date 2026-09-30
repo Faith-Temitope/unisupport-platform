@@ -7,7 +7,7 @@ import MobileFAB from "@/components/ui/MobileFAB";
 export default function ClientLayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   
-  const isAdminPage = pathname?.startsWith("/admin") || pathname?.startsWith("/prototype") || pathname === "/";
+  const isAdminPage = pathname?.startsWith("/admin") || pathname?.startsWith("/prototype") || pathname === "/" || pathname === "/terms" || pathname === "/privacy";
   const isAuthOrOrder = pathname === "/auth" || pathname === "/order";
 
   return (

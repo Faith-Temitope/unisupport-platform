@@ -14,7 +14,7 @@ export async function askAI(body: AiCall): Promise<AiResult> {
     if (r.status === 401) return { ok: false, code: "guest", message: "Sign in to use Birdie's AI." };
     if (r.status === 402) return { ok: false, code: "insufficient_funds", message: "Not enough balance for this brain.", need: j.need_at_least };
     if (r.status === 429) return { ok: false, code: "free_allowance_used", message: j.hint ?? "Today's free answers are used up." };
-    if (r.status === 501) return { ok: false, code: "not_configured", message: "This brain isn't switched on yet." };
+    if (r.status === 501 || r.status === 403) return { ok: false, code: "not_configured", message: j.hint ?? "This brain isn't switched on yet." };
     return { ok: false, code: "error", message: j.message ?? j.error ?? "The AI didn't respond." };
   } catch (e) { return { ok: false, code: "error", message: (e as Error).message }; }
 }

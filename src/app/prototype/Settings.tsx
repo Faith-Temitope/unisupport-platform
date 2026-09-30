@@ -2,6 +2,7 @@
 
 import { ArrowLeft, Bell, BookOpen, Bot as BotIcon, Cpu, Compass, CreditCard, Eye, FileText, Lock, LogOut, PlugZap, ShieldCheck, Sparkles, Trash2, Type, UserRound } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { createClient } from "@/lib/supabase";
 import { initials } from "./PostCard";
 import { naira, useApp } from "./store";
 import { Avatar, Btn, IconBtn, Screen, Segmented, Sheet, TextField, Toggle } from "./ui";
@@ -23,10 +24,11 @@ const Row = ({ label, sub, onClick, danger }: { label: string; sub?: string; onC
 const Choice = ({ label, children }: { label: string; children: ReactNode }) => (<div className="border-b border-[var(--line)] py-3 last:border-0"><div className="mb-2 text-[14px] font-semibold text-[var(--text)]">{label}</div>{children}</div>);
 
 export default function Settings() {
-  const { overlay, setOverlay, profile, setProfile, settings, setSetting, balance, txs, setWalletOpen, courses, folders, resetAll, flash, auth, signOut, setAuthOpen } = useApp();
+  const { overlay, setOverlay, profile, setProfile, settings, setSetting, demoOn, setDemo, balance, txs, setWalletOpen, courses, folders, resetAll, flash, auth, signOut, setAuthOpen } = useApp();
   const [sheet, setSheet] = useState<null | "profile" | "password" | "delete" | "about">(null);
   const [draft, setDraft] = useState(profile);
   const [pw, setPw] = useState({ a: "", b: "", c: "" });
+  const [pwBusy, setPwBusy] = useState(false);
   const close = () => setOverlay(null);
 
   function exportData() {
@@ -77,6 +79,7 @@ export default function Settings() {
               <Toggle on={settings.autoplay} onChange={(v) => setSetting("autoplay", v)} label="Play videos on hover" sub="Preview videos silently as you point at them" />
               <Toggle on={settings.dataSaver} onChange={(v) => setSetting("dataSaver", v)} label="Data saver" sub="No video previews and lighter loading, to save your data" />
               <Toggle on={settings.personalTags} onChange={(v) => setSetting("personalTags", v)} label="Tags based on my chats" sub="Suggest topics from your courses and Birdie chats" />
+              <Toggle on={demoOn} onChange={setDemo} label="Demo community" sub="Adds a few sample students, posts and shared courses so Explore isn't empty while you're the only one here. Kept separate from your own data." />
             </Group>
 
             <Group icon={Bell} title="Notifications">
@@ -103,11 +106,12 @@ export default function Settings() {
               <Choice label="Who can message me"><Segmented value={settings.whoCanChat} onChange={(v) => setSetting("whoCanChat", v)} options={[{ id: "everyone", label: "Everyone" }, { id: "contacts", label: "My contacts" }]} /></Choice>
             </Group>
 
-            <Group icon={Lock} title="Security">
-              <Row label="Change password" onClick={() => { setPw({ a: "", b: "", c: "" }); setSheet("password"); }} />
-              <Toggle on={settings.twoFactor} onChange={(v) => { setSetting("twoFactor", v); flash(v ? "Two-factor turned on (demo)" : "Two-factor turned off"); }} label="Two-factor authentication" />
-              <Row label="Sign out of other devices" onClick={() => flash("Signed out of other devices (demo)")} />
-            </Group>
+            {auth.status === "in" && (
+              <Group icon={Lock} title="Security">
+                <Row label="Change password" onClick={() => { setPw({ a: "", b: "", c: "" }); setSheet("password"); }} />
+                <Row label="Sign out of other devices" sub="Keeps you signed in here" onClick={async () => { const { error } = await createClient().auth.signOut({ scope: "others" }); flash(error ? "Couldn't sign out other devices" : "Signed out everywhere else"); }} />
+              </Group>
+            )}
 
             <Group icon={FileText} title="Your data">
               <Row label="Download my data" sub="Courses, notes and settings as a file" onClick={exportData} />
@@ -115,12 +119,12 @@ export default function Settings() {
             </Group>
 
             <Group icon={BookOpen} title="About">
-              <Row label="Terms of Service" onClick={() => setSheet("about")} />
-              <Row label="Privacy Policy" onClick={() => setSheet("about")} />
+              <Row label="Terms of Service" onClick={() => window.open("/terms", "_blank")} />
+              <Row label="Privacy Policy" onClick={() => window.open("/privacy", "_blank")} />
               <Row label="How to use Birdie" onClick={() => setSheet("about")} />
-              <Row label="Log out" danger onClick={async () => { close(); await signOut(); resetAll(); }} />
+              {auth.status === "in" && <Row label="Log out" danger onClick={async () => { close(); await signOut(); resetAll(); }} />}
             </Group>
-            <p className="pb-2 text-center text-[11.5px] text-[var(--dim)]">Birdie prototype · powered by Unisupport</p>
+            <p className="pb-2 text-center text-[11.5px] text-[var(--dim)]">Birdie · powered by Unisupport</p>
           </div>
         </div>
       </Screen>
@@ -138,9 +142,18 @@ export default function Settings() {
         </div>
       </Sheet>
       <Sheet open={sheet === "password"} onClose={() => setSheet(null)} title="Change password">
-        <div className="space-y-3"><TextField type="password" value={pw.a} onChange={(v) => setPw({ ...pw, a: v })} placeholder="Current password" /><TextField type="password" value={pw.b} onChange={(v) => setPw({ ...pw, b: v })} placeholder="New password" /><TextField type="password" value={pw.c} onChange={(v) => setPw({ ...pw, c: v })} placeholder="Repeat new password" />
-          <p className="text-[12px] text-[var(--dim)]">Passwords are handled by Supabase Auth once accounts are connected. This form is a preview.</p>
-          <Btn variant="study" disabled={pw.b.length < 8 || pw.b !== pw.c} onClick={() => { setSheet(null); flash("Password updated (demo)"); }}>Update password</Btn></div>
+        <div className="space-y-3">
+          <TextField type="password" value={pw.b} onChange={(v) => setPw({ ...pw, b: v })} placeholder="New password" />
+          <TextField type="password" value={pw.c} onChange={(v) => setPw({ ...pw, c: v })} placeholder="Repeat new password" />
+          <p className="text-[12px] text-[var(--dim)]">You&apos;ll stay signed in on this device. Other devices are signed out next time they need to check.</p>
+          <Btn variant="study" disabled={pwBusy || pw.b.length < 8 || pw.b !== pw.c} onClick={async () => {
+            setPwBusy(true);
+            const { error } = await createClient().auth.updateUser({ password: pw.b });
+            setPwBusy(false);
+            if (error) return flash(error.message);
+            setSheet(null); flash("Password updated");
+          }}>{pwBusy ? "Updating..." : "Update password"}</Btn>
+        </div>
       </Sheet>
       <Sheet open={sheet === "delete"} onClose={() => setSheet(null)} title="Delete account?">
         <p className="mb-4 text-[14px] leading-relaxed text-[var(--dim)]">This clears your courses, notes, chats and settings from this device and can't be undone.</p>
@@ -148,7 +161,12 @@ export default function Settings() {
         <button onClick={() => setSheet(null)} className="mt-2 w-full py-2.5 text-[13.5px] font-semibold text-[var(--dim)]">Keep my account</button>
       </Sheet>
       <Sheet open={sheet === "about"} onClose={() => setSheet(null)} title="About Birdie">
-        <div className="space-y-3 text-[13.5px] leading-relaxed text-[var(--dim)]"><p><b className="text-[var(--text)]">Birdie</b> turns your courses into a study partner that knows what you were taught. Help is provided by <b className="text-[var(--text)]">Unisupport</b>, the company behind our writers and help desk.</p><p>The full Terms, Privacy Policy and guide are added when the app is published.</p><div className="flex items-center gap-2 text-[var(--uni-deep)]"><ShieldCheck size={16} /> Your recordings and notes stay private to you.</div><div className="flex items-center gap-2 text-[var(--study)]"><UserRound size={16} /> You control who can see and message you.</div></div>
+        <div className="space-y-3 text-[13.5px] leading-relaxed text-[var(--dim)]">
+          <p><b className="text-[var(--text)]">Birdie</b> turns your courses into a study partner that knows what you were taught: ask it questions, make flashcards, get quizzed, and it only answers from your own notes and files. Help is provided by <b className="text-[var(--text)]">Unisupport</b>, the company behind our writers and help desk.</p>
+          <p><b className="text-[var(--text)]">Study</b> holds your courses, notes, files and recordings. <b className="text-[var(--text)]">Explore</b> is where students share and follow each other. <b className="text-[var(--text)]">Birdie</b> is your AI study partner. <b className="text-[var(--text)]">Help</b> connects you to a real writer for mentoring or full write-ups.</p>
+          <div className="flex items-center gap-2 text-[var(--uni-deep)]"><ShieldCheck size={16} /> Your recordings and notes stay private to you.</div>
+          <div className="flex items-center gap-2 text-[var(--study)]"><UserRound size={16} /> You control who can see and message you.</div>
+        </div>
       </Sheet>
     </>
   );

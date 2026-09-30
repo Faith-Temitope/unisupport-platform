@@ -111,7 +111,15 @@ export async function POST(req: Request) {
   // 3. ask the vendor
   let out: { text: string; inTok: number; outTok: number; used: BrainModel };
   try { out = await callWithRetry(b, m, system, messages, feature ?? "chat"); }
-  catch (e) { return err(502, "vendor_error", { message: (e as Error).message }); }
+  catch (e) {
+    const msg = (e as Error).message ?? "";
+    // No credits, a bad/revoked key, or the account isn't billing-enabled: this brain is down until
+    // someone fixes the account, not a one-off blip. Tell the client the same way as "not configured".
+    if (/insufficient_quota|exceeded your current quota|invalid.?api.?key|authentication|billing|permission|401|403/i.test(msg)) {
+      return err(501, "provider_not_configured", { vendor: b.vendor, needs: keyName });
+    }
+    return err(502, "vendor_error", { message: msg });
+  }
 
   // 4. bill and log
   const p = priceNgn(b, out.used, out.inTok, out.outTok, usdNgn);
