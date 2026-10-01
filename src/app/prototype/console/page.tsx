@@ -124,6 +124,7 @@ function UsersTab({ show }: { show: (m: string) => void }) {
           <Card key={r} pad><div className="text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">{r}s</div><div className="disp mt-1 text-[26px] font-bold">{counts[r]}</div></Card>
         ))}
       </div>
+      <CreateStaff onCreated={reload} show={show} />
       <Card title="All users" sub={`${filtered.length} of ${rows.length}`} right={<Input value={q} onChange={setQ} placeholder="Search by name" w="w-56" />} pad={false}>
         {loading ? <div className="p-6 text-center text-sm text-[var(--dim)]">Loading...</div> : filtered.length === 0 ? <div className="p-6 text-center text-sm text-[var(--dim)]">No users found.</div> : (
           <div className="divide-y divide-[#F0EAF7]">
@@ -143,6 +144,56 @@ function UsersTab({ show }: { show: (m: string) => void }) {
         )}
       </Card>
     </div>
+  );
+}
+
+function CreateStaff({ onCreated, show }: { onCreated: () => void; show: (m: string) => void }) {
+  const [email, setEmail] = useState(""); const [name, setName] = useState(""); const [role, setRole] = useState<"writer" | "support" | "admin">("writer");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ email: string; password: string } | null>(null);
+
+  async function create() {
+    setBusy(true); setResult(null);
+    const sb = createClient();
+    const { data: { session } } = await sb.auth.getSession();
+    const r = await fetch("/api/admin/create-staff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}) },
+      body: JSON.stringify({ email: email.trim(), full_name: name.trim(), role }),
+    });
+    const j = await r.json().catch(() => null);
+    setBusy(false);
+    if (!r.ok) return show(j?.error === "email_already_registered" ? "That email is already registered" : j?.error ?? "Couldn't create the account");
+    setResult({ email: j.email, password: j.temp_password });
+    setEmail(""); setName("");
+    onCreated();
+  }
+
+  return (
+    <Card title="Create a staff account" sub="Writers, help desk and admins don't sign up themselves -- create their account here and share the password directly.">
+      {result ? (
+        <div className="rounded-xl border-2 border-[var(--birdie)] bg-[var(--birdie-soft)] p-4">
+          <div className="text-[13px] font-semibold">Account created for {result.email}</div>
+          <div className="mt-2 flex items-center gap-2">
+            <code className="rounded-lg bg-white px-3 py-2 text-[13px] font-bold">{result.password}</code>
+            <Btn2 small onClick={() => { void navigator.clipboard.writeText(result.password); show("Copied"); }}>Copy</Btn2>
+          </div>
+          <p className="mt-2 text-[11.5px] text-[var(--dim)]">Shown once. Share it with them directly (not email -- it's not reliable yet). They should change it after signing in.</p>
+          <button onClick={() => setResult(null)} className="mt-2 text-[12px] font-semibold text-[var(--dim)] underline">Dismiss</button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[180px]"><div className="mb-1 text-[11px] font-semibold text-[var(--dim)]">Full name</div><Input value={name} onChange={setName} placeholder="Amaka Obi" /></div>
+          <div className="flex-1 min-w-[200px]"><div className="mb-1 text-[11px] font-semibold text-[var(--dim)]">Email</div><Input value={email} onChange={setEmail} placeholder="amaka@unisupport.xyz" /></div>
+          <div><div className="mb-1 text-[11px] font-semibold text-[var(--dim)]">Role</div>
+            <select value={role} onChange={(e) => setRole(e.target.value as typeof role)} className="rounded-xl border-2 border-[#E6DCF0] bg-white px-3 py-2 text-[14px] font-semibold outline-none">
+              <option value="writer">Writer</option><option value="support">Help desk</option><option value="admin">Admin</option>
+            </select>
+          </div>
+          <Btn2 disabled={busy || !email.trim() || !name.trim()} onClick={() => void create()}>{busy ? "Creating..." : "Create account"}</Btn2>
+        </div>
+      )}
+    </Card>
   );
 }
 
