@@ -7,7 +7,11 @@ import { createClient } from "@/lib/supabase";
 
 export interface HSession { id: string; student_id: string; mode: "mentor" | "full"; title: string; phase: "desk" | "fee" | "writer"; writer_id: string | null; desk_agent_id: string | null; fee_amount: number | null; fee_paid_at: string | null; past_writers: string[]; created_at: string; writers?: { display_name: string; specialization: string | null } | null }
 export interface HMessage { id: string; session_id: string; sender_role: "student" | "desk" | "writer" | "system"; body: string; card: "fee" | "quote" | "delivery" | "close" | null; job_id: string | null; attachment_path: string | null; created_at: string }
-export interface HJob { id: string; session_id: string; pages: number | null; deadline: string | null; quote_price: number | null; delivery_pages: number | null; delivery_price: number | null; delivery_paid_at: string | null; student_accepted_at: string | null; writer_accepted_at: string | null; stage: "active" | "review" | "closed"; review_due_at: string | null; rating: number | null }
+export interface HJob { id: string; session_id: string; pages: number | null; deadline: string | null; quote_price: number | null; delivery_pages: number | null; delivery_price: number | null; delivery_paid_at: string | null; student_accepted_at: string | null; writer_accepted_at: string | null; stage: "active" | "review" | "closed"; review_due_at: string | null; rating: number | null; service: "quiz" | "writing" | null; access: "standard" | "full" | null }
+
+export const SERVICE_LABEL: Record<string, string> = { quiz: "Quiz", writing: "Writing" };
+export const ACCESS_LABEL: Record<string, string> = { standard: "Standard", full: "Full LMS Access" };
+export const UNIT_LABEL: Record<string, string> = { quiz: "quiz", writing: "page" };
 
 export const DL_LABEL: Record<string, string> = { "24h": "24 hours", "3d": "3 days", "1w": "1 week" };
 export const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });

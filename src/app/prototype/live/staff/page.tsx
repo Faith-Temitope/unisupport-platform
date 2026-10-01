@@ -5,7 +5,7 @@
 import { ArrowLeft, Check, LogOut, Paperclip, Send } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
-import { DL_LABEL, clock, openUrl, rpcError, safeName, sendMessage, signedUrl, uploadTo, useHelpData, type HJob, type HMessage, type HSession } from "../helpData";
+import { ACCESS_LABEL, DL_LABEL, SERVICE_LABEL, UNIT_LABEL, clock, openUrl, rpcError, safeName, sendMessage, signedUrl, uploadTo, useHelpData, type HJob, type HMessage, type HSession } from "../helpData";
 
 type Role = "support" | "admin" | "writer";
 interface Writer { id: string; display_name: string; specialization: string | null; is_available: boolean; rating: number | null; completed_count: number; earnings: number }
@@ -120,10 +120,12 @@ function Workspace({ me, onOut }: { me: { id: string; name: string; role: Role }
 
 function Chat({ s, desk, messages, jobs, writers, onBack, rpc, flash, reload }: { s: HSession; desk: boolean; messages: HMessage[]; jobs: HJob[]; writers: Writer[]; onBack: () => void; rpc: (fn: string, a: Record<string, unknown>, ok?: string) => Promise<boolean>; flash: (t: string) => void; reload: () => Promise<void> }) {
   const [draft, setDraft] = useState("");
-  const [pages, setPages] = useState("10"); const [dl, setDl] = useState("3d");
+  const [service, setService] = useState<"quiz" | "writing">("writing"); const [access, setAccess] = useState<"standard" | "full">("standard");
+  const [qty, setQty] = useState("10"); const [dl, setDl] = useState("3d");
   const [pick, setPick] = useState("");
   const [deliverOpen, setDeliverOpen] = useState(false);
-  const [dPages, setDPages] = useState("10"); const [dPrev, setDPrev] = useState<File | null>(null); const [dFile, setDFile] = useState<File | null>(null); const [sending, setSending] = useState(false);
+  const [dService, setDService] = useState<"quiz" | "writing">("writing"); const [dAccess, setDAccess] = useState<"standard" | "full">("standard");
+  const [dQty, setDQty] = useState("10"); const [dPrev, setDPrev] = useState<File | null>(null); const [dFile, setDFile] = useState<File | null>(null); const [sending, setSending] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length]);
   const role = desk ? "desk" : "writer";
@@ -135,7 +137,7 @@ function Chat({ s, desk, messages, jobs, writers, onBack, rpc, flash, reload }: 
   async function openAtt(p: string) { const u = await signedUrl("session-uploads", p); if (u) openUrl(u); }
   async function deliver() {
     setSending(true);
-    const { data, error } = await createClient().rpc("deliver_work", { p_session: s.id, p_pages: Number(dPages) });
+    const { data, error } = await createClient().rpc("deliver_work", { p_session: s.id, p_qty: Number(dQty), p_service: dService, p_access: dAccess });
     if (error) { flash(rpcError(error)); setSending(false); return; }
     const jid = data as string;
     if (dPrev) { const e = await uploadTo("session-previews", `${s.id}/${jid}/preview-${safeName(dPrev.name)}`, dPrev); if (e) flash("Preview upload failed: " + e); }
@@ -165,14 +167,26 @@ function Chat({ s, desk, messages, jobs, writers, onBack, rpc, flash, reload }: 
         <div className="flex flex-wrap items-center gap-2">
           {desk && s.phase === "desk" && <button className={`${btn} bg-[#8b3fa6] text-white`} onClick={() => void rpc("request_session_fee", { p_session: s.id }, "Fee card sent")}>Request session fee</button>}
           {desk && s.phase !== "writer" && (<><select value={pick} onChange={(e) => setPick(e.target.value)} className={`${btn} bg-[#F4EFF8]`}><option value="">Assign writer...</option>{free.map((w) => <option key={w.id} value={w.id}>{w.display_name} · {w.specialization}</option>)}</select><button disabled={!pick} className={`${btn} bg-[#1a1024] text-white`} onClick={() => void rpc("assign_writer", { p_session: s.id, p_writer: pick }, "Writer assigned")}>Assign</button></>)}
-          {s.phase === "writer" && s.mode === "full" && (<><input value={pages} onChange={(e) => setPages(e.target.value)} className="w-16 rounded-xl bg-[#F4EFF8] px-2 py-2 text-sm" aria-label="Pages" /><select value={dl} onChange={(e) => setDl(e.target.value)} className={`${btn} bg-[#F4EFF8]`}>{Object.entries(DL_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select><button className={`${btn} bg-[#F4EFF8]`} onClick={() => void rpc("set_quote", { p_session: s.id, p_pages: Number(pages), p_deadline: dl }, "Quote sent")}>Send quote</button></>)}
+          {s.phase === "writer" && s.mode === "full" && (<>
+            <select value={service} onChange={(e) => setService(e.target.value as "quiz" | "writing")} className={`${btn} bg-[#F4EFF8]`} aria-label="Service"><option value="writing">Writing</option><option value="quiz">Quiz</option></select>
+            <select value={access} onChange={(e) => setAccess(e.target.value as "standard" | "full")} className={`${btn} bg-[#F4EFF8]`} aria-label="Access level"><option value="standard">Standard</option><option value="full">Full LMS Access</option></select>
+            <input value={qty} onChange={(e) => setQty(e.target.value)} className="w-16 rounded-xl bg-[#F4EFF8] px-2 py-2 text-sm" aria-label={service === "quiz" ? "Quizzes" : "Pages"} />
+            <select value={dl} onChange={(e) => setDl(e.target.value)} className={`${btn} bg-[#F4EFF8]`}>{Object.entries(DL_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+            <button className={`${btn} bg-[#F4EFF8]`} onClick={() => void rpc("set_quote", { p_session: s.id, p_service: service, p_access: access, p_qty: Number(qty), p_deadline: dl }, "Quote sent")}>Send quote · {naira(Number(qty || 0) * (service === "quiz" ? (access === "full" ? 6000 : 500) : access === "full" ? 8000 : 1000))}</button>
+          </>)}
           {!desk && s.phase === "writer" && <button className={`${btn} bg-[#1a1024] text-white`} disabled={!!openJob?.delivery_pages} onClick={() => setDeliverOpen(true)}>Deliver work</button>}
           {!desk && s.phase === "writer" && openJob?.delivery_paid_at && !openJob.writer_accepted_at && <button className={`${btn} bg-[#DFF3E4] text-[#1f7a3a]`} onClick={() => void rpc("accept_job", { p_job: openJob.id }, "Accepted")}><Check size={13} className="mr-1 inline" />Accept</button>}
           {s.phase === "writer" && <button className={`${btn} bg-[#FBE3E3] text-[#a12b2b]`} onClick={() => void rpc("request_new_writer", { p_session: s.id }, "Sent back to the desk")}>{desk ? "Reassign writer" : "Can't continue"}</button>}
         </div>
         {deliverOpen && (
           <div className="space-y-2 rounded-2xl bg-[#F4EFF8] p-3 text-sm">
-            <label className="flex items-center gap-2">Pages <input value={dPages} onChange={(e) => setDPages(e.target.value)} className="w-16 rounded-lg bg-white px-2 py-1.5" /></label>
+            {!openJob?.service && (
+              <div className="flex gap-2">
+                <select value={dService} onChange={(e) => setDService(e.target.value as "quiz" | "writing")} className="rounded-lg bg-white px-2 py-1.5" aria-label="Service"><option value="writing">Writing</option><option value="quiz">Quiz</option></select>
+                <select value={dAccess} onChange={(e) => setDAccess(e.target.value as "standard" | "full")} className="rounded-lg bg-white px-2 py-1.5" aria-label="Access level"><option value="standard">Standard</option><option value="full">Full LMS Access</option></select>
+              </div>
+            )}
+            <label className="flex items-center gap-2">{(openJob?.service ?? dService) === "quiz" ? "Quizzes" : "Pages"} <input value={dQty} onChange={(e) => setDQty(e.target.value)} className="w-16 rounded-lg bg-white px-2 py-1.5" /></label>
             <label className="block text-xs text-[#6b5b7e]">Preview the student sees before paying (image or PDF, optional)<input type="file" accept="image/*,application/pdf" onChange={(e) => setDPrev(e.target.files?.[0] ?? null)} className="mt-1 block text-sm" /></label>
             <label className="block text-xs text-[#6b5b7e]">Final file (unlocks after the student pays)<input type="file" onChange={(e) => setDFile(e.target.files?.[0] ?? null)} className="mt-1 block text-sm" /></label>
             <div className="flex gap-2"><button disabled={sending || !dFile} className={`${btn} bg-[#8b3fa6] text-white`} onClick={() => void deliver()}>{sending ? "Uploading..." : "Deliver"}</button><button className={`${btn} bg-white`} onClick={() => setDeliverOpen(false)}>Cancel</button></div>
@@ -190,7 +204,7 @@ function Chat({ s, desk, messages, jobs, writers, onBack, rpc, flash, reload }: 
 
 function cardText(m: HMessage, j: HJob | undefined, s: HSession) {
   if (m.card === "fee") return `Session fee card · ${naira(Number(s.fee_amount ?? 0))}${s.fee_paid_at && s.phase === "writer" ? " · paid" : ""}`;
-  if (m.card === "quote") return j ? `Quote · ${j.pages} pages · ${DL_LABEL[j.deadline ?? ""] ?? j.deadline} · ${naira(Number(j.quote_price ?? 0))}` : "Quote";
-  if (m.card === "delivery") return j ? `Delivery · ${j.delivery_pages} pages · ${j.delivery_paid_at ? "paid, download unlocked" : `unpaid ${naira(Number(j.delivery_price ?? 0))}`}${j.student_accepted_at ? " · student accepted" : ""}${j.writer_accepted_at ? " · writer accepted" : ""}` : "Delivery";
+  if (m.card === "quote") return j ? `Quote · ${j.service ? `${SERVICE_LABEL[j.service]} · ${ACCESS_LABEL[j.access ?? "standard"]} · ` : ""}${j.pages} ${j.service ? UNIT_LABEL[j.service] : "page"}${j.pages === 1 ? "" : "s"} · ${DL_LABEL[j.deadline ?? ""] ?? j.deadline} · ${naira(Number(j.quote_price ?? 0))}` : "Quote";
+  if (m.card === "delivery") return j ? `Delivery · ${j.delivery_pages} ${j.service ? UNIT_LABEL[j.service] : "page"}${j.delivery_pages === 1 ? "" : "s"} · ${j.delivery_paid_at ? "paid, download unlocked" : `unpaid ${naira(Number(j.delivery_price ?? 0))}`}${j.student_accepted_at ? " · student accepted" : ""}${j.writer_accepted_at ? " · writer accepted" : ""}` : "Delivery";
   return j ? `Both accepted · ${j.stage === "closed" ? "closed" : "in Unisupport review"}${j.rating ? ` · ${j.rating}★` : ""}` : "Close";
 }
