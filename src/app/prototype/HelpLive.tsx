@@ -7,7 +7,7 @@ import { ArrowLeft, BookOpenCheck, Check, CheckCheck, Compass, Download, Eye, Fi
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { Learn, JustDoIt } from "./Help";
-import { DL_LABEL, clock, listFolder, openUrl, rpcError, safeName, sendMessage, signedUrl, uploadTo, useHelpData, type HJob, type HMessage, type HSession } from "./live/helpData";
+import { ACCESS_LABEL, DL_LABEL, SERVICE_LABEL, UNIT_LABEL, clock, listFolder, openUrl, rpcError, safeName, sendMessage, signedUrl, uploadTo, useHelpData, type HJob, type HMessage, type HSession } from "./live/helpData";
 import { naira, uid, useApp } from "./store";
 import { Avatar, Btn, Sheet, TopBar } from "./ui";
 
@@ -219,7 +219,7 @@ function Card({ m, s, job, onPayFee, onView, onPayWork, onDownload, onAccept, on
   if (m.card === "quote" && job?.quote_price != null) return (
     <div className={shell}>
       <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Estimate</div>
-      {[["Pages", String(job.pages)], ["Deadline", DL_LABEL[job.deadline ?? ""] ?? job.deadline ?? ""]].map(([a, b]) => (<div key={a} className="flex justify-between py-0.5 text-[13px]"><span className="text-[var(--dim)]">{a}</span><span className="font-semibold">{b}</span></div>))}
+      {[["Service", job.service ? `${SERVICE_LABEL[job.service]} · ${ACCESS_LABEL[job.access ?? "standard"]}` : "-"], [job.service === "quiz" ? "Quizzes" : "Pages", String(job.pages)], ["Deadline", DL_LABEL[job.deadline ?? ""] ?? job.deadline ?? ""]].map(([a, b]) => (<div key={a} className="flex justify-between py-0.5 text-[13px]"><span className="text-[var(--dim)]">{a}</span><span className="font-semibold">{b}</span></div>))}
       <div className="my-2 h-px bg-[var(--line)]" /><div className="flex justify-between text-[14px] font-bold"><span>Work fee</span><span>{naira(Number(job.quote_price))}</span></div>
       <p className="mt-2 text-[11.5px] leading-snug text-[var(--dim)]">Nothing to pay now. You pay when the work is delivered, before you download. If the final page count changes, the price updates.</p>
     </div>
@@ -228,7 +228,7 @@ function Card({ m, s, job, onPayFee, onView, onPayWork, onDownload, onAccept, on
     const paid = !!job.delivery_paid_at, price = Number(job.delivery_price ?? 0);
     return (
       <div className={shell}>
-        <div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--uni-soft)] text-[var(--uni-deep)]"><FileText size={18} /></div><div className="min-w-0 flex-1"><div className="truncate text-[13.5px] font-semibold">{s.mode === "mentor" ? "Session notes" : "Your finished work"}</div><div className="text-[11.5px] text-[var(--dim)]">{job.delivery_pages} page{job.delivery_pages === 1 ? "" : "s"}</div></div></div>
+        <div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--uni-soft)] text-[var(--uni-deep)]"><FileText size={18} /></div><div className="min-w-0 flex-1"><div className="truncate text-[13.5px] font-semibold">{s.mode === "mentor" ? "Session notes" : "Your finished work"}</div><div className="text-[11.5px] text-[var(--dim)]">{job.delivery_pages} {job.service ? UNIT_LABEL[job.service] : "page"}{job.delivery_pages === 1 ? "" : "s"}{job.access ? ` · ${ACCESS_LABEL[job.access]}` : ""}</div></div></div>
         <div className="mt-3 space-y-2">
           <button onClick={() => onView(job)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--paper-dim)] py-2.5 text-[13px] font-semibold active:scale-[0.98]"><Eye size={15} /> View</button>
           {paid ? (<>

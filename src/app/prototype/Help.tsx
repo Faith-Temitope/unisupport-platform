@@ -11,15 +11,24 @@ import HelpLive from "./HelpLive";
 type Mode = "mentor" | "full";
 type Phase = "desk" | "fee" | "writer";
 type DL = "24h" | "3d" | "1w";
+type Service = "quiz" | "writing";
+type Access = "standard" | "full";
 interface Writer { name: string; initials: string; color: string; spec: string }
-interface Job { id: string; pages?: number; deadline?: DL; quotePrice?: number; delivery?: { pages: number; price: number; paid: boolean }; studentOk: boolean; writerOk: boolean; stage: "active" | "review" | "closed"; rating?: number }
+interface Job { id: string; pages?: number; deadline?: DL; service?: Service; access?: Access; quotePrice?: number; delivery?: { pages: number; price: number; paid: boolean }; studentOk: boolean; writerOk: boolean; stage: "active" | "review" | "closed"; rating?: number }
 interface HMsg { id: string; from: "me" | "desk" | "writer" | "system"; text: string; t: string; card?: "fee" | "quote" | "delivery" | "close"; jobId?: string }
-interface Thread { id: string; mode: Mode; courseId: string | null; title: string; phase: Phase; writer?: Writer; past: string[]; msgs: HMsg[]; userMsgs: number; feePaid: boolean; jobs: Job[]; updated: number }
+interface Thread { id: string; mode: Mode; courseId: string | null; title: string; phase: Phase; writer?: Writer; past: string[]; msgs: HMsg[]; userMsgs: number; feePaid: boolean; jobs: Job[]; updated: number; access: Access }
 
 const SESSION_FEE = 2000;
-const PER_PAGE = 3500;
+const RATES: Record<Service, Record<Access, number>> = { quiz: { standard: 500, full: 6000 }, writing: { standard: 1000, full: 8000 } };
 const MULT: Record<DL, number> = { "24h": 1.4, "3d": 1.15, "1w": 1 };
 const DL_LABEL: Record<DL, string> = { "24h": "24 hours", "3d": "3 days", "1w": "1 week" };
+const SERVICE_LABEL: Record<Service, string> = { quiz: "Quiz", writing: "Writing" };
+const ACCESS_LABEL: Record<Access, string> = { standard: "Standard", full: "Full LMS Access" };
+const UNIT_LABEL: Record<Service, string> = { quiz: "quiz", writing: "page" };
+const ACCESSES: { id: Access; label: string; sub: string }[] = [
+  { id: "standard", label: "Standard", sub: "You submit the finished work yourself" },
+  { id: "full", label: "Full LMS Access", sub: "Writer works directly in your school portal" },
+];
 const MODES: { id: Mode; label: string; sub: string; icon: typeof Compass }[] = [
   { id: "mentor", label: "Mentor me", sub: "Talk it through with a writer. You do the work, they guide you.", icon: Compass },
   { id: "full", label: "Do it for me", sub: "A writer completes it. You review and approve.", icon: Zap },
@@ -32,11 +41,11 @@ const POOL: Writer[] = [
   { name: "Chinedu Okafor", initials: "CO", color: "#7C4DDB", spec: "Research and Writing" },
 ];
 
-const price = (mode: Mode, pages: number, dl: DL) => (mode === "mentor" ? 0 : Math.round((PER_PAGE * pages * MULT[dl]) / 100) * 100);
+const price = (mode: Mode, service: Service, access: Access, qty: number, dl: DL) => (mode === "mentor" ? 0 : Math.round((RATES[service][access] * qty * MULT[dl]) / 100) * 100);
 const first = (w: Writer) => (w.name.startsWith("Dr.") ? w.name.split(" ")[1] : w.name.split(" ")[0]);
 const m = (from: HMsg["from"], text: string, card?: HMsg["card"], jobId?: string): HMsg => ({ id: uid(), from, text, t: nowTime(), card, jobId });
 
-function parseBrief(text: string): { pages?: number; deadline?: DL } {
+function parseBrief(text: string): { pages?: number; deadline?: DL; service: Service } {
   const t = text.toLowerCase();
   const p = t.match(/(\d+)\s*(pages?|pgs?)\b/);
   let deadline: DL | undefined;
@@ -44,10 +53,11 @@ function parseBrief(text: string): { pages?: number; deadline?: DL } {
   if (/tomorrow|tonight|overnight/.test(t) || (h && +h[1] <= 24)) deadline = "24h";
   else if (d) deadline = +d[1] <= 1 ? "24h" : +d[1] <= 4 ? "3d" : "1w";
   else if (w) deadline = "1w";
-  return { pages: p ? +p[1] : undefined, deadline };
+  const service: Service = /quiz|test|mcq|exam/i.test(t) ? "quiz" : "writing";
+  return { pages: p ? +p[1] : undefined, deadline, service };
 }
 
-const DESK_PRICE = `Our rates: a one-off ${naira(SESSION_FEE)} session fee connects you to a writer. Full write-ups are ${naira(PER_PAGE)} per page (under 24 hours adds 40%, 3 days adds 15%). Mentoring has no page fee. You only pay the work fee when the writer delivers, before you download.`;
+const DESK_PRICE = `Our rates: a one-off ${naira(SESSION_FEE)} session fee connects you to a writer. On Standard access, quizzes start from ${naira(RATES.quiz.standard)} and writing from ${naira(RATES.writing.standard)} per page. On Full LMS Access, where the writer works directly in your school portal, quizzes start from ${naira(RATES.quiz.full)} and writing from ${naira(RATES.writing.full)} per page (under 24 hours adds 40%, 3 days adds 15%). Mentoring has no page fee. You only pay the work fee when the writer delivers, before you download.`;
 const REPLIES: Record<Mode, string[]> = {
   mentor: ["Good question. Before I explain, what have you tried so far?", "You're close. Look at that step again. What happens if you break it into smaller parts?", "Nice. Try the next one on your own and send me your working. I'll check it."],
   full: ["Received. I'll start today and send a first draft before your deadline.", "Quick check: which referencing style does your course outline use? I'll assume APA otherwise.", "Progress update: coming along well. I'll tell you as soon as it's ready to view."],
@@ -65,6 +75,7 @@ function HelpSim({ active }: { active: boolean }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pickMode, setPickMode] = useState<Mode>("mentor");
   const [pickCourse, setPickCourse] = useState<string | null>(null);
+  const [pickAccess, setPickAccess] = useState<Access>("standard");
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
@@ -84,12 +95,12 @@ function HelpSim({ active }: { active: boolean }) {
   const t = threads.find((x) => x.id === activeId) ?? null;
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [t?.msgs.length, typing, view]);
 
-  const start = useCallback((mode: Mode, courseId: string | null) => {
+  const start = useCallback((mode: Mode, courseId: string | null, access: Access = "standard") => {
     const c = courses.find((x) => x.id === courseId) ?? null;
     const title = mode === "mentor" ? (c ? `Mentor · ${c.code}` : "Talk to a writer") : `Get a writer${c ? ` · ${c.code}` : ""}`;
     const id = uid();
     const opener = `Hi ${name}, I'm James from Unisupport Help Desk. ` + (mode === "mentor" ? `What would you like to work through${c ? ` in ${c.code}` : ""}?` : `Tell me about the work you need a hand with${c ? ` for ${c.code}` : ""}, as much or as little as you like.`);
-    setThreads((ts) => [{ id, mode, courseId, title, phase: "desk", past: [], msgs: [m("desk", opener)], userMsgs: 0, feePaid: false, jobs: [], updated: Date.now() }, ...ts]);
+    setThreads((ts) => [{ id, mode, courseId, title, phase: "desk", past: [], msgs: [m("desk", opener)], userMsgs: 0, feePaid: false, jobs: [], updated: Date.now(), access }, ...ts]);
     setActiveId(id); setView("chat");
   }, [courses, name]);
 
@@ -108,7 +119,7 @@ function HelpSim({ active }: { active: boolean }) {
     if (t.phase === "desk") {
       if (wantsPrice) return say(id, m("desk", DESK_PRICE));
       if (count >= 2 || ready || (brief.pages && brief.deadline)) {
-        const est = brief.pages && t.mode === "full" ? price("full", brief.pages, brief.deadline ?? "3d") : 0;
+        const est = brief.pages && t.mode === "full" ? price("full", brief.service, t.access, brief.pages, brief.deadline ?? "3d") : 0;
         say(id, m("desk", `${est ? `That comes to about ${naira(est)} for ${brief.pages} pages, confirmed by the writer. ` : ""}Thanks ${name}, I'm matching you with a writer who fits. Opening your session is a one-off ${naira(SESSION_FEE)}. After that you chat with your writer directly, and you only pay again if you ever need a different writer.`), 1300);
         later(() => upd(id, (x) => ({ ...x, phase: "fee", msgs: [...x.msgs, m("desk", "", "fee")] })), 1500);
         return;
@@ -120,11 +131,11 @@ function HelpSim({ active }: { active: boolean }) {
     // phase writer: direct chat
     const w = t.writer!;
     if (t.mode === "full" && brief.pages) {
-      const dl = brief.deadline ?? "3d", p = price("full", brief.pages, dl);
+      const dl = brief.deadline ?? "3d", svc = brief.service, acc = t.access, p = price("full", svc, acc, brief.pages, dl);
       const cur = currentJob(t);
       const jobId = cur && !cur.delivery ? cur.id : uid();
-      say(id, m("writer", `Understood, ${brief.pages} pages in ${DL_LABEL[dl]}. Here's the estimate.`), 900);
-      later(() => upd(id, (x) => ({ ...x, jobs: cur && !cur.delivery ? x.jobs.map((j) => (j.id === jobId ? { ...j, pages: brief.pages, deadline: dl, quotePrice: p } : j)) : [...x.jobs, { id: jobId, pages: brief.pages, deadline: dl, quotePrice: p, studentOk: false, writerOk: false, stage: "active" }], msgs: [...x.msgs, m("writer", "", "quote", jobId)] })), 1500);
+      say(id, m("writer", `Understood, ${brief.pages} ${UNIT_LABEL[svc]}${brief.pages === 1 ? "" : "s"} in ${DL_LABEL[dl]}. Here's the estimate.`), 900);
+      later(() => upd(id, (x) => ({ ...x, jobs: cur && !cur.delivery ? x.jobs.map((j) => (j.id === jobId ? { ...j, pages: brief.pages, deadline: dl, service: svc, access: acc, quotePrice: p } : j)) : [...x.jobs, { id: jobId, pages: brief.pages, deadline: dl, service: svc, access: acc, quotePrice: p, studentOk: false, writerOk: false, stage: "active" }], msgs: [...x.msgs, m("writer", "", "quote", jobId)] })), 1500);
       return;
     }
     const pool = REPLIES[t.mode];
@@ -142,7 +153,7 @@ function HelpSim({ active }: { active: boolean }) {
       const w = POOL.find((p) => !th.past.includes(p.name)) ?? POOL[0];
       const b = parseBrief(th.msgs.filter((x) => x.from === "me").map((x) => x.text).join(" "));
       const hadJob = th.jobs.find((j) => j.stage !== "closed");
-      const newJob: Job | null = th.mode === "full" && b.pages && !hadJob ? { id: uid(), pages: b.pages, deadline: b.deadline ?? "3d", quotePrice: price("full", b.pages, b.deadline ?? "3d"), studentOk: false, writerOk: false, stage: "active" } : null;
+      const newJob: Job | null = th.mode === "full" && b.pages && !hadJob ? { id: uid(), pages: b.pages, deadline: b.deadline ?? "3d", service: b.service, access: th.access, quotePrice: price("full", b.service, th.access, b.pages, b.deadline ?? "3d"), studentOk: false, writerOk: false, stage: "active" } : null;
       const hello = th.past.length
         ? `Hi ${name}, ${first(w)} here. I've read your chat and what ${th.past[th.past.length - 1].split(" ")[0]} did so far. Let's pick it up from here.`
         : th.mode === "mentor" ? `Hi ${name}, ${first(w)} here. I've read your chat with the desk. Where would you like to start?` : `Hi ${name}, ${first(w)} here. I've read your chat with the desk and I'm ready to start.${newJob ? ` Based on what you said, that's ${newJob.pages} pages in ${DL_LABEL[newJob.deadline!]}.` : " Tell me the pages and deadline when you have them and I'll work out the price."}`;
@@ -154,11 +165,12 @@ function HelpSim({ active }: { active: boolean }) {
     if (!t || t.phase !== "writer") return;
     let job = currentJob(t);
     if (job?.delivery) return;
+    const svc = job?.service ?? "writing", acc = job?.access ?? t.access;
     const pages = t.mode === "mentor" ? 3 : job?.pages ?? 11;
-    const p = price(t.mode, pages, job?.deadline ?? "3d");
+    const p = price(t.mode, svc, acc, pages, job?.deadline ?? "3d");
     const jobId = job?.id ?? uid();
     upd(t.id, (x) => ({
-      ...x, jobs: job ? x.jobs.map((j) => (j.id === jobId ? { ...j, pages, delivery: { pages, price: p, paid: p === 0 } } : j)) : [...x.jobs, { id: jobId, pages, delivery: { pages, price: p, paid: p === 0 }, studentOk: false, writerOk: false, stage: "active" }],
+      ...x, jobs: job ? x.jobs.map((j) => (j.id === jobId ? { ...j, pages, service: svc, access: acc, delivery: { pages, price: p, paid: p === 0 } } : j)) : [...x.jobs, { id: jobId, pages, service: svc, access: acc, delivery: { pages, price: p, paid: p === 0 }, studentOk: false, writerOk: false, stage: "active" }],
       msgs: [...x.msgs, m("writer", p === 0 ? "I've put together notes from our session. They're yours to download." : `The work is ready, ${pages} pages. You can view it now. Downloading unlocks once the work fee is paid.`, "delivery", jobId)],
     }));
   }
@@ -223,7 +235,16 @@ function HelpSim({ active }: { active: boolean }) {
             <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5">
               {[{ id: null as string | null, label: "No course" }, ...courses.map((c) => ({ id: c.id as string | null, label: c.code }))].map((c) => (<button key={c.label} onClick={() => setPickCourse(c.id)} className={`shrink-0 rounded-full px-3.5 py-2 text-[13px] font-semibold transition active:scale-95 ${pickCourse === c.id ? "bg-[var(--ink)] text-[var(--paper)]" : "bg-[var(--paper-dim)] text-[var(--dim)]"}`}>{c.label}</button>))}
             </div>
-            <div className="mt-4"><Btn onClick={() => start(pickMode, pickCourse)}>{cta}</Btn></div>
+            {pickMode === "full" && (<>
+              <div className="mb-2 mt-4 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Access level</div>
+              <div className="space-y-2">
+                {ACCESSES.map((a) => { const on = pickAccess === a.id; return (
+                  <button key={a.id} onClick={() => setPickAccess(a.id)} className={`w-full rounded-2xl border-2 p-3 text-left transition active:scale-[0.985] ${on ? "border-[var(--birdie)] bg-[var(--birdie-soft)]" : "border-[var(--line)] bg-white"}`}>
+                    <div className="flex items-center justify-between gap-2"><div><div className="disp text-[14px] font-bold">{a.label}</div><div className="text-[11.5px] leading-snug text-[var(--dim)]">{a.sub}</div></div><div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-white ${on ? "border-[var(--birdie)] bg-[var(--birdie)]" : "border-[var(--line)]"}`}>{on && <Check size={12} strokeWidth={3} />}</div></div>
+                  </button>); })}
+              </div>
+            </>)}
+            <div className="mt-4"><Btn onClick={() => start(pickMode, pickCourse, pickAccess)}>{cta}</Btn></div>
             <p className="mt-2 text-center text-[11.5px] leading-snug text-[var(--dim)]">You start with our help desk. Session fee {naira(SESSION_FEE)}, one-off. After that you chat with your writer directly.</p>
           </section>
 
@@ -323,7 +344,7 @@ function Card({ kind, t, job, onPayFee, onView, onPayWork, onAccept, onRate }: {
   if (kind === "quote" && job?.quotePrice) return (
     <div className={shell}>
       <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Estimate from the chat</div>
-      {[["Pages", String(job.pages)], ["Deadline", DL_LABEL[job.deadline!]], ["Rate", `${naira(PER_PAGE)} per page${MULT[job.deadline!] > 1 ? ` + ${Math.round((MULT[job.deadline!] - 1) * 100)}% rush` : ""}`]].map(([a, b]) => (<div key={a} className="flex justify-between py-0.5 text-[13px]"><span className="text-[var(--dim)]">{a}</span><span className="font-semibold">{b}</span></div>))}
+      {[["Service", `${SERVICE_LABEL[job.service ?? "writing"]} · ${ACCESS_LABEL[job.access ?? "standard"]}`], [job.service === "quiz" ? "Quizzes" : "Pages", String(job.pages)], ["Deadline", DL_LABEL[job.deadline!]], ["Rate", `${naira(RATES[job.service ?? "writing"][job.access ?? "standard"])} per ${UNIT_LABEL[job.service ?? "writing"]}${MULT[job.deadline!] > 1 ? ` + ${Math.round((MULT[job.deadline!] - 1) * 100)}% rush` : ""}`]].map(([a, b]) => (<div key={a} className="flex justify-between py-0.5 text-[13px]"><span className="text-[var(--dim)]">{a}</span><span className="font-semibold">{b}</span></div>))}
       <div className="my-2 h-px bg-[var(--line)]" /><div className="flex justify-between text-[14px] font-bold"><span>Work fee</span><span>{naira(job.quotePrice)}</span></div>
       <p className="mt-2 text-[11.5px] leading-snug text-[var(--dim)]">Nothing to pay now. You pay when the work is delivered, before you download. If the final page count changes, the price updates.</p>
     </div>
@@ -336,7 +357,7 @@ function Card({ kind, t, job, onPayFee, onView, onPayWork, onAccept, onRate }: {
         {d.paid ? (<><button className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--ink)] py-2.5 text-[13px] font-semibold text-white active:scale-[0.98]"><Download size={15} /> Download</button>{!job.studentOk && <Btn onClick={() => onAccept(job.id)}>Accept and finish</Btn>}</>)
           : (<button onClick={() => onPayWork(job.id)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--uni)] py-3 text-[13.5px] font-bold text-white active:scale-[0.98]"><Lock size={15} /> Pay {naira(d.price)} to download</button>)}
       </div>
-      {!d.paid && <p className="mt-2 text-[11.5px] text-[var(--dim)]">{d.pages} pages · {naira(PER_PAGE)}/page. You can view it now, downloading unlocks after payment.</p>}
+      {!d.paid && <p className="mt-2 text-[11.5px] text-[var(--dim)]">{d.pages} {UNIT_LABEL[job.service ?? "writing"]}{d.pages === 1 ? "" : "s"} · {naira(RATES[job.service ?? "writing"][job.access ?? "standard"])}/{UNIT_LABEL[job.service ?? "writing"]}. You can view it now, downloading unlocks after payment.</p>}
     </div>); }
   if (kind === "close" && job) return (
     <div className={shell}>
