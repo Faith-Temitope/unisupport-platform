@@ -8,5 +8,35 @@
         "02:8D:21:D2:82:41:26:EE:12:31:EF:F9:4E:8B:09:F4:DD:CC:8C:34:E4:F4:DE:F5:1F:E2:14:6C:F6:77:B2:2E"
       ]
     }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.vercel.unisupportorg.twa",
+      "sha256_cert_fingerprints": [
+        "D1:3D:43:02:D2:98:0D:9F:2E:C0:F1:9F:EA:F2:8B:D6:ED:2E:8C:CB:36:16:A4:56:83:B5:26:45:05:DE:71:B6"
+      ]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.vercel.unisupportorg.writer",
+      "sha256_cert_fingerprints": [
+        "C3:EF:E1:FD:1F:E4:CD:83:78:2D:2D:A6:83:C4:F3:8F:3C:35:46:BD:BB:1B:A4:C7:67:84:B0:E3:69:E4:39:F0"
+      ]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.vercel.unisupportorg.admin",
+      "sha256_cert_fingerprints": [
+        "F6:92:22:79:D2:37:5D:03:3F:6D:6A:0F:42:05:2C:D3:98:3B:68:F7:9B:CE:AB:C0:B5:78:D2:2E:5C:57:11:ED"
+      ]
+    }
   }
 ]
