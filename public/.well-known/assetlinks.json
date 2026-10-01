@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "xyz.getunisupport.birdie",
+      "sha256_cert_fingerprints": [
+        "02:8D:21:D2:82:41:26:EE:12:31:EF:F9:4E:8B:09:F4:DD:CC:8C:34:E4:F4:DE:F5:1F:E2:14:6C:F6:77:B2:2E"
+      ]
+    }
+  }
+]
