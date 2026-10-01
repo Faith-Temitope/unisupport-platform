@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Bell, BookOpen, ChevronRight, FileText, FolderInput, FolderPlus, Folder as FolderIcon, Image as ImageIcon, MoreHorizontal, Plus, Presentation, Search, Share2, Sparkles, StickyNote, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { extractText } from "./extract";
 import { folderPath, useApp, type Course, type FileItem, type Folder } from "./store";
 import { Btn, Empty, IconBtn, Label, Sheet, TextField, TopBar } from "./ui";
 import { DeadlinesCard, ExtraSheets, TodayCard, type ExtraSheet } from "./StudyExtras";
@@ -182,11 +183,13 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
 
   async function pick(files: FileList | null) {
     if (!files) return;
-    for (const f of Array.from(files)) {
-      const text = kindOf(f) === "text" ? await f.text() : undefined;
+    const list = Array.from(files);
+    flash(`Adding ${list.length} file${list.length === 1 ? "" : "s"}...`);
+    for (const f of list) {
+      const text = await extractText(f); // reads .txt/.md directly, parses .pdf/.docx in the browser
       addFile(course.id, { name: f.name, kind: kindOf(f), size: f.size, text, url: URL.createObjectURL(f) });
     }
-    flash(`${files.length} file${files.length === 1 ? "" : "s"} added`);
+    flash(`${list.length} file${list.length === 1 ? "" : "s"} added`);
     if (input.current) input.current.value = "";
   }
 

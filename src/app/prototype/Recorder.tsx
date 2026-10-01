@@ -8,7 +8,7 @@ import { Btn, Sheet, TextField, mmss, useTicker } from "./ui";
 
 /** Consent -> real microphone recording (floating bar on any tab) -> choose a course afterwards. */
 export default function Recorder() {
-  const { recorderOpen, setRecorderOpen, courses, addCourse, addRec, flash, settings } = useApp();
+  const { recorderOpen, setRecorderOpen, courses, addCourse, addRec, updateRec, flash, settings } = useApp();
   const [phase, setPhase] = useState<"idle" | "consent" | "recording" | "save">("idle");
   const [dest, setDest] = useState<string>("");
   const [newName, setNewName] = useState("");
@@ -17,6 +17,7 @@ export default function Recorder() {
   const rec = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const stream = useRef<MediaStream | null>(null);
+  const mimeRef = useRef<string>("audio/webm");
   const secs = useTicker(phase === "recording");
 
   useEffect(() => {
@@ -34,7 +35,8 @@ export default function Recorder() {
       const mr = new MediaRecorder(s);
       chunks.current = [];
       mr.ondataavailable = (e) => e.data.size && chunks.current.push(e.data);
-      mr.onstop = () => { setUrl(URL.createObjectURL(new Blob(chunks.current, { type: mr.mimeType || "audio/webm" }))); s.getTracks().forEach((t) => t.stop()); };
+      mimeRef.current = mr.mimeType || "audio/webm";
+      mr.onstop = () => { setUrl(URL.createObjectURL(new Blob(chunks.current, { type: mimeRef.current }))); s.getTracks().forEach((t) => t.stop()); };
       mr.start();
       rec.current = mr;
     } catch {
@@ -49,9 +51,25 @@ export default function Recorder() {
   function save() {
     let id = dest;
     if (dest === "new") id = addCourse(newName.trim().slice(0, 8).toUpperCase(), newName.trim(), null);
-    addRec(id, { name: `Lecture recording`, dur: Math.max(len, 1), url });
-    flash("Saved to your course");
+    const recId = addRec(id, { name: `Lecture recording`, dur: Math.max(len, 1), url, transcribing: true });
+    flash("Saved. Transcribing so Birdie can read it...");
     setPhase("idle"); setRecorderOpen(false); setDest(""); setNewName(""); setUrl(undefined);
+    void transcribe(id, recId, chunks.current, mimeRef.current);
+  }
+
+  async function transcribe(courseId: string, recId: string, parts: Blob[], mime: string) {
+    try {
+      const blob = new Blob(parts, { type: mime });
+      const form = new FormData();
+      form.append("audio", new File([blob], `recording.${mime.includes("mp4") ? "m4a" : "webm"}`, { type: mime }));
+      const r = await fetch("/api/ai/transcribe", { method: "POST", body: form });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || typeof j?.text !== "string") { updateRec(courseId, recId, { transcribing: false }); return; }
+      updateRec(courseId, recId, { text: j.text, transcribing: false });
+      flash("Transcript ready. Birdie can read this recording now.");
+    } catch {
+      updateRec(courseId, recId, { transcribing: false });
+    }
   }
 
   return (
