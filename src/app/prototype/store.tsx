@@ -13,7 +13,7 @@ export type Emote = "happy" | "sad" | "love" | "say" | "angry";
 
 export interface FileItem { id: string; name: string; kind: "pdf" | "img" | "slides" | "notes" | "link" | "text"; size: number; added: string; text?: string; url?: string }
 export interface Note { id: string; title: string; body: string; date: string }
-export interface Rec { id: string; name: string; dur: number; date: string; url?: string }
+export interface Rec { id: string; name: string; dur: number; date: string; url?: string; text?: string; transcribing?: boolean }
 export interface Topic { name: string; mastery: number }
 export interface Course { id: string; code: string; name: string; color: string; folderId: string | null; files: FileItem[]; notes: Note[]; recs: Rec[]; topics: Topic[]; sharedId?: string }
 export interface Folder { id: string; name: string; parentId: string | null }
@@ -76,7 +76,8 @@ interface AppCtx {
   addFolder: (name: string, parentId: string | null) => void; renameFolder: (id: string, name: string) => void; deleteFolder: (id: string) => void;
   addNote: (courseId: string, title: string, body: string) => void; deleteNote: (courseId: string, noteId: string) => void;
   addFile: (courseId: string, f: Omit<FileItem, "id" | "added">) => void; deleteFile: (courseId: string, fileId: string) => void;
-  addRec: (courseId: string, r: Omit<Rec, "id" | "date">) => void; deleteRec: (courseId: string, recId: string) => void;
+  addRec: (courseId: string, r: Omit<Rec, "id" | "date">) => string; deleteRec: (courseId: string, recId: string) => void;
+  updateRec: (courseId: string, recId: string, patch: Partial<Rec>) => void;
   applyQuiz: (courseId: string, per: Record<string, { right: number; total: number }>) => void;
   chats: Record<string, BMsg[]>; setChats: (fn: (c: Record<string, BMsg[]>) => Record<string, BMsg[]>) => void;
   recommendation: Recommendation | null; dismissRec: () => void; skipHours: (h: number) => void;
@@ -343,8 +344,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     deleteNote: (courseId, noteId) => { patchCourse(courseId, (c) => ({ ...c, notes: c.notes.filter((n) => n.id !== noteId) })); emote("sad", "Was that note important?"); },
     addFile: (courseId, f) => { patchCourse(courseId, (c) => ({ ...c, files: [{ ...f, id: uid(), added: dateLabel() }, ...c.files] })); logActivity(); },
     deleteFile: (courseId, fileId) => patchCourse(courseId, (c) => ({ ...c, files: c.files.filter((f) => f.id !== fileId) })),
-    addRec: (courseId, r) => { patchCourse(courseId, (c) => ({ ...c, recs: [{ ...r, id: uid(), date: dateLabel() }, ...c.recs] })); logActivity(); emote("happy", "Lecture saved!"); },
+    addRec: (courseId, r) => { const id = uid(); patchCourse(courseId, (c) => ({ ...c, recs: [{ ...r, id, date: dateLabel() }, ...c.recs] })); logActivity(); emote("happy", "Lecture saved!"); return id; },
     deleteRec: (courseId, recId) => patchCourse(courseId, (c) => ({ ...c, recs: c.recs.filter((r) => r.id !== recId) })),
+    updateRec: (courseId, recId, patch) => patchCourse(courseId, (c) => ({ ...c, recs: c.recs.map((r) => (r.id === recId ? { ...r, ...patch } : r)) })),
     applyQuiz: (courseId, per) => {
       let right = 0, total = 0;
       Object.values(per).forEach((r) => { right += r.right; total += r.total; });

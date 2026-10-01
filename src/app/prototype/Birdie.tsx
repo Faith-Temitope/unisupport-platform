@@ -18,20 +18,28 @@ const me = (text: string): BMsg => ({ id: uid(), from: "me", text, t: nowTime(),
 function greeting(c: Course | null, name: string): BMsg {
   if (!c) return bird(`Hi ${name}. This is a general chat, not tied to a course. Create a course in Study and I can learn from your slides and notes.`);
   const n = docsOf(c).length;
-  return bird(`I'm ready for ${c.code}. I can read ${c.notes.length} note${c.notes.length === 1 ? "" : "s"}${c.files.some((f) => f.text) ? " and your text files" : ""}${n === 0 ? ", but there's nothing to learn from yet. Add a note or a .txt file in Study and I'll answer only from it." : ". Ask me anything and I'll answer only from what you've added."}`);
+  const filesWithText = c.files.filter((f) => f.text).length;
+  const recsWithText = c.recs.filter((r) => r.text).length;
+  const transcribing = c.recs.some((r) => r.transcribing);
+  const parts = [`${c.notes.length} note${c.notes.length === 1 ? "" : "s"}`];
+  if (filesWithText) parts.push(`${filesWithText} file${filesWithText === 1 ? "" : "s"}`);
+  if (recsWithText) parts.push(`${recsWithText} recording${recsWithText === 1 ? "" : "s"}`);
+  if (n > 0) return bird(`I'm ready for ${c.code}. I can read ${parts.join(", ")}. Ask me anything and I'll answer only from what you've added.`);
+  if (transcribing) return bird(`I'm ready for ${c.code}, but I'm still turning your recording into text. Give it a minute and ask again.`);
+  return bird(`I'm ready for ${c.code}, but there's nothing to learn from yet. Add a note, upload a PDF, Word doc or text file, or record a lecture in Study and I'll answer only from it.`);
 }
 
 function respond(text: string, c: Course | null, length: "short" | "normal" | "detailed"): BMsg {
   const t = text.toLowerCase();
   if (!c) return bird(general(text));
   const docs = docsOf(c);
-  if (/flash/.test(t)) { if (!docs.length) return bird(`There's nothing in ${c.code} to build flashcards from yet. Add a note first.`, { actions: [{ label: "Add a note", run: "study" }] }); return bird(`Here are ${Math.min(6, docs.length)} flashcards from your ${c.code} notes. Tap a card to flip it.`, { cards: flashcards(docs), actions: [{ label: "Save to course", run: "file", payload: `Flashcards - ${c.code}.txt` }] }); }
-  if (/summar/.test(t)) { if (!docs.length) return bird(`I don't have anything to summarise in ${c.code} yet.`, { actions: [{ label: "Add a note", run: "study" }] }); return bird(`Summary of ${c.code}\n${summarize(docs)}`, { cite: docs.slice(0, 3).map((d) => d.source).join(" · "), actions: [{ label: "Save as note", run: "note", payload: `Summary - ${c.code}` }] }); }
-  if (/study guide|guide/.test(t)) { if (!docs.length) return bird(`Add some notes to ${c.code} first and I'll assemble a guide.`, { actions: [{ label: "Add a note", run: "study" }] }); return bird(`Study guide for ${c.code}\n${docs.map((d, i) => `${i + 1}. ${d.title}`).join("\n")}`, { actions: [{ label: "Save as note", run: "note", payload: `Study guide - ${c.code}` }] }); }
+  if (/flash/.test(t)) { if (!docs.length) return bird(`There's nothing in ${c.code} to build flashcards from yet. Add a note, upload a file, or record a lecture first.`, { actions: [{ label: "Add material", run: "study" }] }); return bird(`Here are ${Math.min(6, docs.length)} flashcards from your ${c.code} material. Tap a card to flip it.`, { cards: flashcards(docs), actions: [{ label: "Save to course", run: "file", payload: `Flashcards - ${c.code}.txt` }] }); }
+  if (/summar/.test(t)) { if (!docs.length) return bird(`I don't have anything to summarise in ${c.code} yet.`, { actions: [{ label: "Add material", run: "study" }] }); return bird(`Summary of ${c.code}\n${summarize(docs)}`, { cite: docs.slice(0, 3).map((d) => d.source).join(" · "), actions: [{ label: "Save as note", run: "note", payload: `Summary - ${c.code}` }] }); }
+  if (/study guide|guide/.test(t)) { if (!docs.length) return bird(`Add some material to ${c.code} first and I'll assemble a guide.`, { actions: [{ label: "Add material", run: "study" }] }); return bird(`Study guide for ${c.code}\n${docs.map((d, i) => `${i + 1}. ${d.title}`).join("\n")}`, { actions: [{ label: "Save as note", run: "note", payload: `Study guide - ${c.code}` }] }); }
   if (/quiz|test me|mock/.test(t)) return bird("Switching to Test mode.", { actions: [{ label: "Start quiz", run: "test" }] });
   const a = answer(docs, text);
   if (a) { const sentences = a.text.match(/[^.]+\.?/g) ?? [a.text]; const body = length === "short" ? a.text.split("\n")[0].slice(0, 220) : length === "detailed" ? a.text : sentences.slice(0, 4).join(" "); return bird(body, { cite: a.cite }); }
-  return bird(`I couldn't find that in your ${c.code} notes, and I won't guess. Add the note or file that covers it, or talk to a writer who can walk you through it.`, { actions: [{ label: "Add a note", run: "study" }, { label: "Talk to a writer", run: "writer" }] });
+  return bird(`I couldn't find that in your ${c.code} material, and I won't guess. Add the note, file or recording that covers it, or talk to a writer who can walk you through it.`, { actions: [{ label: "Add material", run: "study" }, { label: "Talk to a writer", run: "writer" }] });
 }
 
 export default function Birdie({ active }: { active: boolean }) {

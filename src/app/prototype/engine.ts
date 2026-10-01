@@ -22,6 +22,10 @@ export function docsOf(c: Course): Doc[] {
     if (!f.text) continue;
     f.text.split(/\n{2,}/).map((s) => s.trim()).filter((s) => s.length > 30).slice(0, 80).forEach((p, i) => d.push({ title: `${f.name} #${i + 1}`, text: p, source: f.name }));
   }
+  for (const r of c.recs) {
+    if (!r.text) continue;
+    r.text.split(/\n{2,}/).map((s) => s.trim()).filter((s) => s.length > 30).slice(0, 80).forEach((p, i) => d.push({ title: `${r.name} #${i + 1}`, text: p, source: r.name }));
+  }
   return d;
 }
 
