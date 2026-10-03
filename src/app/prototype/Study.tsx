@@ -243,7 +243,11 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
 
   async function openFile(f: FileItem) {
     if (f.storagePath) {
-      const url = await signedUrl("study-files", f.storagePath, f.name);
+      // No `download` filename here -- that forces a Content-Disposition: attachment, so every
+      // "Open" tap re-downloaded a fresh copy even when one was already saved on the phone. Leave
+      // it off so the browser just displays the file (PDFs/images render inline) instead of
+      // insisting on a new download each time.
+      const url = await signedUrl("study-files", f.storagePath);
       if (url) return openUrl(url);
     }
     if (f.url) return openUrl(f.url); // same-session fallback (e.g. upload failed, or guest/offline)
