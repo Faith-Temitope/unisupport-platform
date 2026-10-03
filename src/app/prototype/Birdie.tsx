@@ -9,7 +9,7 @@ import { firstName, nowTime, uid, useApp, type BAction, type BMsg, type Course }
 import { Btn, DemoControls, Empty, Sheet } from "./ui";
 import { brainName } from "./BrainPicker";
 import { brainById } from "@/lib/ai/registry";
-import { CARDS_SYSTEM, GRADE_SYSTEM, QUIZ_SYSTEM, askAI, chatSystem, contextFor, parseJson, type AiFail } from "./aiClient";
+import { CARDS_SYSTEM, GRADE_SYSTEM, QUIZ_SYSTEM, askAI, chatSystem, contextFor, parseJson, sanitizeDeep, stripMarkdown, type AiFail } from "./aiClient";
 
 type Mode = "chat" | "test" | "exam" | "practical";
 const bird = (text: string, extra: Partial<BMsg> = {}): BMsg => ({ id: uid(), from: "bird", text, t: nowTime(), at: Date.now(), ...extra });
@@ -112,10 +112,10 @@ export default function Birdie({ active }: { active: boolean }) {
     const meta = `${brain.brand} · ${res.charged_ngn > 0 ? "₦" + res.charged_ngn : "free"}`;
     const cite = c && info.used.length && /\[/.test(res.text) ? info.used.map((d) => d.source).join(" · ") : undefined;
     if (cards) {
-      const list = parseJson<{ q: string; a: string }[]>(res.text);
+      const list = sanitizeDeep(parseJson<{ q: string; a: string }[]>(res.text));
       if (Array.isArray(list) && list.length && list.every((x) => x && typeof x.q === "string" && typeof x.a === "string")) return finish(bird(`Here are ${Math.min(list.length, 8)} flashcards from your ${c!.code} material. Tap a card to flip it.`, { cards: list.slice(0, 8), meta, actions: [{ label: "Save to course", run: "file", payload: `Flashcards - ${c!.code}.txt` }] }));
     }
-    finish(bird(res.text, { meta, cite, actions: (summary || guide) && c ? [{ label: "Save as note", run: "note", payload: `${guide ? "Study guide" : "Summary"} - ${c.code}` }] : undefined }));
+    finish(bird(stripMarkdown(res.text), { meta, cite, actions: (summary || guide) && c ? [{ label: "Save as note", run: "note", payload: `${guide ? "Study guide" : "Summary"} - ${c.code}` }] : undefined }));
   }, [ctx, course, name, chats, setChats, append, settings.answerLength, settings.aiTier, logChat, live, brain, profile.level, profile.program, refreshWallet]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Test mode: for signed-in students the AI writes the questions from their material.
@@ -129,7 +129,7 @@ export default function Birdie({ active }: { active: boolean }) {
     askAI({ brain: brain.id, tier: settings.aiTier, system: QUIZ_SYSTEM(info.text, 5), messages: [{ role: "user", content: "Write the questions now." }], feature: "quiz" }).then((res) => {
       if (res.ok) {
         if (res.charged_ngn > 0) void refreshWallet();
-        const arr = parseJson<MCQ[]>(res.text);
+        const arr = sanitizeDeep(parseJson<MCQ[]>(res.text));
         const ok = Array.isArray(arr) ? arr.filter((q) => q && typeof q.q === "string" && Array.isArray(q.opts) && q.opts.length === 4 && Number.isInteger(q.answer) && q.answer >= 0 && q.answer < 4 && typeof q.topic === "string" && typeof q.why === "string").slice(0, 5) : [];
         setAiQuiz({ key, qs: ok.length >= 3 ? ok : null, loading: false });
       } else setAiQuiz({ key, qs: null, loading: false });
@@ -140,7 +140,7 @@ export default function Birdie({ active }: { active: boolean }) {
     const res = await askAI({ brain: brain.id, tier: settings.aiTier, system: GRADE_SYSTEM(model), messages: [{ role: "user", content: `Question: ${prompt}\n\nStudent answer: ${answerText}` }], feature: "grade" });
     if (!res.ok) return null;
     if (res.charged_ngn > 0) void refreshWallet();
-    const j = parseJson<{ points: { label: string; ok: boolean }[]; feedback: string }>(res.text);
+    const j = sanitizeDeep(parseJson<{ points: { label: string; ok: boolean }[]; feedback: string }>(res.text));
     return j && Array.isArray(j.points) && j.points.length ? j : null;
   } : undefined;
 

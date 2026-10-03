@@ -3,8 +3,10 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Bell, BookOpen, ChevronRight, FileText, FolderInput, FolderPlus, Folder as FolderIcon, Image as ImageIcon, MoreHorizontal, Plus, Presentation, Search, Share2, Sparkles, StickyNote, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { createClient } from "@/lib/supabase";
 import { extractText } from "./extract";
-import { folderPath, useApp, type Course, type FileItem, type Folder } from "./store";
+import { openUrl, safeName, signedUrl, uploadTo } from "./live/helpData";
+import { folderPath, uid, useApp, type Course, type FileItem, type Folder, type Rec } from "./store";
 import { Btn, Empty, IconBtn, Label, Sheet, TextField, TopBar } from "./ui";
 import { DeadlinesCard, ExtraSheets, TodayCard, type ExtraSheet } from "./StudyExtras";
 
@@ -169,6 +171,27 @@ function MoveList({ folders, current, onPick }: { folders: Folder[]; current: st
   );
 }
 
+function RecordingRow({ r, onDelete }: { r: Rec; onDelete: () => void }) {
+  const [src, setSrc] = useState<string | undefined>(r.url);
+  useEffect(() => {
+    if (r.url) { setSrc(r.url); return; } // still in this session, blob plays fine
+    if (!r.storagePath) { setSrc(undefined); return; }
+    let cancelled = false;
+    void signedUrl("study-recordings", r.storagePath).then((u) => { if (!cancelled) setSrc(u ?? undefined); });
+    return () => { cancelled = true; };
+  }, [r.url, r.storagePath]);
+  const status = r.transcribing ? "transcribing..." : r.text ? "Birdie can read this" : "no transcript yet";
+  return (
+    <div className="rounded-2xl border border-[var(--line)] bg-white p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div><div className="text-[13.5px] font-semibold text-[var(--text)]">{r.name}</div><div className="text-[11.5px] text-[var(--dim)]">{r.date} · {mmss(r.dur)} · {status}</div></div>
+        <button onClick={onDelete} aria-label="Delete recording" className="text-[var(--dim)] active:scale-90"><Trash2 size={15} /></button>
+      </div>
+      {src ? <audio src={src} controls className="mt-2 h-9 w-full" /> : !r.url && !r.storagePath && <div className="mt-2 text-[11.5px] text-[var(--dim)]">Audio isn&apos;t available anymore.</div>}
+    </div>
+  );
+}
+
 function CourseView({ course, startTab, onBack }: { course: Course; startTab: CTab; onBack: () => void }) {
   const { addNote, deleteNote, addFile, deleteFile, deleteRec, goBirdie, setRecorderOpen, flash, shared, shareCourse, setTab, profile } = useApp();
   const [sName, setSName] = useState(profile.name); const [sSchool, setSSchool] = useState(profile.institution);
@@ -185,12 +208,32 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
     if (!files) return;
     const list = Array.from(files);
     flash(`Adding ${list.length} file${list.length === 1 ? "" : "s"}...`);
+    const sb = createClient();
+    const { data: { user } } = await sb.auth.getUser();
     for (const f of list) {
       const text = await extractText(f); // reads .txt/.md directly, parses .pdf/.docx in the browser
-      addFile(course.id, { name: f.name, kind: kindOf(f), size: f.size, text, url: URL.createObjectURL(f) });
+      let storagePath: string | undefined;
+      if (user) {
+        // Durable copy so the file can still be opened after the blob URL below dies with this
+        // page session (reload, device restart, TWA relaunch) -- the file list used to go dark on
+        // "Open" for exactly that reason once the tab closed.
+        const path = `${user.id}/${course.id}/${uid()}-${safeName(f.name)}`;
+        const err = await uploadTo("study-files", path, f);
+        if (!err) storagePath = path; else console.error("study file upload failed", err);
+      }
+      addFile(course.id, { name: f.name, kind: kindOf(f), size: f.size, text, url: URL.createObjectURL(f), storagePath });
     }
     flash(`${list.length} file${list.length === 1 ? "" : "s"} added`);
     if (input.current) input.current.value = "";
+  }
+
+  async function openFile(f: FileItem) {
+    if (f.storagePath) {
+      const url = await signedUrl("study-files", f.storagePath, f.name);
+      if (url) return openUrl(url);
+    }
+    if (f.url) return openUrl(f.url); // same-session fallback (e.g. upload failed, or guest/offline)
+    flash("This file isn't available anymore. Try re-adding it.");
   }
 
   return (
@@ -217,7 +260,7 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
                 <div key={f.id} className="flex items-center gap-3 rounded-2xl border border-[var(--line)] bg-white p-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--study-soft)] text-[var(--study)]"><Icon size={18} /></div>
                   <div className="min-w-0 flex-1"><div className="truncate text-[13.5px] font-semibold text-[var(--text)]">{f.name}</div><div className="text-[11.5px] text-[var(--dim)]">{f.added}{f.size ? ` · ${fmtSize(f.size)}` : ""} · {f.text ? "Birdie can read this" : "Birdie reads this once AI is connected"}</div></div>
-                  {f.url && <a href={f.url} target="_blank" rel="noreferrer" className="rounded-lg bg-[var(--paper-dim)] px-2.5 py-1.5 text-[11.5px] font-bold text-[var(--dim)]">Open</a>}
+                  {(f.url || f.storagePath) && <button onClick={() => void openFile(f)} className="rounded-lg bg-[var(--paper-dim)] px-2.5 py-1.5 text-[11.5px] font-bold text-[var(--dim)]">Open</button>}
                   <button onClick={() => deleteFile(course.id, f.id)} aria-label="Delete file" className="text-[var(--dim)] active:scale-90"><Trash2 size={15} /></button>
                 </div>); })}
               <Btn variant="ghost" onClick={() => input.current?.click()}>+ Add more files</Btn>
@@ -229,7 +272,7 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
             <Btn variant="ghost" onClick={() => setSheet("note")}>+ New note</Btn></>))}
 
           {tab === "recordings" && (course.recs.length === 0 ? <Empty icon={<BookOpen size={20} />} title="No recordings yet" text="Tap the mascot, choose Record, and capture a lecture. You choose the course after you stop." action={<Btn variant="study" onClick={() => setRecorderOpen(true)}>Record a lecture</Btn>} /> : (<>
-            {course.recs.map((r) => (<div key={r.id} className="rounded-2xl border border-[var(--line)] bg-white p-3"><div className="flex items-center justify-between gap-2"><div><div className="text-[13.5px] font-semibold text-[var(--text)]">{r.name}</div><div className="text-[11.5px] text-[var(--dim)]">{r.date} · {mmss(r.dur)} · transcript arrives once AI is connected</div></div><button onClick={() => deleteRec(course.id, r.id)} aria-label="Delete recording" className="text-[var(--dim)] active:scale-90"><Trash2 size={15} /></button></div>{r.url && <audio src={r.url} controls className="mt-2 h-9 w-full" />}</div>))}
+            {course.recs.map((r) => (<RecordingRow key={r.id} r={r} onDelete={() => deleteRec(course.id, r.id)} />))}
             <Btn variant="ghost" onClick={() => setRecorderOpen(true)}>+ Record another</Btn></>))}
 
           {tab === "progress" && (overall === null ? <Empty icon={<Sparkles size={20} />} title="No progress yet" text="Take a quiz in Birdie and your topics and mastery show up here." action={<Btn variant="study" onClick={() => goBirdie({ courseId: course.id, mode: "test" })}>Take a quiz</Btn>} /> : (<>

@@ -20,6 +20,41 @@ export async function askAI(body: AiCall): Promise<AiResult> {
 }
 
 const LEN = { short: "Keep answers to two or three sentences.", normal: "Keep answers clear and concise, a short paragraph or a few bullet points.", detailed: "Give thorough, step by step answers with examples when they help." } as const;
+const NO_MARKDOWN = "Write in plain conversational prose, like a text message. Never use markdown formatting: no #, no ** or * or _ for emphasis, no backticks, no dash or asterisk bullet lists, no markdown links. If you're listing things, just write them as separate sentences or separate lines.";
+
+/** Strips markdown syntax an AI reply slipped in despite being told not to, so the chat bubble
+ * (plain text, no markdown renderer) never shows raw #, *, _ or backtick characters to the student. */
+export function stripMarkdown(text: string): string {
+  let t = text;
+  t = t.replace(/```[a-z]*\n?/gi, "").replace(/```/g, "");
+  t = t.replace(/^#{1,6}\s+/gm, "");
+  t = t.replace(/\*\*\*(.+?)\*\*\*/g, "$1");
+  t = t.replace(/\*\*(.+?)\*\*/g, "$1");
+  t = t.replace(/__(.+?)__/g, "$1");
+  t = t.replace(/~~(.+?)~~/g, "$1");
+  t = t.replace(/(?<![*\w])\*(?!\*)([^*\n]+?)\*(?!\*)/g, "$1");
+  t = t.replace(/(?<![_\w])_(?!_)([^_\n]+?)_(?!_)/g, "$1");
+  t = t.replace(/`([^`]+)`/g, "$1");
+  t = t.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1"); // markdown links, but leaves bare [Citations] alone
+  t = t.replace(/^\s*(?:[-*_]\s*){3,}\s*$/gm, "");
+  t = t.replace(/^(\s*)[-*+]\s+/gm, "$1");
+  t = t.replace(/\n{3,}/g, "\n\n");
+  return t.trim();
+}
+
+/** Recursively strips markdown from every string value in a parsed AI JSON response (flashcards,
+ * quiz questions, grading feedback), so fields never shown through stripMarkdown's main caller
+ * still come out clean. */
+export function sanitizeDeep<T>(v: T): T {
+  if (typeof v === "string") return stripMarkdown(v) as unknown as T;
+  if (Array.isArray(v)) return v.map(sanitizeDeep) as unknown as T;
+  if (v && typeof v === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) out[k] = sanitizeDeep(val);
+    return out as T;
+  }
+  return v;
+}
 
 /** Pick the most relevant material for a question, within a size budget (roughly 3k tokens). */
 export function contextFor(docs: Doc[], question: string, budget = 12000): { text: string; used: Doc[] } {
@@ -37,13 +72,14 @@ export function contextFor(docs: Doc[], question: string, budget = 12000): { tex
 
 export function chatSystem(o: { name: string; level: string; program: string; course: string | null; material: string; length: keyof typeof LEN }) {
   const who = `${o.name}${o.level || o.program ? `, a ${[o.level, o.program].filter(Boolean).join(" ")} student` : ""}`;
-  if (!o.course) return `You are Birdie, a warm, encouraging study partner for ${who}. You are in a general chat that isn't tied to a course. Be kind and practical, and keep replies short. If they ask about their coursework, tell them to pick a course above so you can answer from their own notes.`;
+  if (!o.course) return `You are Birdie, a warm, encouraging study partner for ${who}. You are in a general chat that isn't tied to a course. Be kind and practical, and keep replies short. If they ask about their coursework, tell them to pick a course above so you can answer from their own notes.\n${NO_MARKDOWN}`;
   return [
     `You are Birdie, a friendly study partner for ${who}, helping with the course "${o.course}".`,
     "Answer using ONLY the course material below. Do not use outside knowledge to fill gaps.",
     "If the material does not cover the question, say so plainly in one sentence and suggest adding a note, or talking to a writer. Never invent facts.",
     "When you use the material, name where it came from in square brackets, for example [Note: Eigenvalues].",
     LEN[o.length],
+    NO_MARKDOWN,
     o.material ? `\n--- COURSE MATERIAL ---\n${o.material}` : "\n(The student has not added any material yet. Say so and suggest adding a note.)",
   ].join("\n");
 }
@@ -57,8 +93,8 @@ export function parseJson<T>(text: string): T | null {
   try { return JSON.parse(t.slice(start, end + 1)) as T; } catch { return null; }
 }
 
-export const QUIZ_SYSTEM = (material: string, n: number) => `You write exam practice questions for a student. Use ONLY this course material:\n\n${material}\n\nWrite ${n} multiple choice questions that test understanding of the material (not trivia). Return ONLY a JSON array, no other text. Each item: {"q": string, "opts": [4 strings], "answer": index 0-3 of the correct option, "topic": short topic name taken from the material, "why": one sentence explaining the correct answer using the material}.`;
+export const QUIZ_SYSTEM = (material: string, n: number) => `You write exam practice questions for a student. Use ONLY this course material:\n\n${material}\n\nWrite ${n} multiple choice questions that test understanding of the material (not trivia). Return ONLY a JSON array, no other text. Each item: {"q": string, "opts": [4 strings], "answer": index 0-3 of the correct option, "topic": short topic name taken from the material, "why": one sentence explaining the correct answer using the material}. Every text field must be plain prose with no markdown formatting (no #, *, _, backticks).`;
 
-export const CARDS_SYSTEM = (material: string, n: number) => `Create ${n} study flashcards using ONLY this course material:\n\n${material}\n\nReturn ONLY a JSON array, no other text. Each item: {"q": a short question, "a": a concise answer taken from the material}.`;
+export const CARDS_SYSTEM = (material: string, n: number) => `Create ${n} study flashcards using ONLY this course material:\n\n${material}\n\nReturn ONLY a JSON array, no other text. Each item: {"q": a short question, "a": a concise answer taken from the material}. Every text field must be plain prose with no markdown formatting (no #, *, _, backticks).`;
 
-export const GRADE_SYSTEM = (material: string) => `You mark a student's written answer. Base the marking ONLY on this course material:\n\n${material}\n\nReturn ONLY JSON: {"points":[{"label": string, "ok": boolean}], "feedback": string}. "points" lists 3 to 5 key ideas the answer should contain (from the material) and whether the student covered each. "feedback" is two or three encouraging sentences telling them what to improve.`;
+export const GRADE_SYSTEM = (material: string) => `You mark a student's written answer. Base the marking ONLY on this course material:\n\n${material}\n\nReturn ONLY JSON: {"points":[{"label": string, "ok": boolean}], "feedback": string}. "points" lists 3 to 5 key ideas the answer should contain (from the material) and whether the student covered each. "feedback" is two or three encouraging sentences telling them what to improve. Every text field must be plain prose with no markdown formatting (no #, *, _, backticks).`;

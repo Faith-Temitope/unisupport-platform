@@ -63,8 +63,10 @@ export async function sendMessage(sessionId: string, role: "student" | "writer" 
   return error ? rpcError(error) : null;
 }
 
-/** Upload a chat attachment; the storage policy only lets session members write under their session id. */
-export async function uploadTo(bucket: "session-uploads" | "session-previews" | "session-deliverables", path: string, file: File) {
+/** Upload a chat attachment, course file or recording. The storage policy only lets session
+ * members write under their session id (session-* buckets) or a user write under their own
+ * user id (study-* buckets). */
+export async function uploadTo(bucket: "session-uploads" | "session-previews" | "session-deliverables" | "study-files" | "study-recordings", path: string, file: File) {
   const sb = createClient();
   const { error } = await sb.storage.from(bucket).upload(path, file, { upsert: true, contentType: file.type || undefined });
   return error ? error.message : null;

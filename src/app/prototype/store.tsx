@@ -11,9 +11,9 @@ export type AuthStatus = "loading" | "out" | "guest" | "in";
 export type Boot = "splash" | "word" | "done";
 export type Emote = "happy" | "sad" | "love" | "say" | "angry";
 
-export interface FileItem { id: string; name: string; kind: "pdf" | "img" | "slides" | "notes" | "link" | "text"; size: number; added: string; text?: string; url?: string }
+export interface FileItem { id: string; name: string; kind: "pdf" | "img" | "slides" | "notes" | "link" | "text"; size: number; added: string; text?: string; url?: string; storagePath?: string }
 export interface Note { id: string; title: string; body: string; date: string }
-export interface Rec { id: string; name: string; dur: number; date: string; url?: string; text?: string; transcribing?: boolean }
+export interface Rec { id: string; name: string; dur: number; date: string; url?: string; text?: string; transcribing?: boolean; storagePath?: string }
 export interface Topic { name: string; mastery: number }
 export interface Course { id: string; code: string; name: string; color: string; folderId: string | null; files: FileItem[]; notes: Note[]; recs: Rec[]; topics: Topic[]; sharedId?: string }
 export interface Folder { id: string; name: string; parentId: string | null }
