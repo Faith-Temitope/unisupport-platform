@@ -43,7 +43,7 @@ function respond(text: string, c: Course | null, length: "short" | "normal" | "d
 }
 
 export default function Birdie({ active }: { active: boolean }) {
-  const { courses, profile, settings, chats, setChats, birdieIntent, clearBirdieIntent, applyQuiz, addNote, addFile, flash, setTab, goStudy, goHelp, phone, setOverlay, logChat, setBrainOpen, auth, setWalletOpen, setSetting, refreshWallet } = useApp();
+  const { courses, profile, settings, chats, setChats, birdieIntent, clearBirdieIntent, applyQuiz, addNote, addFile, flash, setTab, goStudy, goHelp, phone, setOverlay, logChat, setBrainOpen, auth, setWalletOpen, setSetting, refreshWallet, loadRemoteCourseContent, sharedRemoteContent } = useApp();
   const [ctx, setCtx] = useState<string>("general");
   const [typing, setTyping] = useState(false);
   const [mode, setMode] = useState<Mode>("chat");
@@ -59,8 +59,21 @@ export default function Birdie({ active }: { active: boolean }) {
   const name = firstName(profile);
   const course = ctx === "general" ? null : courses.find((c) => c.id === ctx) ?? null;
   useEffect(() => { if (ctx !== "general" && !courses.some((c) => c.id === ctx)) setCtx("general"); }, [courses, ctx]);
-  const thread = chats[ctx] ?? [greeting(course, name)];
-  const docs = useMemo(() => (course ? docsOf(course) : []), [course]);
+
+  // A joined (not owned) shared course keeps its own notes/files/recs empty locally -- the real
+  // content lives with the owner and is fetched read-only (see Study.tsx's CourseView for the same
+  // pattern). Birdie needs that same real content to actually be useful on a shared course instead
+  // of saying "nothing added yet" about material that very much exists, just not locally.
+  useEffect(() => {
+    if (!course?.sourceCourseId) return;
+    loadRemoteCourseContent(course.sourceCourseId);
+    const i = setInterval(() => loadRemoteCourseContent(course.sourceCourseId!), 5000);
+    return () => clearInterval(i);
+  }, [course?.sourceCourseId, loadRemoteCourseContent]);
+  const effectiveCourse = useMemo(() => (course?.sourceCourseId ? { ...course, notes: sharedRemoteContent?.notes ?? [], files: sharedRemoteContent?.files ?? [], recs: sharedRemoteContent?.recs ?? [] } : course), [course, sharedRemoteContent]);
+
+  const thread = chats[ctx] ?? [greeting(effectiveCourse, name)];
+  const docs = useMemo(() => (effectiveCourse ? docsOf(effectiveCourse) : []), [effectiveCourse]);
 
   const append = useCallback((key: string, m: BMsg, base?: BMsg[]) => setChats((cs) => ({ ...cs, [key]: [...(cs[key] ?? base ?? []), m] })), [setChats]);
 
@@ -75,7 +88,7 @@ export default function Birdie({ active }: { active: boolean }) {
     return null;
   };
 
-  const send = useCallback(async (text: string, key = ctx, c: Course | null = course) => {
+  const send = useCallback(async (text: string, key = ctx, c: Course | null = effectiveCourse) => {
     if (!text.trim()) return;
     logChat();
     const base = [greeting(c, name)];
@@ -116,7 +129,7 @@ export default function Birdie({ active }: { active: boolean }) {
       if (Array.isArray(list) && list.length && list.every((x) => x && typeof x.q === "string" && typeof x.a === "string")) return finish(bird(`Here are ${Math.min(list.length, 8)} flashcards from your ${c!.code} material. Tap a card to flip it.`, { cards: list.slice(0, 8), meta, actions: [{ label: "Save to course", run: "file", payload: `Flashcards - ${c!.code}.txt` }] }));
     }
     finish(bird(stripMarkdown(res.text), { meta, cite, actions: (summary || guide) && c ? [{ label: "Save as note", run: "note", payload: `${guide ? "Study guide" : "Summary"} - ${c.code}` }] : undefined }));
-  }, [ctx, course, name, chats, setChats, append, settings.answerLength, settings.aiTier, logChat, live, brain, profile.level, profile.program, refreshWallet]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ctx, effectiveCourse, name, chats, setChats, append, settings.answerLength, settings.aiTier, logChat, live, brain, profile.level, profile.program, refreshWallet]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Test mode: for signed-in students the AI writes the questions from their material.
   useEffect(() => {
