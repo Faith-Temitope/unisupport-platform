@@ -3,7 +3,9 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Mic, ShieldCheck, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useApp } from "./store";
+import { createClient } from "@/lib/supabase";
+import { safeName, uploadTo } from "./live/helpData";
+import { uid, useApp } from "./store";
 import { Btn, Sheet, TextField, mmss, useTicker } from "./ui";
 
 /** Consent -> real microphone recording (floating bar on any tab) -> choose a course afterwards. */
@@ -58,10 +60,24 @@ export default function Recorder() {
   }
 
   async function transcribe(courseId: string, recId: string, parts: Blob[], mime: string) {
+    const ext = mime.includes("mp4") ? "m4a" : "webm";
+    const blob = new Blob(parts, { type: mime });
+    const file = new File([blob], `recording.${ext}`, { type: mime });
+
+    // Durable copy so playback still works once the blob URL dies with this page session (reload,
+    // device restart, TWA relaunch) -- recordings used to go silent for exactly that reason.
+    void (async () => {
+      const { data: { user } } = await createClient().auth.getUser();
+      if (!user) return;
+      const path = `${user.id}/${courseId}/${recId}-${safeName(file.name)}`;
+      const err = await uploadTo("study-recordings", path, file);
+      if (!err) updateRec(courseId, recId, { storagePath: path });
+      else console.error("recording upload failed", err);
+    })();
+
     try {
-      const blob = new Blob(parts, { type: mime });
       const form = new FormData();
-      form.append("audio", new File([blob], `recording.${mime.includes("mp4") ? "m4a" : "webm"}`, { type: mime }));
+      form.append("audio", file);
       const r = await fetch("/api/ai/transcribe", { method: "POST", body: form });
       const j = await r.json().catch(() => null);
       if (!r.ok || typeof j?.text !== "string") { updateRec(courseId, recId, { transcribing: false }); return; }
