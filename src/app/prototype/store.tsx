@@ -3,6 +3,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase";
 import { recommend, type Recommendation } from "./engine";
+import {
+  createRemoteCourse, createRemoteFile, createRemoteNote, createRemoteRecording,
+  deleteRemoteFile, deleteRemoteNote, deleteRemoteRecording,
+  joinSharedCourse, leaveSharedCourse, listMessages, postMessage, publishSharedCourse,
+  fetchRemoteCourseContent, listPublishedSharedWithCounts,
+} from "./live/sharedData";
 import { DEMO_PEOPLE, DEMO_POSTS, DEMO_SHARED, DEMO_REPLIES } from "./demo";
 import { BADGES, dayKey, streakOf, type Stats } from "./badges";
 
@@ -15,7 +21,7 @@ export interface FileItem { id: string; name: string; kind: "pdf" | "img" | "sli
 export interface Note { id: string; title: string; body: string; date: string }
 export interface Rec { id: string; name: string; dur: number; date: string; url?: string; text?: string; transcribing?: boolean; storagePath?: string }
 export interface Topic { name: string; mastery: number }
-export interface Course { id: string; code: string; name: string; color: string; folderId: string | null; files: FileItem[]; notes: Note[]; recs: Rec[]; topics: Topic[]; sharedId?: string }
+export interface Course { id: string; code: string; name: string; color: string; folderId: string | null; files: FileItem[]; notes: Note[]; recs: Rec[]; topics: Topic[]; sharedId?: string; sourceCourseId?: string }
 export interface Folder { id: string; name: string; parentId: string | null }
 export interface Tx { id: string; label: string; amount: number; t: string }
 export interface Deadline { id: string; title: string; date: string; courseId: string | null; done: boolean }
@@ -62,7 +68,7 @@ const emptyProfile: Profile = { name: "", handle: "", level: "", program: "", in
 type BirdieIntent = { courseId: string; mode?: "chat" | "test" | "exam" | "practical"; prompt?: string };
 interface AppCtx {
   boot: Boot; setBoot: (b: Boot) => void;
-  auth: { status: AuthStatus; email?: string };
+  auth: { status: AuthStatus; email?: string; userId?: string };
   authOpen: boolean; setAuthOpen: (b: boolean) => void;
   signUp: (name: string, email: string, password: string) => Promise<{ error?: string; needsConfirm?: boolean }>;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
@@ -91,6 +97,7 @@ interface AppCtx {
   addContact: (id: string) => void; removeContact: (id: string) => void; toggleFollow: (id: string) => void; sendChat: (id: string, text: string) => void; toggleBlock: (id: string) => void;
   posts: Post[]; addPost: (p: Omit<Post, "id" | "createdAt" | "likes" | "liked" | "authorId">) => void; toggleLike: (id: string) => void; deletePost: (id: string) => void;
   shared: SharedCourse[]; shareCourse: (courseId: string, description: string, field: string, ownerName: string, school: string) => void; joinShared: (id: string) => string | null; sendShared: (id: string, text: string) => void; leaveShared: (id: string) => void;
+  loadSharedDetail: (id: string) => void; sharedRemoteContent: { notes: Note[]; files: FileItem[]; recs: Rec[] } | null; loadRemoteCourseContent: (sourceCourseId: string) => void;
   personById: (id: string) => Person | null;
   demoOn: boolean; setDemo: (b: boolean) => void;
   walletOpen: boolean; setWalletOpen: (b: boolean) => void;
@@ -112,7 +119,7 @@ const GUEST_KEY = "birdie-guest";
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [boot, setBoot] = useState<Boot>("splash");
-  const [auth, setAuth] = useState<{ status: AuthStatus; email?: string }>({ status: "loading" });
+  const [auth, setAuth] = useState<{ status: AuthStatus; email?: string; userId?: string }>({ status: "loading" });
   const [authOpen, setAuthOpen] = useState(false);
   const [tab, setTab] = useState<TabId>("study");
   const [profile, setProfileState] = useState<Profile>(emptyProfile);
@@ -190,10 +197,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const sb = createClient();
         const { data } = await sb.auth.getSession();
         const u = data.session?.user;
-        if (u) setAuth({ status: "in", email: u.email ?? undefined });
+        if (u) setAuth({ status: "in", email: u.email ?? undefined, userId: u.id });
         else setAuth({ status: localStorage.getItem(GUEST_KEY) ? "guest" : "out" });
         const sub = sb.auth.onAuthStateChange((_e, session) => {
-          if (session?.user) { setAuth({ status: "in", email: session.user.email ?? undefined }); setAuthOpen(false); localStorage.removeItem(GUEST_KEY); setProfileState((p) => (p.name ? p : { ...p, name: (session.user.user_metadata?.full_name as string) ?? p.name })); }
+          if (session?.user) { setAuth({ status: "in", email: session.user.email ?? undefined, userId: session.user.id }); setAuthOpen(false); localStorage.removeItem(GUEST_KEY); setProfileState((p) => (p.name ? p : { ...p, name: (session.user.user_metadata?.full_name as string) ?? p.name })); }
         });
         unsub = () => sub.data.subscription.unsubscribe();
       } catch { setAuth({ status: localStorage.getItem(GUEST_KEY) ? "guest" : "out" }); }
@@ -259,6 +266,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => { if (auth.status === "in") void refreshWallet(); }, [auth.status, refreshWallet]);
 
+  // ---------- real Shared Courses (signed-in users): browse what other real accounts published ----------
+  const [sharedRemoteContent, setSharedRemoteContent] = useState<{ notes: Note[]; files: FileItem[]; recs: Rec[] } | null>(null);
+  const loadSharedList = useCallback(async () => {
+    const { list, membersBySharedId, fileNamesByCourseId, messageCountBySharedId } = await listPublishedSharedWithCounts();
+    const myId = auth.userId;
+    void messageCountBySharedId; // counts fold into `members`/`files` below; message count itself shown once loadSharedDetail runs
+    setShared((prev): SharedCourse[] => list.map((sc): SharedCourse => {
+      const members = (membersBySharedId[sc.id] ?? []).map((m) => (m === myId ? "me" : m));
+      const prior = prev.find((p) => p.id === sc.id);
+      return {
+        id: sc.id, ownerId: sc.owner_id === myId ? "me" : sc.owner_id, ownerName: prior?.ownerName,
+        code: sc.courses?.code ?? "?", name: sc.courses?.name ?? "Untitled course", school: sc.school ?? undefined,
+        field: sc.field, description: sc.description, files: fileNamesByCourseId[sc.source_course_id] ?? [],
+        members, messages: prior?.messages ?? [], sourceCourseId: sc.source_course_id,
+      };
+    }).concat(prev.filter((p) => p.demo))); // keep any explicit demo-mode entries alongside the real list
+  }, [auth.userId]);
+  useEffect(() => { if (auth.status === "in") void loadSharedList(); }, [auth.status, loadSharedList]);
+
+  /** Called when the Explore detail sheet opens for a shared course: fetches its real message
+   * thread (not loaded in the list view, to keep that one cheap). */
+  const loadSharedDetail = useCallback((id: string) => {
+    void (async () => {
+      const msgs = await listMessages(id);
+      const myId = auth.userId;
+      setShared((ss) => ss.map((x) => (x.id === id ? { ...x, messages: msgs.map((m) => ({ id: m.id, authorId: m.author_id === myId ? "me" : m.author_id, text: m.body, t: new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) })) } : x)));
+    })();
+  }, [auth.userId]);
+
+  /** Read-only content for a joined (non-owned) shared course -- the real, live data from the
+   * owner's course, not a stale copy taken at share time. */
+  const loadRemoteCourseContent = useCallback((sourceCourseId: string) => {
+    void (async () => {
+      const { notes, files, recs } = await fetchRemoteCourseContent(sourceCourseId);
+      setSharedRemoteContent({
+        notes: notes.map((n) => ({ id: n.id, title: n.title, body: n.body, date: new Date(n.created_at).toLocaleDateString([], { month: "short", day: "numeric" }) })),
+        files: files.map((f) => ({ id: f.id, name: f.name, kind: f.kind as FileItem["kind"], size: 0, added: new Date(f.created_at).toLocaleDateString([], { month: "short", day: "numeric" }), storagePath: f.storage_path ?? undefined })),
+        recs: recs.map((r) => ({ id: r.id, name: r.name, dur: r.duration_seconds, date: new Date(r.created_at).toLocaleDateString([], { month: "short", day: "numeric" }), storagePath: r.storage_path ?? undefined, text: r.transcript ?? undefined })),
+      });
+    })();
+  }, []);
+
   const later = (fn: () => void, ms: number) => { timers.current.push(setTimeout(fn, ms)); };
   const flash = useCallback((t: string) => { setToast(t); later(() => setToast(null), 2400); }, []);
   const now = useCallback(() => Date.now() + skew, [skew]);
@@ -300,6 +349,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const patchCourse = (id: string, fn: (c: Course) => Course) => setCourses((cs) => cs.map((c) => (c.id === id ? fn(c) : c)));
   const dateLabel = () => new Date().toLocaleDateString([], { month: "short", day: "numeric" });
   const meId = "me";
+  // Lets the fire-and-forget Supabase syncs below read the just-updated course (sharedId, etc.)
+  // without waiting for a re-render -- the mutators that use it run synchronously right after the
+  // matching setCourses call.
+  const coursesRef = useRef(courses); coursesRef.current = courses;
+  const userId = auth.userId;
 
   const value = useMemo<AppCtx>(() => ({
     boot, setBoot, auth, authOpen, setAuthOpen,
@@ -330,7 +384,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     tab, setTab, profile, setProfile: (p) => setProfileState((x) => ({ ...x, ...p })),
     settings, setSetting: (k, v) => setSettings((s) => ({ ...s, [k]: v })),
     courses, folders,
-    addCourse: (code, name, folderId, extra) => { const id = uid(); setCourses((cs) => [...cs, { id, code, name, color: COLORS[cs.length % COLORS.length], folderId, files: [], notes: [], recs: [], topics: [], ...extra }]); logActivity(); return id; },
+    // A real UUID, not the short uid() used elsewhere -- this is what lets a course be shared
+    // later without an id migration: file/recording storage paths (keyed by course.id) and the
+    // eventual Supabase `courses` row (same id) already line up from the moment the course exists.
+    addCourse: (code, name, folderId, extra) => { const id = crypto.randomUUID(); setCourses((cs) => [...cs, { id, code, name, color: COLORS[cs.length % COLORS.length], folderId, files: [], notes: [], recs: [], topics: [], ...extra }]); logActivity(); return id; },
     deleteCourse: (id) => { setCourses((cs) => cs.filter((c) => c.id !== id)); emote("sad", "Aww, that course is gone."); },
     moveCourse: (id, folderId) => patchCourse(id, (c) => ({ ...c, folderId })),
     addFolder: (name, parentId) => setFolders((f) => [...f, { id: uid(), name, parentId }]),
@@ -340,13 +397,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setFolders((fs) => fs.filter((x) => x.id !== id).map((x) => (x.parentId === id ? { ...x, parentId: f.parentId } : x)));
       setCourses((cs) => cs.map((c) => (c.folderId === id ? { ...c, folderId: f.parentId } : c)));
     },
-    addNote: (courseId, title, body) => { patchCourse(courseId, (c) => ({ ...c, notes: [{ id: uid(), title, body, date: dateLabel() }, ...c.notes] })); logActivity(); emote("happy", "Nice note! I'll remember that."); },
-    deleteNote: (courseId, noteId) => { patchCourse(courseId, (c) => ({ ...c, notes: c.notes.filter((n) => n.id !== noteId) })); emote("sad", "Was that note important?"); },
-    addFile: (courseId, f) => { patchCourse(courseId, (c) => ({ ...c, files: [{ ...f, id: uid(), added: dateLabel() }, ...c.files] })); logActivity(); },
-    deleteFile: (courseId, fileId) => patchCourse(courseId, (c) => ({ ...c, files: c.files.filter((f) => f.id !== fileId) })),
-    addRec: (courseId, r) => { const id = uid(); patchCourse(courseId, (c) => ({ ...c, recs: [{ ...r, id, date: dateLabel() }, ...c.recs] })); logActivity(); emote("happy", "Lecture saved!"); return id; },
-    deleteRec: (courseId, recId) => patchCourse(courseId, (c) => ({ ...c, recs: c.recs.filter((r) => r.id !== recId) })),
-    updateRec: (courseId, recId, patch) => patchCourse(courseId, (c) => ({ ...c, recs: c.recs.map((r) => (r.id === recId ? { ...r, ...patch } : r)) })),
+    // Notes/files/recordings only sync to Supabase once their course has actually been shared
+    // (course.sharedId set) -- that's the only time another real account needs to read them, since
+    // private Study data already has its own cross-device sync via the user_state blob below.
+    addNote: (courseId, title, body) => {
+      const id = crypto.randomUUID();
+      patchCourse(courseId, (c) => ({ ...c, notes: [{ id, title, body, date: dateLabel() }, ...c.notes] }));
+      logActivity(); emote("happy", "Nice note! I'll remember that.");
+      if (coursesRef.current.find((c) => c.id === courseId)?.sharedId && userId) void createRemoteNote(id, courseId, userId, title, body);
+    },
+    deleteNote: (courseId, noteId) => {
+      patchCourse(courseId, (c) => ({ ...c, notes: c.notes.filter((n) => n.id !== noteId) })); emote("sad", "Was that note important?");
+      if (coursesRef.current.find((c) => c.id === courseId)?.sharedId) void deleteRemoteNote(noteId);
+    },
+    addFile: (courseId, f) => {
+      patchCourse(courseId, (c) => ({ ...c, files: [{ ...f, id: uid(), added: dateLabel() }, ...c.files] })); logActivity();
+      if (coursesRef.current.find((c) => c.id === courseId)?.sharedId && userId && f.storagePath) void createRemoteFile(courseId, userId, f.name, f.kind, f.storagePath);
+    },
+    deleteFile: (courseId, fileId) => {
+      const f = coursesRef.current.find((c) => c.id === courseId)?.files.find((x) => x.id === fileId);
+      patchCourse(courseId, (c) => ({ ...c, files: c.files.filter((x) => x.id !== fileId) }));
+      if (f?.storagePath) void deleteRemoteFile(f.storagePath);
+    },
+    addRec: (courseId, r) => {
+      const id = uid();
+      patchCourse(courseId, (c) => ({ ...c, recs: [{ ...r, id, date: dateLabel() }, ...c.recs] })); logActivity(); emote("happy", "Lecture saved!");
+      return id;
+    },
+    deleteRec: (courseId, recId) => {
+      const r = coursesRef.current.find((c) => c.id === courseId)?.recs.find((x) => x.id === recId);
+      patchCourse(courseId, (c) => ({ ...c, recs: c.recs.filter((x) => x.id !== recId) }));
+      if (r?.storagePath) void deleteRemoteRecording(r.storagePath);
+    },
+    updateRec: (courseId, recId, patch) => {
+      const before = coursesRef.current.find((c) => c.id === courseId)?.recs.find((r) => r.id === recId);
+      patchCourse(courseId, (c) => ({ ...c, recs: c.recs.map((r) => (r.id === recId ? { ...r, ...patch } : r)) }));
+      const course = coursesRef.current.find((c) => c.id === courseId);
+      if (!course?.sharedId || !before) return;
+      // The recording's raw audio finishes uploading (and gets its storagePath) after the course
+      // may already be shared -- push it to course_files' sibling table at that point, not before.
+      if (patch.storagePath && !before.storagePath && userId) void createRemoteRecording(courseId, userId, before.name, before.dur, patch.storagePath);
+    },
     applyQuiz: (courseId, per) => {
       let right = 0, total = 0;
       Object.values(per).forEach((r) => { right += r.right; total += r.total; });
@@ -418,28 +509,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toggleLike: (id) => setPosts((ps) => ps.map((p) => { if (p.id !== id) return p; if (!p.liked) emote("love"); return { ...p, liked: !p.liked, likes: p.likes + (p.liked ? -1 : 1) }; })),
     deletePost: (id) => setPosts((ps) => ps.filter((p) => p.id !== id)),
     shared,
+    loadSharedDetail,
+    sharedRemoteContent,
+    loadRemoteCourseContent,
+    // Publishes the course for real: a Supabase courses/notes/course_files/recordings snapshot
+    // (RLS-gated so only the owner and, once they join, shared_course_members can read it) plus
+    // the shared_courses row that makes it discoverable. Everything after this point (new notes,
+    // new files, chat) is real and multi-user -- see addNote/addFile/addRec and sendShared below.
     shareCourse: (courseId, description, field, ownerName, school) => {
-      const c = courses.find((x) => x.id === courseId); if (!c) return;
-      const id = uid();
-      setShared((s) => [{ id, ownerId: meId, ownerName, code: c.code, name: c.name, school: school || undefined, field, description, files: c.files.map((f) => f.name), members: [meId], messages: [], sourceCourseId: c.id }, ...s]);
-      patchCourse(courseId, (x) => ({ ...x, sharedId: id }));
+      const c = coursesRef.current.find((x) => x.id === courseId); if (!c || !userId) return;
       emote("happy", "Sharing is caring!");
+      void (async () => {
+        await createRemoteCourse(c.id, userId, c.code, c.name, c.color);
+        await Promise.all([
+          ...c.notes.map((n) => createRemoteNote(n.id, c.id, userId, n.title, n.body)),
+          ...c.files.filter((f) => f.storagePath).map((f) => createRemoteFile(c.id, userId, f.name, f.kind, f.storagePath!)),
+          ...c.recs.filter((r) => r.storagePath).map((r) => createRemoteRecording(c.id, userId, r.name, r.dur, r.storagePath!)),
+        ]);
+        const sharedId = await publishSharedCourse(c.id, userId, school, field, description);
+        if (!sharedId) return;
+        setShared((s) => [{ id: sharedId, ownerId: "me", ownerName, code: c.code, name: c.name, school: school || undefined, field, description, files: c.files.map((f) => f.name), members: ["me"], messages: [], sourceCourseId: c.id }, ...s]);
+        patchCourse(courseId, (x) => ({ ...x, sharedId }));
+      })();
     },
     joinShared: (id) => {
       const s = shared.find((x) => x.id === id); if (!s) return null;
-      setShared((ss) => ss.map((x) => (x.id === id && !x.members.includes(meId) ? { ...x, members: [...x.members, meId] } : x)));
-      const existing = courses.find((c) => c.sharedId === id);
+      setShared((ss) => ss.map((x) => (x.id === id && !x.members.includes("me") ? { ...x, members: [...x.members, "me"] } : x)));
+      if (userId) void joinSharedCourse(id, userId);
+      const existing = coursesRef.current.find((c) => c.sharedId === id);
       if (existing) return existing.id;
       const cid = uid();
-      setCourses((cs) => [...cs, { id: cid, code: s.code, name: s.name, color: COLORS[cs.length % COLORS.length], folderId: null, sharedId: id, notes: [], recs: [], topics: [], files: s.files.map((n) => ({ id: uid(), name: n, kind: "pdf" as const, size: 0, added: dateLabel() })) }]);
+      // Deliberately no local files/notes copy -- CourseView fetches the owner's real, live
+      // content (via loadRemoteCourseContent) whenever sourceCourseId is set, instead of a
+      // snapshot that would go stale the moment the owner adds something new.
+      setCourses((cs) => [...cs, { id: cid, code: s.code, name: s.name, color: COLORS[cs.length % COLORS.length], folderId: null, sharedId: id, sourceCourseId: s.sourceCourseId, notes: [], recs: [], topics: [], files: [] }]);
       return cid;
     },
-    leaveShared: (id) => setShared((ss) => ss.map((x) => (x.id === id ? { ...x, members: x.members.filter((m) => m !== meId) } : x))),
+    leaveShared: (id) => {
+      setShared((ss) => ss.map((x) => (x.id === id ? { ...x, members: x.members.filter((m) => m !== "me") } : x)));
+      if (userId) void leaveSharedCourse(id, userId);
+    },
     sendShared: (id, text) => {
-      const s = shared.find((x) => x.id === id);
-      setShared((ss) => ss.map((x) => (x.id === id ? { ...x, messages: [...x.messages, { id: uid(), authorId: meId, text, t: nowTime() }] } : x)));
-      const other = s?.members.find((m) => m !== meId && people.find((p) => p.id === m)?.demo);
-      if (other) later(() => setShared((ss) => ss.map((x) => (x.id === id ? { ...x, messages: [...x.messages, { id: uid(), authorId: other, text: DEMO_REPLIES[Math.floor(Math.random() * DEMO_REPLIES.length)], t: nowTime() }] } : x))), 1600);
+      setShared((ss) => ss.map((x) => (x.id === id ? { ...x, messages: [...x.messages, { id: uid(), authorId: "me", text, t: nowTime() }] } : x)));
+      if (userId) void postMessage(id, userId, text);
     },
     personById: (id) => people.find((p) => p.id === id) ?? null,
     demoOn,

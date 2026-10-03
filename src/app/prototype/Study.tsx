@@ -171,7 +171,7 @@ function MoveList({ folders, current, onPick }: { folders: Folder[]; current: st
   );
 }
 
-function RecordingRow({ r, onDelete }: { r: Rec; onDelete: () => void }) {
+function RecordingRow({ r, onDelete, readOnly }: { r: Rec; onDelete: () => void; readOnly?: boolean }) {
   const [src, setSrc] = useState<string | undefined>(r.url);
   useEffect(() => {
     if (r.url) { setSrc(r.url); return; } // still in this session, blob plays fine
@@ -185,7 +185,7 @@ function RecordingRow({ r, onDelete }: { r: Rec; onDelete: () => void }) {
     <div className="rounded-2xl border border-[var(--line)] bg-white p-3">
       <div className="flex items-center justify-between gap-2">
         <div><div className="text-[13.5px] font-semibold text-[var(--text)]">{r.name}</div><div className="text-[11.5px] text-[var(--dim)]">{r.date} · {mmss(r.dur)} · {status}</div></div>
-        <button onClick={onDelete} aria-label="Delete recording" className="text-[var(--dim)] active:scale-90"><Trash2 size={15} /></button>
+        {!readOnly && <button onClick={onDelete} aria-label="Delete recording" className="text-[var(--dim)] active:scale-90"><Trash2 size={15} /></button>}
       </div>
       {src ? <audio src={src} controls className="mt-2 h-9 w-full" /> : !r.url && !r.storagePath && <div className="mt-2 text-[11.5px] text-[var(--dim)]">Audio isn&apos;t available anymore.</div>}
     </div>
@@ -193,7 +193,7 @@ function RecordingRow({ r, onDelete }: { r: Rec; onDelete: () => void }) {
 }
 
 function CourseView({ course, startTab, onBack }: { course: Course; startTab: CTab; onBack: () => void }) {
-  const { addNote, deleteNote, addFile, deleteFile, deleteRec, goBirdie, setRecorderOpen, flash, shared, shareCourse, setTab, profile } = useApp();
+  const { addNote, deleteNote, addFile, deleteFile, deleteRec, goBirdie, setRecorderOpen, flash, shared, shareCourse, setTab, profile, loadRemoteCourseContent, sharedRemoteContent } = useApp();
   const [sName, setSName] = useState(profile.name); const [sSchool, setSSchool] = useState(profile.institution);
   const [tab, setTab_] = useState<CTab>(startTab);
   const [sheet, setSheet] = useState<null | "note" | "share">(null);
@@ -203,6 +203,20 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
   const overall = course.topics.length ? Math.round(course.topics.reduce((a, t) => a + t.mastery, 0) / course.topics.length) : null;
   const sharedCourse = shared.find((s) => s.id === course.sharedId);
   const tabs: [CTab, string][] = [["materials", "Materials"], ["notes", "Notes"], ["recordings", "Recordings"], ["progress", "Progress"]];
+
+  // A joined (not owned) shared course: show the owner's real, live content read-only instead of
+  // this course's own (empty) local arrays -- a snapshot taken at join time would go stale the
+  // moment the owner adds something new, so this fetches fresh each time and polls while open.
+  const readOnly = !!course.sourceCourseId;
+  useEffect(() => {
+    if (!readOnly || !course.sourceCourseId) return;
+    loadRemoteCourseContent(course.sourceCourseId);
+    const i = setInterval(() => loadRemoteCourseContent(course.sourceCourseId!), 5000);
+    return () => clearInterval(i);
+  }, [readOnly, course.sourceCourseId, loadRemoteCourseContent]);
+  const shownFiles = readOnly ? sharedRemoteContent?.files ?? [] : course.files;
+  const shownNotes = readOnly ? sharedRemoteContent?.notes ?? [] : course.notes;
+  const shownRecs = readOnly ? sharedRemoteContent?.recs ?? [] : course.recs;
 
   async function pick(files: FileList | null) {
     if (!files) return;
@@ -247,33 +261,33 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
         </div>
         <div className="no-scrollbar mt-3 flex items-center gap-1.5 overflow-x-auto">
           {tabs.map(([id, label]) => (<button key={id} onClick={() => setTab_(id)} className={`shrink-0 rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold transition active:scale-95 ${tab === id ? "bg-[var(--study)] text-white" : "bg-[var(--paper-dim)] text-[var(--dim)]"}`}>{label}</button>))}
-          <button onClick={() => (sharedCourse ? (setTab("explore"), flash("Open Shared courses in Explore")) : setSheet("share"))} className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[var(--dim)] active:scale-95"><Share2 size={13} /> {sharedCourse ? "Shared" : "Share"}</button>
+          {!readOnly && <button onClick={() => (sharedCourse ? (setTab("explore"), flash("Open Shared courses in Explore")) : setSheet("share"))} className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[var(--dim)] active:scale-95"><Share2 size={13} /> {sharedCourse ? "Shared" : "Share"}</button>}
         </div>
       </div>
 
       <div className="no-scrollbar flex-1 overflow-y-auto px-5 pb-32">
         <div className="space-y-2.5">
           {tab === "materials" && (<>
-            <input ref={input} type="file" multiple hidden onChange={(e) => pick(e.target.files)} />
-            {course.files.length === 0 ? <Empty icon={<Upload size={20} />} title="No materials yet" text="Add slides, PDFs, photos of the whiteboard, or .txt / .md notes. Text files can be read by Birdie right away." action={<Btn variant="study" onClick={() => input.current?.click()}>Choose files</Btn>} /> : (<>
-              {course.files.map((f) => { const Icon = KIND_ICON[f.kind]; return (
+            {!readOnly && <input ref={input} type="file" multiple hidden onChange={(e) => pick(e.target.files)} />}
+            {shownFiles.length === 0 ? <Empty icon={<Upload size={20} />} title="No materials yet" text={readOnly ? "This classmate hasn't added any materials yet." : "Add slides, PDFs, photos of the whiteboard, or .txt / .md notes. Text files can be read by Birdie right away."} action={readOnly ? undefined : <Btn variant="study" onClick={() => input.current?.click()}>Choose files</Btn>} /> : (<>
+              {shownFiles.map((f) => { const Icon = KIND_ICON[f.kind] ?? KIND_ICON.pdf; return (
                 <div key={f.id} className="flex items-center gap-3 rounded-2xl border border-[var(--line)] bg-white p-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--study-soft)] text-[var(--study)]"><Icon size={18} /></div>
                   <div className="min-w-0 flex-1"><div className="truncate text-[13.5px] font-semibold text-[var(--text)]">{f.name}</div><div className="text-[11.5px] text-[var(--dim)]">{f.added}{f.size ? ` · ${fmtSize(f.size)}` : ""} · {f.text ? "Birdie can read this" : "Birdie reads this once AI is connected"}</div></div>
                   {(f.url || f.storagePath) && <button onClick={() => void openFile(f)} className="rounded-lg bg-[var(--paper-dim)] px-2.5 py-1.5 text-[11.5px] font-bold text-[var(--dim)]">Open</button>}
-                  <button onClick={() => deleteFile(course.id, f.id)} aria-label="Delete file" className="text-[var(--dim)] active:scale-90"><Trash2 size={15} /></button>
+                  {!readOnly && <button onClick={() => deleteFile(course.id, f.id)} aria-label="Delete file" className="text-[var(--dim)] active:scale-90"><Trash2 size={15} /></button>}
                 </div>); })}
-              <Btn variant="ghost" onClick={() => input.current?.click()}>+ Add more files</Btn>
+              {!readOnly && <Btn variant="ghost" onClick={() => input.current?.click()}>+ Add more files</Btn>}
             </>)}
           </>)}
 
-          {tab === "notes" && (course.notes.length === 0 ? <Empty icon={<StickyNote size={20} />} title="No notes yet" text="Write what you want to remember. Birdie builds quizzes and answers from your notes." action={<Btn variant="study" onClick={() => setSheet("note")}>Write a note</Btn>} /> : (<>
-            {course.notes.map((n) => (<div key={n.id} className="rounded-2xl border border-[var(--line)] bg-white p-3.5"><div className="flex items-start justify-between gap-2"><div className="text-[14px] font-semibold text-[var(--text)]">{n.title}</div><button onClick={() => deleteNote(course.id, n.id)} aria-label="Delete note" className="text-[var(--dim)] active:scale-90"><Trash2 size={14} /></button></div><div className="mt-1 whitespace-pre-line text-[13px] leading-snug text-[var(--dim)]">{n.body}</div><div className="mt-1.5 text-[11px] text-[#a99fb8]">{n.date}</div></div>))}
-            <Btn variant="ghost" onClick={() => setSheet("note")}>+ New note</Btn></>))}
+          {tab === "notes" && (shownNotes.length === 0 ? <Empty icon={<StickyNote size={20} />} title="No notes yet" text={readOnly ? "This classmate hasn't added any notes yet." : "Write what you want to remember. Birdie builds quizzes and answers from your notes."} action={readOnly ? undefined : <Btn variant="study" onClick={() => setSheet("note")}>Write a note</Btn>} /> : (<>
+            {shownNotes.map((n) => (<div key={n.id} className="rounded-2xl border border-[var(--line)] bg-white p-3.5"><div className="flex items-start justify-between gap-2"><div className="text-[14px] font-semibold text-[var(--text)]">{n.title}</div>{!readOnly && <button onClick={() => deleteNote(course.id, n.id)} aria-label="Delete note" className="text-[var(--dim)] active:scale-90"><Trash2 size={14} /></button>}</div><div className="mt-1 whitespace-pre-line text-[13px] leading-snug text-[var(--dim)]">{n.body}</div><div className="mt-1.5 text-[11px] text-[#a99fb8]">{n.date}</div></div>))}
+            {!readOnly && <Btn variant="ghost" onClick={() => setSheet("note")}>+ New note</Btn>}</>))}
 
-          {tab === "recordings" && (course.recs.length === 0 ? <Empty icon={<BookOpen size={20} />} title="No recordings yet" text="Tap the mascot, choose Record, and capture a lecture. You choose the course after you stop." action={<Btn variant="study" onClick={() => setRecorderOpen(true)}>Record a lecture</Btn>} /> : (<>
-            {course.recs.map((r) => (<RecordingRow key={r.id} r={r} onDelete={() => deleteRec(course.id, r.id)} />))}
-            <Btn variant="ghost" onClick={() => setRecorderOpen(true)}>+ Record another</Btn></>))}
+          {tab === "recordings" && (shownRecs.length === 0 ? <Empty icon={<BookOpen size={20} />} title="No recordings yet" text={readOnly ? "This classmate hasn't recorded anything yet." : "Tap the mascot, choose Record, and capture a lecture. You choose the course after you stop."} action={readOnly ? undefined : <Btn variant="study" onClick={() => setRecorderOpen(true)}>Record a lecture</Btn>} /> : (<>
+            {shownRecs.map((r) => (<RecordingRow key={r.id} r={r} onDelete={() => deleteRec(course.id, r.id)} readOnly={readOnly} />))}
+            {!readOnly && <Btn variant="ghost" onClick={() => setRecorderOpen(true)}>+ Record another</Btn>}</>))}
 
           {tab === "progress" && (overall === null ? <Empty icon={<Sparkles size={20} />} title="No progress yet" text="Take a quiz in Birdie and your topics and mastery show up here." action={<Btn variant="study" onClick={() => goBirdie({ courseId: course.id, mode: "test" })}>Take a quiz</Btn>} /> : (<>
             <div className="rounded-2xl bg-[var(--study-soft)] p-4"><div className="disp text-[30px] font-bold text-[var(--study)]">{overall}%</div><div className="text-[12.5px] text-[#4a3596]">Overall mastery in {course.code}</div></div>

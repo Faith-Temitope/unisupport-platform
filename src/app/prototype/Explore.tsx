@@ -8,12 +8,21 @@ import { firstName, nowTime, useApp, type SharedCourse } from "./store";
 import { Avatar, Btn, DemoControls, Empty, Label, Segmented, Sheet, TextField, TopBar } from "./ui";
 
 export default function Explore({ active }: { active: boolean }) {
-  const { posts, courses, chats, settings, following, blocked, shared, setOverlay, setTab, goStudy, joinShared, leaveShared, shareCourse, sendShared, personById, profile, flash } = useApp();
+  const { posts, courses, chats, settings, following, blocked, shared, setOverlay, setTab, goStudy, joinShared, leaveShared, shareCourse, sendShared, loadSharedDetail, personById, profile, flash } = useApp();
   const [seg, setSeg] = useState<"feed" | "courses">("feed");
   const [q, setQ] = useState("");
   const [tag, setTag] = useState("For you");
   const [detail, setDetail] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+
+  // Message/member counts in the list come from a cheaper batched fetch; the full thread for a
+  // shared course loads once its detail sheet opens, then refreshes while it stays open.
+  useEffect(() => {
+    if (!detail) return;
+    loadSharedDetail(detail);
+    const i = setInterval(() => loadSharedDetail(detail), 4000);
+    return () => clearInterval(i);
+  }, [detail, loadSharedDetail]);
 
   // Tags come from what you actually study and chat about with Birdie (like YouTube's recommendations).
   const interests = useMemo(() => topInterests(chats, courses), [chats, courses]);
