@@ -8,6 +8,7 @@
 import { BarChart3, Building2, Cpu, LogOut, Sliders, Users as UsersIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
+import { fetchActivityOverview, fetchDailySum, fetchOverview, fetchSchoolBreakdown, fetchTopWriters, type ActivityOverview, type DaySeries, type Overview, type SchoolBreakdown, type TopWriter } from "../live/analyticsData";
 import { Btn2, Card, Input, PageTitle, Pill, Switch, nairaS, usd, useToast } from "../staff/kit";
 
 type Role = "student" | "writer" | "support" | "admin";
@@ -66,9 +67,10 @@ function SignIn({ onDone }: { onDone: () => void }) {
 }
 
 function Workspace({ me, onOut }: { me: { id: string; name: string }; onOut: () => void }) {
-  const [tab, setTab] = useState<"users" | "schools" | "pricing" | "ai">("users");
+  const [tab, setTab] = useState<"activity" | "users" | "schools" | "pricing" | "ai">("activity");
   const { show, node } = useToast();
   const nav = [
+    { id: "activity", label: "Activity", icon: <BarChart3 size={17} /> },
     { id: "users", label: "Users", icon: <UsersIcon size={17} /> },
     { id: "schools", label: "Schools", icon: <Building2 size={17} /> },
     { id: "pricing", label: "Pricing", icon: <Sliders size={17} /> },
@@ -80,11 +82,99 @@ function Workspace({ me, onOut }: { me: { id: string; name: string }; onOut: () 
       <div className="mb-5 flex gap-2 border-b border-[#E6DCF0] pb-2">
         {nav.map((n) => (<button key={n.id} onClick={() => setTab(n.id as typeof tab)} className={`${btn} flex items-center gap-2 ${tab === n.id ? "bg-[#1a1024] text-white" : "bg-white"}`}>{n.icon}{n.label}</button>))}
       </div>
+      {tab === "activity" && <ActivityTab />}
       {tab === "users" && <UsersTab show={show} />}
       {tab === "schools" && <SchoolsTab show={show} />}
       {tab === "pricing" && <PricingTab show={show} />}
       {tab === "ai" && <AiTab show={show} />}
       {node}
+    </div>
+  );
+}
+
+// ---------------- Activity ----------------
+// Signups/revenue/AI-spend/writer leaderboard come from tables that already existed (topups,
+// ai_usage, writers, profiles). DAU/WAU/hours/downloads/top-pages come from `app_events`, a new
+// table this ships with -- see the migration note at the bottom of this file. Until that SQL runs,
+// this section just renders zeros instead of erroring (the query comes back empty, not failing).
+function ActivityTab() {
+  const [ov, setOv] = useState<Overview | null>(null);
+  const [act, setAct] = useState<ActivityOverview | null>(null);
+  const [revenue, setRevenue] = useState<DaySeries[]>([]);
+  const [aiSpend, setAiSpend] = useState<DaySeries[]>([]);
+  const [writers, setWriters] = useState<TopWriter[]>([]);
+  const [schools, setSchools] = useState<SchoolBreakdown[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    void Promise.all([fetchOverview(), fetchActivityOverview(), fetchDailySum("topups", "amount", 14), fetchDailySum("ai_usage", "charged_ngn", 14), fetchTopWriters(), fetchSchoolBreakdown()])
+      .then(([o, a, r, s, w, sc]) => { setOv(o); setAct(a); setRevenue(r); setAiSpend(s); setWriters(w); setSchools(sc); })
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading || !ov || !act) return <div className="p-10 text-center text-sm text-[var(--dim)]">Loading...</div>;
+  const tiles = [
+    { label: "Total users", value: String(ov.totalUsers), sub: `+${ov.signups7d} this week` },
+    { label: "Revenue (30d)", value: nairaS(ov.revenueNgn30d), sub: `AI cost ${nairaS(ov.aiSpendNgn30d)}` },
+    { label: "Daily actives", value: String(act.dau), sub: `${act.wau} weekly` },
+    { label: "Hours in-app (30d)", value: String(act.estHours30d), sub: `${act.totalHeartbeats30d} heartbeats` },
+    { label: "Downloads (30d)", value: String(act.downloads30d), sub: "Help delivery files" },
+    { label: "Help sessions open", value: String(ov.activeSessions.desk + ov.activeSessions.fee + ov.activeSessions.writer), sub: `${ov.jobsByStage.active} jobs active` },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        {tiles.map((t) => (<Card key={t.label} pad><div className="text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">{t.label}</div><div className="disp mt-1 text-[24px] font-bold">{t.value}</div><div className="mt-0.5 text-[11.5px] text-[var(--dim)]">{t.sub}</div></Card>))}
+      </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Card title="Revenue, last 14 days" sub="Successful top-ups by day"><MiniBars data={revenue} fmt={nairaS} /></Card>
+        <Card title="AI spend, last 14 days" sub="Charged cost by day"><MiniBars data={aiSpend} fmt={nairaS} tone="#7B2A91" /></Card>
+      </div>
+      <Card title="Most visited" sub="Page views by tab, last 30 days" pad={false}>
+        {act.topPages.length === 0 ? <div className="p-6 text-center text-sm text-[var(--dim)]">No page views logged yet.</div> : (
+          <div className="divide-y divide-[#F0EAF7]">
+            {act.topPages.map((p) => (<div key={p.path} className="flex items-center justify-between px-5 py-2.5 text-[13.5px]"><span className="font-semibold capitalize">{p.path}</span><span className="text-[var(--dim)]">{p.views} views</span></div>))}
+          </div>
+        )}
+      </Card>
+      <Card title="Writer leaderboard" sub={`${writers.length} writers`} pad={false}>
+        {writers.length === 0 ? <div className="p-6 text-center text-sm text-[var(--dim)]">No writers yet.</div> : (
+          <div className="divide-y divide-[#F0EAF7]">
+            {writers.map((w, i) => (
+              <div key={w.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
+                <div className="w-6 text-center text-[12px] font-bold text-[var(--dim)]">#{i + 1}</div>
+                <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-semibold">{w.display_name}</div><div className="text-[11.5px] text-[var(--dim)]">{w.specialization ?? "General"} · {w.completed_count} completed{w.rating ? ` · ${Number(w.rating).toFixed(1)}★` : ""}</div></div>
+                <Pill tone={w.is_available ? "green" : "gray"}>{w.is_available ? "Available" : "Busy"}</Pill>
+                <div className="text-[14px] font-bold">{nairaS(Number(w.earnings))}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+      <Card title="Students by school" sub={`${schools.length} schools represented`} pad={false}>
+        <div className="divide-y divide-[#F0EAF7]">
+          {schools.slice(0, 12).map((s) => (<div key={s.institution_id ?? "none"} className="flex items-center justify-between px-5 py-2.5 text-[13.5px]"><span className="font-semibold">{s.name}</span><span className="text-[var(--dim)]">{s.count} students</span></div>))}
+        </div>
+      </Card>
+      {act.totalHeartbeats30d === 0 && act.dau === 0 && (
+        <Card title="Visits/actives/hours showing zero?" sub="This needs one new table -- ask James/Saviour to run the app_events migration from the android-apk-signing-adjacent analytics setup note, then it fills in on its own as people use the app.">
+          <p className="text-[12.5px] leading-snug text-[var(--dim)]">Revenue, AI spend, and the writer leaderboard above are already real -- only this activity-tracking layer is new and needs its one-time setup.</p>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function MiniBars({ data, fmt, tone = "#8b3fa6" }: { data: DaySeries[]; fmt: (n: number) => string; tone?: string }) {
+  const max = Math.max(1, ...data.map((d) => d.value));
+  return (
+    <div className="flex items-end gap-1.5" style={{ height: 120 }}>
+      {data.map((d) => (
+        <div key={d.date} className="group relative flex-1">
+          <div className="rounded-t-md transition-all" style={{ height: Math.max(3, (d.value / max) * 100), background: tone, opacity: d.value ? 1 : 0.15 }} />
+          <div className="pointer-events-none absolute bottom-full left-1/2 mb-1 -translate-x-1/2 whitespace-nowrap rounded-lg bg-[#1a1024] px-2 py-1 text-[11px] font-semibold text-white opacity-0 transition group-hover:opacity-100">{fmt(d.value)} · {d.date.slice(5)}</div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { Learn, JustDoIt } from "./Help";
 import { ACCESS_LABEL, DL_LABEL, SERVICE_LABEL, UNIT_LABEL, clock, listFolder, openUrl, rpcError, safeName, sendMessage, signedUrl, uploadTo, useHelpData, type HJob, type HMessage, type HSession } from "./live/helpData";
+import { logEvent } from "./live/analyticsData";
 import { naira, uid, useApp } from "./store";
 import { Avatar, Btn, Sheet, TopBar } from "./ui";
 
@@ -90,7 +91,7 @@ export default function HelpLive({ active }: { active: boolean }) {
     const folder = `${j.session_id}/${j.id}`;
     const files = (await listFolder("session-deliverables", folder)).filter((f) => !f.name.startsWith("preview-"));
     if (!files.length) return flash("The writer hasn't attached a file yet. Message them.");
-    for (const f of files) { const u = await signedUrl("session-deliverables", `${folder}/${f.name}`, f.name); if (u) openUrl(u); }
+    for (const f of files) { const u = await signedUrl("session-deliverables", `${folder}/${f.name}`, f.name); if (u) { openUrl(u); void logEvent("download", f.name); } }
   }
   async function openAttachment(path: string) { const u = await signedUrl("session-uploads", path); if (u) openUrl(u); else flash("Couldn't open that file"); }
 
