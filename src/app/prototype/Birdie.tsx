@@ -82,8 +82,8 @@ export default function Birdie({ active }: { active: boolean }) {
   const [aiQuiz, setAiQuiz] = useState<{ key: string; qs: MCQ[] | null; loading: boolean } | null>(null);
 
   const failMsg = (r: AiFail): BMsg | null => {
-    if (r.code === "insufficient_funds") return bird(`Your balance is too low for ${brain.brand}. Top up, or switch to Spark, which is free.`, { actions: [{ label: "Top up", run: "topup" }, { label: "Use Spark (free)", run: "spark" }] });
-    if (r.code === "free_allowance_used") return bird("You've used today's free answers. Come back tomorrow, or choose a paid brain.", { actions: [{ label: "Choose a brain", run: "brain" }] });
+    if (r.code === "insufficient_funds") return bird(`Your balance is too low for ${brain.brand}. Top up, switch to Spark (free), or get an Exam Pass for unlimited access.`, { actions: [{ label: "Top up", run: "topup" }, { label: "Use Spark (free)", run: "spark" }, { label: "Get Exam Pass", run: "topup" }] });
+    if (r.code === "free_allowance_used") return bird("You've used today's free answers. Come back tomorrow, choose a paid brain, or get an Exam Pass for unlimited access.", { actions: [{ label: "Choose a brain", run: "brain" }, { label: "Get Exam Pass", run: "topup" }] });
     if (r.code === "not_configured") return bird(`${brain.brand} isn't available yet. Spark is free and ready now.`, { actions: [{ label: "Use Spark (free)", run: "spark" }, { label: "Choose a brain", run: "brain" }] });
     return null;
   };

@@ -94,6 +94,7 @@ interface AppCtx {
   focusEndsAt: number | null; startFocus: (minutes: number) => void; stopFocus: (completed?: boolean) => void;
   mascotEvent: MascotEvent | null; emote: (kind: Emote, text?: string) => void;
   balance: number; txs: Tx[]; walletLive: boolean; refreshWallet: () => Promise<void>; spend: (amount: number, label: string) => boolean; topUp: (amount: number) => void; spendWallet: (amount: number, label: string) => Promise<boolean>; topUpLive: (amount: number) => Promise<string | null>;
+  examPassUntil: string | null; buyExamPass: () => Promise<{ ok: boolean; error?: string }>;
   people: Person[]; contacts: string[]; following: string[]; convos: Record<string, CMsg[]>; blocked: string[];
   addContact: (id: string) => void; removeContact: (id: string) => void; toggleFollow: (id: string) => void; sendChat: (id: string, text: string) => void; toggleBlock: (id: string) => void;
   posts: Post[]; addPost: (p: Omit<Post, "id" | "createdAt" | "likes" | "liked" | "authorId">) => void; toggleLike: (id: string) => void; deletePost: (id: string) => void;
@@ -266,6 +267,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch { /* keep what we have */ }
   }, []);
   useEffect(() => { if (auth.status === "in") void refreshWallet(); }, [auth.status, refreshWallet]);
+
+  // ---------- Exam Pass (signed-in users): a time-boxed unlimited-AI entitlement bought with wallet balance ----------
+  const [examPassUntil, setExamPassUntil] = useState<string | null>(null);
+  const refreshExamPass = useCallback(async () => {
+    try {
+      const sb = createClient();
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) return;
+      const { data } = await sb.from("profiles").select("exam_pass_until").eq("id", user.id).maybeSingle();
+      setExamPassUntil((data?.exam_pass_until as string | null) ?? null);
+    } catch { /* keep what we have */ }
+  }, []);
+  useEffect(() => { if (auth.status === "in") void refreshExamPass(); }, [auth.status, refreshExamPass]);
+  const buyExamPass = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    const { data, error } = await createClient().rpc("buy_exam_pass");
+    if (error) return { ok: false, error: error.message.replace(/^.*?exception:\s*/i, "") };
+    setExamPassUntil(data as string);
+    void refreshWallet();
+    return { ok: true };
+  }, [refreshWallet]);
 
   // ---------- activity tracking (admin "visits/actives/hours" dashboard) ----------
   // One session_start on sign-in, then one heartbeat/60s while the tab is actually in the
@@ -481,6 +502,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     mascotEvent, emote,
     balance, txs,
     walletLive, refreshWallet,
+    examPassUntil, buyExamPass,
     spend: (amount, label) => {
       if (walletLive) { flash("Writer sessions move onto your real balance in the next update"); return false; }
       if (amount > balance) return false; setBalance((b) => b - amount); if (amount > 0) setTxs((t) => [{ id: uid(), label, amount: -amount, t: "Just now" }, ...t]); return true;
@@ -592,7 +614,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     resetKey, ready,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet]);
+  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
