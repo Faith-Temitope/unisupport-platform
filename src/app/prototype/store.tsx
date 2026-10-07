@@ -9,6 +9,7 @@ import {
   joinSharedCourse, leaveSharedCourse, listMessages, postMessage, publishSharedCourse,
   fetchRemoteCourseContent, listPublishedSharedWithCounts,
 } from "./live/sharedData";
+import { logEvent } from "./live/analyticsData";
 import { DEMO_PEOPLE, DEMO_POSTS, DEMO_SHARED, DEMO_REPLIES } from "./demo";
 import { BADGES, dayKey, streakOf, type Stats } from "./badges";
 
@@ -265,6 +266,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch { /* keep what we have */ }
   }, []);
   useEffect(() => { if (auth.status === "in") void refreshWallet(); }, [auth.status, refreshWallet]);
+
+  // ---------- activity tracking (admin "visits/actives/hours" dashboard) ----------
+  // One session_start on sign-in, then one heartbeat/60s while the tab is actually in the
+  // foreground (visibilitychange-gated so a parked background tab doesn't inflate "hours").
+  useEffect(() => {
+    if (auth.status !== "in") return;
+    void logEvent("session_start");
+    const tick = () => { if (document.visibilityState === "visible") void logEvent("heartbeat"); };
+    const id = setInterval(tick, 60_000);
+    return () => clearInterval(id);
+  }, [auth.status]);
 
   // ---------- real Shared Courses (signed-in users): browse what other real accounts published ----------
   const [sharedRemoteContent, setSharedRemoteContent] = useState<{ notes: Note[]; files: FileItem[]; recs: Rec[] } | null>(null);

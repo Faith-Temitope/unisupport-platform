@@ -16,6 +16,7 @@ import Sheets from "./Sheets";
 import Study from "./Study";
 import { AppProvider, useApp, type TabId } from "./store";
 import { Btn } from "./ui";
+import { logEvent } from "./live/analyticsData";
 
 const NAV: [TabId, string, typeof Compass | null][] = [["study", "Study", BookOpen], ["explore", "Explore", Compass], ["birdie", "Birdie", null], ["help", "Help", LifeBuoy]];
 const ZOOM = { s: 0.92, m: 1, l: 1.1 } as const;
@@ -27,6 +28,7 @@ function Shell() {
   // users, testers and Play Store reviewers never see them.
   const [dev, setDev] = useState(false);
   useEffect(() => { setDev(new URLSearchParams(window.location.search).has("dev")); }, []);
+  useEffect(() => { void logEvent("page_view", tab); }, [tab]);
 
   // Coming back from the Paystack checkout: confirm the payment and credit the wallet.
   useEffect(() => {
