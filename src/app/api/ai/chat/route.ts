@@ -96,16 +96,21 @@ export async function POST(req: Request) {
   }) };
   const m = modelOf(b, tier);
 
-  // 2. can they afford it (paid brains) or have free answers left (free brains)
+  // 2. can they afford it (paid brains) or have free answers left (free brains) -- an active Exam
+  // Pass waives both, since that's the whole point of paying for one.
   const { data: cfg } = await admin.from("app_config").select("value").eq("key", "usd_ngn").maybeSingle();
   const usdNgn = Number(cfg?.value ?? DEFAULT_USD_NGN);
-  if (b.free) {
-    const { data: left } = await admin.rpc("ai_free_remaining", { p_user: user.id });
-    if ((left as number) <= 0) return err(429, "free_allowance_used", { hint: "Try again tomorrow or pick a paid brain" });
-  } else {
-    const worst = priceNgn(b, m, 12000, MAX_OUT, usdNgn).ngn; // pre-check with a generous ceiling
-    const { data: bal } = await sb.from("wallet_balances").select("balance").eq("user_id", user.id).maybeSingle();
-    if (Number(bal?.balance ?? 0) < worst) return err(402, "insufficient_funds", { need_at_least: worst });
+  const { data: passRow } = await admin.from("profiles").select("exam_pass_until").eq("id", user.id).maybeSingle();
+  const examPassActive = !!passRow?.exam_pass_until && new Date(passRow.exam_pass_until) > new Date();
+  if (!examPassActive) {
+    if (b.free) {
+      const { data: left } = await admin.rpc("ai_free_remaining", { p_user: user.id });
+      if ((left as number) <= 0) return err(429, "free_allowance_used", { hint: "Try again tomorrow, pick a paid brain, or get an Exam Pass for unlimited access" });
+    } else {
+      const worst = priceNgn(b, m, 12000, MAX_OUT, usdNgn).ngn; // pre-check with a generous ceiling
+      const { data: bal } = await sb.from("wallet_balances").select("balance").eq("user_id", user.id).maybeSingle();
+      if (Number(bal?.balance ?? 0) < worst) return err(402, "insufficient_funds", { need_at_least: worst });
+    }
   }
 
   // 3. ask the vendor
@@ -121,9 +126,10 @@ export async function POST(req: Request) {
     return err(502, "vendor_error", { message: msg });
   }
 
-  // 4. bill and log
+  // 4. bill and log -- still logs the real provider cost for admin margin tracking, but charges
+  // the student nothing while their Exam Pass is active.
   const p = priceNgn(b, out.used, out.inTok, out.outTok, usdNgn);
-  const { error } = await admin.rpc("record_ai_usage", { p_user: user.id, p_brain: b.id, p_model: out.used.vendorModel, p_feature: feature ?? "chat", p_in: out.inTok, p_out: out.outTok, p_cost_usd: p.providerUsd, p_charged_ngn: p.ngn });
+  const { error } = await admin.rpc("record_ai_usage", { p_user: user.id, p_brain: b.id, p_model: out.used.vendorModel, p_feature: feature ?? "chat", p_in: out.inTok, p_out: out.outTok, p_cost_usd: p.providerUsd, p_charged_ngn: examPassActive ? 0 : p.ngn });
   if (error) console.error("record_ai_usage failed", error.message);
 
   return NextResponse.json({ text: out.text, brain: b.id, model: out.used.vendorModel, usage: { in: out.inTok, out: out.outTok }, charged_ngn: p.ngn });
