@@ -262,8 +262,10 @@ function SourceScreen({ name, onBack }: { name: string; onBack: () => void }) {
 
 // ---------- Post composer: upload a video or write a post ----------
 function Composer({ onClose }: { onClose: () => void }) {
-  const { addPost, flash, setTab } = useApp();
-  const [kind, setKind] = useState<"video" | "text">("video");
+  const { addPost, flash, setTab, plus, openPlus } = useApp();
+  const [kind, setKind] = useState<"video" | "text">(plus ? "video" : "text");
+  // Posting videos is a Birdie Plus feature; writing posts is free.
+  const pickKind = (k: "video" | "text") => { if (k === "video" && !plus) { openPlus("Posting videos to Explore is part of Birdie Plus. Writing posts stays free."); return; } setKind(k); };
   const [title, setTitle] = useState(""); const [body, setBody] = useState(""); const [field, setField] = useState(""); const [tags, setTags] = useState("");
   const [file, setFile] = useState<File | null>(null); const [url, setUrl] = useState<string>();
   const [secs, setSecs] = useState<number>();
@@ -290,7 +292,7 @@ function Composer({ onClose }: { onClose: () => void }) {
     <div className="flex min-h-0 flex-1 flex-col">
       <Header onBack={onClose} title={<h2 className="disp text-[19px] font-bold">New post</h2>} />
       <div className="no-scrollbar flex-1 space-y-4 overflow-y-auto px-4 py-4">
-        <Segmented value={kind} onChange={setKind} options={[{ id: "video", label: "Upload a video" }, { id: "text", label: "Write a post" }]} />
+        <Segmented value={kind} onChange={pickKind} options={[{ id: "video", label: plus ? "Upload a video" : "Upload a video (Plus)" }, { id: "text", label: "Write a post" }]} />
         {kind === "video" && (<>
           <input ref={input} type="file" accept="video/*" hidden onChange={(e) => pick(e.target.files?.[0] ?? null)} />
           {url ? <video src={url} controls className="aspect-video w-full rounded-2xl bg-black" /> : <button onClick={() => input.current?.click()} className="flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[var(--line)] text-[var(--dim)] active:scale-[0.98]"><Video size={26} /><span className="text-[13px] font-semibold">Choose a video from your device</span></button>}

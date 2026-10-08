@@ -29,7 +29,7 @@ const Row = ({ label, sub, onClick, danger }: { label: string; sub?: string; onC
 const Choice = ({ label, children }: { label: string; children: ReactNode }) => (<div className="border-b border-[var(--line)] py-3 last:border-0"><div className="mb-2 text-[14px] font-semibold text-[var(--text)]">{label}</div>{children}</div>);
 
 export default function Settings() {
-  const { overlay, setOverlay, profile, saveProfile, settings, setSetting, demoOn, setDemo, balance, txs, setWalletOpen, courses, folders, resetAll, flash, auth, signOut, setAuthOpen } = useApp();
+  const { overlay, setOverlay, profile, saveProfile, settings, setSetting, demoOn, setDemo, balance, txs, setWalletOpen, courses, folders, resetAll, flash, auth, signOut, setAuthOpen, plus, openPlus } = useApp();
   const [sheet, setSheet] = useState<null | "profile" | "password" | "delete" | "about">(null);
   const [draft, setDraft] = useState(profile);
   const [saving, setSaving] = useState(false);
@@ -83,12 +83,12 @@ export default function Settings() {
               <Toggle on={settings.mascotChatty} onChange={(v) => setSetting("mascotChatty", v)} label="Let it talk" sub="Tips and cheering in speech bubbles" />
               <Choice label="Your study buddy">
                 <div className="grid grid-cols-4 gap-2">{SKINS.map((k) => (
-                  <button key={k.id} onClick={() => setSetting("mascotSkin", k.id)} aria-pressed={settings.mascotSkin === k.id} className={`flex flex-col items-center gap-1 rounded-2xl p-2 ${settings.mascotSkin === k.id ? "bg-[var(--birdie-soft)] ring-2 ring-[var(--birdie)]" : "bg-[var(--paper-dim)]"}`}>
-                    <Buddy skin={k.id} size={44} initials={initials(profile.name || "Me")} /><span className="text-[11px] font-semibold">{k.label}</span>
+                  <button key={k.id} onClick={() => (k.id === "robot" || plus ? setSetting("mascotSkin", k.id) : openPlus("The Bird, Spider and Me buddies are part of Birdie Plus."))} aria-pressed={settings.mascotSkin === k.id} className={`flex flex-col items-center gap-1 rounded-2xl p-2 ${settings.mascotSkin === k.id ? "bg-[var(--birdie-soft)] ring-2 ring-[var(--birdie)]" : "bg-[var(--paper-dim)]"}`}>
+                    <Buddy skin={k.id} size={44} initials={initials(profile.name || "Me")} /><span className="text-[11px] font-semibold">{k.label}{k.id !== "robot" && !plus ? " 👑" : ""}</span>
                   </button>
                 ))}</div>
               </Choice>
-              <Toggle on={settings.mascotBoard} onChange={(v) => setSetting("mascotBoard", v)} label="Hold up a sign" sub="It talks with a little hanging board instead of speech bubbles" />
+              <Toggle on={settings.mascotBoard && plus} onChange={(v) => (plus ? setSetting("mascotBoard", v) : openPlus("The sign board is part of Birdie Plus."))} label={plus ? "Hold up a sign" : "Hold up a sign 👑"} sub="It talks with a little hanging board instead of speech bubbles" />
               <p className="pb-3 text-[12px] leading-snug text-[var(--dim)]">Tap it for shortcuts. Poke it too much and it gets grumpy. Press and hold to pet it.</p>
             </Group>
 
@@ -114,7 +114,7 @@ export default function Settings() {
               <Choice label="Theme"><Segmented value={settings.theme} onChange={(v) => setSetting("theme", v)} options={[{ id: "system", label: "System" }, { id: "light", label: "Light" }, { id: "dark", label: "Dark" }]} /></Choice>
               <Choice label="Accent colour">
                 <div className="flex gap-2.5">{ACCENTS.map(([id, label, hex]) => (
-                  <button key={id} onClick={() => setSetting("accent", id)} aria-label={label} aria-pressed={settings.accent === id} className={`h-9 w-9 rounded-full ring-offset-2 ring-offset-[var(--paper)] transition ${settings.accent === id ? "ring-2 ring-[var(--text)]" : ""}`} style={{ background: hex }} />
+                  <button key={id} onClick={() => (id === "purple" || plus ? setSetting("accent", id) : openPlus("Accent colours are part of Birdie Plus. Dark mode stays free."))} aria-label={label} aria-pressed={settings.accent === id} className={`h-9 w-9 rounded-full ring-offset-2 ring-offset-[var(--paper)] transition ${settings.accent === id ? "ring-2 ring-[var(--text)]" : ""}`} style={{ background: hex }} />
                 ))}</div>
               </Choice>
             </Group>

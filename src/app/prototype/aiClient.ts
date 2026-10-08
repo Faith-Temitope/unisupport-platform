@@ -2,7 +2,7 @@
 import { words, type Doc } from "./engine";
 
 export type AiOk = { ok: true; text: string; brain: string; model: string; charged_ngn: number; usage: { in: number; out: number } };
-export type AiFail = { ok: false; code: "guest" | "insufficient_funds" | "free_allowance_used" | "not_configured" | "error"; message: string; need?: number };
+export type AiFail = { ok: false; code: "guest" | "insufficient_funds" | "free_allowance_used" | "not_configured" | "plus" | "error"; message: string; need?: number };
 export type AiResult = AiOk | AiFail;
 export interface AiImage { mime: string; data: string }
 export interface AiCall { brain: string; tier: string; system?: string; messages: { role: "user" | "assistant"; content: string }[]; feature?: string; /** Photos sent with the last message (base64, no data: prefix). */ images?: AiImage[] }
@@ -15,6 +15,7 @@ export async function askAI(body: AiCall): Promise<AiResult> {
     if (r.status === 401) return { ok: false, code: "guest", message: "Sign in to use Birdie's AI." };
     if (r.status === 402) return { ok: false, code: "insufficient_funds", message: "Not enough balance for this brain.", need: j.need_at_least };
     if (r.status === 429) return { ok: false, code: "free_allowance_used", message: j.hint ?? "Today's free answers are used up." };
+    if (j.error === "plus_required") return { ok: false, code: "plus", message: j.hint ?? "That's part of Birdie Plus." };
     if (r.status === 501 || r.status === 403) return { ok: false, code: "not_configured", message: j.hint ?? "This brain isn't switched on yet." };
     return { ok: false, code: "error", message: j.message ?? j.error ?? "The AI didn't respond." };
   } catch (e) { return { ok: false, code: "error", message: (e as Error).message }; }
