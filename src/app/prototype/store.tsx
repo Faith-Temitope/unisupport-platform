@@ -11,6 +11,7 @@ import {
   syncCourseForSharing, setSharedItems, getSharedItems, updateSharedSettings, buySharedCourse, type ShareItem,
 } from "./live/sharedData";
 import { logEvent } from "./live/analyticsData";
+import { fetchMyRep } from "./live/repData";
 import { createPost, deletePostRemote, fetchChannels, fetchFeed, fetchMyFollowing, fetchPostsBy, setFollow, setLike, upsertMyChannel, type Channel, type FeedPost, type Link } from "./live/socialData";
 import { DEMO_PEOPLE, DEMO_POSTS, DEMO_SHARED, DEMO_REPLIES } from "./demo";
 import { BADGES, dayKey, streakOf, type Stats } from "./badges";
@@ -104,6 +105,7 @@ interface AppCtx {
   mascotEvent: MascotEvent | null; emote: (kind: Emote, text?: string) => void;
   balance: number; txs: Tx[]; walletLive: boolean; refreshWallet: () => Promise<void>; spend: (amount: number, label: string) => boolean; topUp: (amount: number) => void; spendWallet: (amount: number, label: string) => Promise<boolean>; topUpLive: (amount: number) => Promise<string | null>;
   examPassUntil: string | null; buyExamPass: () => Promise<{ ok: boolean; error?: string }>;
+  isRep: boolean; refreshRep: () => Promise<void>;
   people: Person[]; contacts: string[]; following: string[]; convos: Record<string, CMsg[]>; blocked: string[];
   addContact: (id: string) => void; removeContact: (id: string) => void; toggleFollow: (id: string) => void; sendChat: (id: string, text: string) => void; toggleBlock: (id: string) => void;
   posts: Post[]; addPost: (p: NewPost) => Promise<string | null>; toggleLike: (id: string) => void; deletePost: (id: string) => void;
@@ -306,6 +308,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch { /* keep what we have */ }
   }, []);
   useEffect(() => { if (auth.status === "in") void refreshExamPass(); }, [auth.status, refreshExamPass]);
+  // Active course reps get unlimited AI (the chat route checks this server-side too).
+  const [isRep, setIsRep] = useState(false);
+  const refreshRep = useCallback(async () => { const r = await fetchMyRep(); setIsRep(r?.status === "active"); }, []);
+  useEffect(() => { void (auth.status === "in" ? refreshRep() : Promise.resolve().then(() => setIsRep(false))); }, [auth.status, refreshRep]);
   const buyExamPass = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
     const { data, error } = await createClient().rpc("buy_exam_pass");
     if (error) return { ok: false, error: error.message.replace(/^.*?exception:\s*/i, "") };
@@ -584,7 +590,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     mascotEvent, emote,
     balance, txs,
     walletLive, refreshWallet,
-    examPassUntil, buyExamPass,
+    examPassUntil, buyExamPass, isRep, refreshRep,
     spend: (amount, label) => {
       if (walletLive) { flash("Writer sessions move onto your real balance in the next update"); return false; }
       if (amount > balance) return false; setBalance((b) => b - amount); if (amount > 0) setTxs((t) => [{ id: uid(), label, amount: -amount, t: "Just now" }, ...t]); return true;
@@ -758,7 +764,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     resetKey, ready,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, sharedIntent, refreshFeed, loadChannel, toPost]);
+  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, isRep, refreshRep, sharedIntent, refreshFeed, loadChannel, toPost]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

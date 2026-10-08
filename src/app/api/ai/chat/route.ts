@@ -100,8 +100,12 @@ export async function POST(req: Request) {
   // Pass waives both, since that's the whole point of paying for one.
   const { data: cfg } = await admin.from("app_config").select("value").eq("key", "usd_ngn").maybeSingle();
   const usdNgn = Number(cfg?.value ?? DEFAULT_USD_NGN);
-  const { data: passRow } = await admin.from("profiles").select("exam_pass_until").eq("id", user.id).maybeSingle();
-  const examPassActive = !!passRow?.exam_pass_until && new Date(passRow.exam_pass_until) > new Date();
+  // Active course reps get the same unlimited access as an Exam Pass, for as long as they're a rep.
+  const [{ data: passRow }, { data: repRow }] = await Promise.all([
+    admin.from("profiles").select("exam_pass_until").eq("id", user.id).maybeSingle(),
+    admin.from("course_reps").select("status").eq("user_id", user.id).maybeSingle(),
+  ]);
+  const examPassActive = (!!passRow?.exam_pass_until && new Date(passRow.exam_pass_until) > new Date()) || repRow?.status === "active";
   if (!examPassActive) {
     if (b.free) {
       const { data: left } = await admin.rpc("ai_free_remaining", { p_user: user.id });

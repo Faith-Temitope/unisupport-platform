@@ -40,7 +40,7 @@ const TZ_COUNTRY: Record<string, string> = {
 const detectCountry = () => { try { return TZ_COUNTRY[Intl.DateTimeFormat().resolvedOptions().timeZone] ?? ""; } catch { return ""; } };
 
 export default function Sheets() {
-  const { walletOpen, setWalletOpen, brainOpen, setBrainOpen, balance, txs, topUp, topUpLive, flash, profile, setProfile, ready, walletLive, examPassUntil, buyExamPass } = useApp();
+  const { walletOpen, setWalletOpen, brainOpen, setBrainOpen, balance, txs, topUp, topUpLive, flash, profile, setProfile, ready, walletLive, examPassUntil, buyExamPass, isRep } = useApp();
   const [amt, setAmt] = useState(20000);
   const [payBusy, setPayBusy] = useState(false);
   async function payWithPaystack() {
@@ -59,6 +59,7 @@ export default function Sheets() {
     });
   }, [walletOpen, walletLive]);
   const passActive = !!examPassUntil && new Date(examPassUntil) > new Date();
+  const repPerk = isRep && !passActive;
   async function buyPass() {
     setPassBusy(true);
     const r = await buyExamPass();
@@ -92,9 +93,11 @@ export default function Sheets() {
           <p className="mt-2 text-center text-[11.5px] text-[var(--dim)]">Guest mode uses demo money. Create an account for a real balance.</p>
         </>)}
         {walletLive && (
-          <div className={`mt-4 rounded-2xl border-2 p-4 ${passActive ? "border-[var(--birdie)] bg-[var(--birdie-soft)]" : "border-[var(--line)]"}`}>
+          <div className={`mt-4 rounded-2xl border-2 p-4 ${passActive || repPerk ?"border-[var(--birdie)] bg-[var(--birdie-soft)]" : "border-[var(--line)]"}`}>
             <div className="flex items-center gap-2 text-[13.5px] font-bold"><Zap size={16} className="text-[var(--birdie-text)]" /> Exam Pass</div>
-            {passActive ? (
+            {repPerk ? (
+              <p className="mt-1 text-[12.5px] text-[var(--birdie-text)]">Included free while you&apos;re a course rep. Unlimited Birdie AI, every brain, no charges.</p>
+            ) : passActive ? (
               <p className="mt-1 text-[12.5px] text-[var(--birdie-text)]">Active until {new Date(examPassUntil!).toLocaleDateString([], { month: "short", day: "numeric" })}. Unlimited Birdie AI, every brain, no charges.</p>
             ) : (
               <>

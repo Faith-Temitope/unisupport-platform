@@ -2,6 +2,7 @@
 
 import { ArrowLeft, Bell, BookOpen, Bot as BotIcon, Cpu, Compass, CreditCard, Eye, FileText, Lock, LogOut, PlugZap, ShieldCheck, Sparkles, Trash2, Type, UserRound, X } from "lucide-react";
 import { cleanUrl } from "./live/socialData";
+import { RepPanel } from "./RepPanel";
 import { useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase";
 import { initials } from "./PostCard";
@@ -59,6 +60,8 @@ export default function Settings() {
               <div className="flex items-center justify-between border-b border-[var(--line)] py-3"><div><div className="text-[12px] text-[var(--dim)]">Birdie balance</div><div className="disp text-[22px] font-bold">{naira(balance)}</div></div><button onClick={() => setWalletOpen(true)} className="rounded-xl bg-[var(--birdie)] px-4 py-2 text-[13px] font-semibold text-white active:scale-95">Top up</button></div>
               <Row label="Transactions" sub={txs.length ? `${txs.length} so far` : "Nothing yet"} onClick={() => setWalletOpen(true)} />
             </Group>
+
+            <RepPanel />
 
             <Group icon={Cpu} title="Birdie's brain">
               <div className="pb-3 pt-1"><p className="mb-3 text-[12.5px] leading-snug text-[var(--dim)]">Pick the AI you like best. You can switch any time, and each one has its own model levels.</p><BrainPicker /></div>
