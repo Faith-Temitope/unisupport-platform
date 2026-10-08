@@ -2,7 +2,7 @@
 
 import { ArrowLeft, CheckCheck, Flag, Link2, MessageCircle, Plus, Search, Send, Settings as Cog, UserPlus, Video } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import PostCard, { initials } from "./PostCard";
+import PostCard, { colorFor, initials } from "./PostCard";
 import { naira, useApp, type Person, type Post } from "./store";
 import { LikedTab, PlaylistsTab } from "./Playlists";
 import { Watch } from "./Watch";
@@ -17,6 +17,7 @@ export default function Overlays() {
       <Screen open={overlay?.t === "chats"} z={60}><ChatsScreen onClose={close} /></Screen>
       <Screen open={overlay?.t === "thread"} z={62}>{overlay?.t === "thread" && <Thread id={overlay.id} onBack={() => setOverlay({ t: "chats" })} />}</Screen>
       <Screen open={overlay?.t === "profile"} z={62}>{overlay?.t === "profile" && <ProfileScreen id={overlay.id} onBack={close} />}</Screen>
+      <Screen open={overlay?.t === "source"} z={62}>{overlay?.t === "source" && <SourceScreen name={overlay.name} onBack={close} />}</Screen>
       <Screen open={overlay?.t === "post"} z={62}><Composer onClose={close} /></Screen>
       <Screen open={!!watching && !watching.mini} z={64} fade>{watching && <Watch key={watching.id} id={watching.id} onBack={minimizeWatch} />}</Screen>
     </>
@@ -127,7 +128,10 @@ function ProfileScreen({ id, onBack }: { id: string; onBack: () => void }) {
     void fetchChannelStats(realId, auth.userId).then((s) => setStats({ followers: s.followers, likes: s.likes }));
   }, [realId, auth.userId, loadChannel]);
 
-  if (!isMe && !p) return null;
+  // A real student's channel can take a moment to load the first time it's opened.
+  if (!isMe && !p) return (
+    <div className="flex min-h-0 flex-1 flex-col"><Header onBack={onBack} title={<div className="text-[14.5px] font-bold">Channel</div>} /><div className="flex flex-1 items-center justify-center text-[13px] text-[var(--dim)]">Loading channel...</div></div>
+  );
   const mine = posts.filter((x) => x.authorId === id);
   // Pinned posts (up to 3) sit at the top, most recently pinned first.
   const pinnedFirst = (a: Post, b: Post) => (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0) || b.createdAt - a.createdAt;
@@ -194,6 +198,31 @@ function ProfileScreen({ id, onBack }: { id: string; onBack: () => void }) {
           <button onClick={() => { toggleBlock(id); setMenu(false); flash(blocked.includes(id) ? "Unblocked" : "Blocked. You won't see their posts or messages"); if (!blocked.includes(id)) setOverlay(null); }} className="w-full rounded-2xl py-3.5 text-[15px] font-semibold text-[var(--help)] active:scale-[0.97]">{blocked.includes(id) ? "Unblock" : "Block"}</button>
         </div>
       </Sheet>
+    </div>
+  );
+}
+
+// ---------- A YouTube creator whose videos play on Birdie ----------
+function SourceScreen({ name, onBack }: { name: string; onBack: () => void }) {
+  const { posts, searchFeed } = useApp();
+  useEffect(() => { void searchFeed(name); }, [name, searchFeed]);
+  const videos = posts.filter((x) => x.sourceName === name).sort((a, b) => b.createdAt - a.createdAt);
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <Header onBack={onBack} title={<div className="truncate text-[14.5px] font-bold">{name}</div>} />
+      <div className="no-scrollbar flex-1 overflow-y-auto pb-8">
+        <div className="h-20 bg-gradient-to-br from-[#7C4DDB] to-[#3b1f7a]" />
+        <div className="-mt-9 space-y-3 px-4">
+          <div className="rounded-full ring-4 ring-[var(--paper)] w-fit"><Avatar initials={initials(name)} color={colorFor(name)} size={72} /></div>
+          <div>
+            <div className="disp text-[21px] font-bold leading-tight">{name}</div>
+            <div className="text-[12.5px] text-[var(--dim)]">YouTube creator · {videos.length} video{videos.length === 1 ? "" : "s"} on Birdie</div>
+          </div>
+          <p className="text-[13px] leading-snug text-[var(--dim)]">These videos play through YouTube, so every view counts for {name}.</p>
+          <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(name)}`} target="_blank" rel="noopener noreferrer" className="block rounded-2xl bg-[var(--ink)] py-3 text-center text-[14px] font-semibold text-[var(--paper)] active:scale-95">See {name} on YouTube</a>
+          <div className="space-y-4 pt-1">{videos.map((x) => (<PostCard key={x.id} post={x} onProfile={() => undefined} />))}</div>
+        </div>
+      </div>
     </div>
   );
 }

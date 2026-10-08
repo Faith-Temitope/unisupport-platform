@@ -13,6 +13,7 @@ import {
 import { logEvent } from "./live/analyticsData";
 import { fetchMyRep } from "./live/repData";
 import { createPost, deletePostRemote, fetchChannels, fetchFeed, fetchLikedPosts, fetchMyFollowing, fetchPostsBy, fetchPostsByIds, pinPost, setFollow, setLike, upsertMyChannel, type Channel, type FeedPost, type Link } from "./live/socialData";
+import { clearViewState, useViewState } from "./persist";
 import { fetchForYou, fetchMyTopics, logPostEvent, type Ranked } from "./live/recData";
 import { DEMO_PEOPLE, DEMO_POSTS, DEMO_SHARED, DEMO_REPLIES } from "./demo";
 import { BADGES, dayKey, streakOf, type Stats } from "./badges";
@@ -40,7 +41,7 @@ export interface BMsg { id: string; from: "me" | "bird"; text: string; cite?: st
 export interface Person { id: string; name: string; handle: string; field: string; bio: string; color: string; demo?: boolean; links?: Link[]; school?: string; country?: string }
 export type Audience = "everyone" | "country" | "region" | "school";
 export interface CMsg { id: string; from: "me" | "them"; text: string; t: string; author?: string }
-export interface Post { id: string; authorId: string; kind: "video" | "text"; title: string; body?: string; videoUrl?: string; videoPath?: string; youtubeId?: string; sourceName?: string; pinnedAt?: number; field: string; tags: string[]; dur?: string; grad: string; createdAt: number; likes: number; liked: boolean; demo?: boolean; remote?: boolean }
+export interface Post { id: string; authorId: string; kind: "video" | "text"; title: string; body?: string; videoUrl?: string; videoPath?: string; youtubeId?: string; sourceName?: string; pinnedAt?: number; field: string; tags: string[]; dur?: string; grad: string; createdAt: number; likes: number; liked: boolean; comments?: number; demo?: boolean; remote?: boolean }
 export type PrintIntent = { kind: "print" | "handwrite" | "orders"; file?: { name: string; path: string } };
 export type NewPost ={ kind: "video" | "text"; title: string; body?: string; field: string; tags: string[]; durationSeconds?: number; file?: File };
 export interface SharedCourse { id: string; ownerId: string; ownerName?: string; code: string; name: string; school?: string; field: string; description: string; files: string[]; members: string[]; messages: { id: string; authorId: string; text: string; t: string }[]; demo?: boolean; sourceCourseId?: string; priceNgn?: number; itemCounts?: { notes: number; files: number; recs: number } }
@@ -56,7 +57,7 @@ export interface Settings {
   aiBrain: "spark" | "nova" | "sage"; aiTier: "quick" | "balanced" | "deep";
   mascotOn: boolean; mascotChatty: boolean; dailyGoal: number;
 }
-export type Overlay = null | { t: "chats" } | { t: "thread"; id: string } | { t: "settings" } | { t: "profile"; id: string } | { t: "post" };
+export type Overlay = null | { t: "chats" } | { t: "thread"; id: string } | { t: "settings" } | { t: "profile"; id: string } | { t: "source"; name: string } | { t: "post" };
 export interface MascotEvent { id: string; kind: Emote; text?: string }
 
 export const COLORS = ["#7C4DDB", "#A63FBD", "#4C6EF5", "#1B8A85", "#D9467E", "#E2553F"];
@@ -161,7 +162,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [boot, setBoot] = useState<Boot>("splash");
   const [auth, setAuth] = useState<{ status: AuthStatus; email?: string; userId?: string }>({ status: "loading" });
   const [authOpen, setAuthOpen] = useState(false);
-  const [tab, setTab] = useState<TabId>("study");
+  const [tab, setTabState] = useViewState<TabId>("tab", "study");
   const [profile, setProfileState] = useState<Profile>(emptyProfile);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -189,7 +190,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [demoOn, setDemoOn] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
   const [brainOpen, setBrainOpen] = useState(false);
-  const [overlay, setOverlay] = useState<Overlay>(null);
+  const [overlay, setOverlayState] = useViewState<Overlay>("overlay", null);
   const [recorderOpen, setRecorderOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [birdieIntent, setBirdieIntent] = useState<AppCtx["birdieIntent"]>(null);
@@ -198,7 +199,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [sharedIntent, setSharedIntent] = useState<string | null>(null);
   const [printIntent, setPrintIntent] = useState<PrintIntent | null>(null);
   const [barsHidden, setBarsHidden] = useState(false);
-  const [watching, setWatching] = useState<{ id: string; mini: boolean } | null>(null);
+  // Changing screen always brings the bottom nav back.
+  const setTab = useCallback((t: TabId) => { setBarsHidden(false); setTabState(t); }, [setTabState]);
+  const setOverlay = useCallback((o: Overlay) => { setBarsHidden(false); setOverlayState(o); }, [setOverlayState]);
+  const [watching, setWatching] = useViewState<{ id: string; mini: boolean } | null>("watching", null);
   const [phone, setPhone] = useState<HTMLElement | null>(null);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const [resetKey, setResetKey] = useState(0);
@@ -376,7 +380,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const toPost = useCallback((r: FeedPost): Post => ({
     id: r.id, authorId: r.author_id === auth.userId ? "me" : r.author_id, kind: r.kind, title: r.title, body: r.body ?? undefined,
     videoUrl: r.videoUrl, videoPath: r.video_path ?? undefined, youtubeId: r.youtube_id ?? undefined, sourceName: r.source_name ?? undefined, pinnedAt: r.pinned_at ? Date.parse(r.pinned_at) : undefined, field: r.field ?? "", tags: r.tags, dur: fmtDur(r.duration_seconds), grad: GRAD,
-    createdAt: Date.parse(r.created_at), likes: r.likes, liked: r.liked, remote: true,
+    createdAt: Date.parse(r.created_at), likes: r.likes, liked: r.liked, comments: r.comment_count ?? 0, remote: true,
   }), [auth.userId]);
   const ingestPosts = useCallback(async (rows: FeedPost[], replaceAll: boolean) => {
     const mapped = rows.map(toPost);
@@ -831,7 +835,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setProfileState(emptyProfile); setSettings(defaultSettings); setCourses([]); setFolders([]); setChatsState({}); setRecommendation(null); setLastRecAt(0); setSkew(0);
       setDeadlines([]); setActivity({}); setCounters({ quizzes: 0, chats: 0, posts: 0 }); setUnlocked([]); setNotices([]); setFocusEndsAt(null);
       setBalance(0); setTxs([]); setPeople([]); setContacts([]); setFollowing([]); setBlocked([]); setConvos({}); setPosts([]); setShared([]); setDemoOn(false);
-      setOverlay(null); setWatching(null); setTab("study"); setResetKey((k) => k + 1);
+      clearViewState(); setOverlay(null); setWatching(null); setTab("study"); setResetKey((k) => k + 1);
     },
     resetKey, ready,
   // eslint-disable-next-line react-hooks/exhaustive-deps

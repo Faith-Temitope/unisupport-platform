@@ -16,6 +16,7 @@ export interface RemotePost {
   youtube_id: string | null; source_name: string | null; pinned_at: string | null;
   /** Real topics (AI, Maths, Web Dev...) worked out by the database from the title and description. */
   topics?: string[];
+  comment_count?: number;
 }
 export interface Playlist { id: string; title: string; description: string; is_public: boolean; count: number; cover: string | null; cover_kind: "youtube" | "upload" | "text" | null }
 export interface FeedPost extends RemotePost { videoUrl?: string; likes: number; liked: boolean }
@@ -172,3 +173,16 @@ export async function setFollow(followerId: string, followeeId: string, on: bool
   if (on) await sb.from("follows").upsert({ follower_id: followerId, followee_id: followeeId }, { onConflict: "follower_id,followee_id", ignoreDuplicates: true });
   else await sb.from("follows").delete().eq("follower_id", followerId).eq("followee_id", followeeId);
 }
+
+// ---------------- comments ----------------
+
+export interface Comment { id: string; user_id: string; parent_id: string | null; body: string; created_at: string; name: string; color: string; mine: boolean }
+export async function listComments(post: string): Promise<Comment[]> {
+  const { data } = await createClient().rpc("list_comments", { p_post: post });
+  return (data ?? []) as Comment[];
+}
+export async function addComment(post: string, body: string, parent?: string): Promise<{ id?: string; error?: string }> {
+  const { data, error } = await createClient().rpc("add_comment", { p_post: post, p_body: body, p_parent: parent ?? null });
+  return error ? { error: /slow_down/.test(error.message) ? "You're commenting too fast. Wait a moment." : rpcMsg(error) } : { id: data as string };
+}
+export async function deleteComment(id: string) { await createClient().rpc("delete_comment", { p_id: id }); }

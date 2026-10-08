@@ -1,5 +1,6 @@
 "use client";
 
+import { useViewState } from "./persist";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, Menu, Mic, Paperclip, Send, SquarePen, Volume2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -45,9 +46,9 @@ function respond(text: string, c: Course | null, length: "short" | "normal" | "d
 
 export default function Birdie({ active }: { active: boolean }) {
   const { courses, profile, settings, chats, setChats, birdieIntent, clearBirdieIntent, applyQuiz, addNote, addFile, flash, setTab, goStudy, goHelp, phone, setOverlay, logChat, setBrainOpen, auth, setWalletOpen, setSetting, refreshWallet, loadRemoteCourseContent, sharedRemoteContent } = useApp();
-  const [ctx, setCtx] = useState<string>("general");
+  const [ctx, setCtx] = useViewState<string>("birdie.ctx", "general");
   const [typing, setTyping] = useState(false);
-  const [mode, setMode] = useState<Mode>("chat");
+  const [mode, setMode] = useViewState<Mode>("birdie.mode", "chat");
   const [draft, setDraft] = useState("");
   const [drawer, setDrawer] = useState(false);
   const [attach, setAttach] = useState(false);

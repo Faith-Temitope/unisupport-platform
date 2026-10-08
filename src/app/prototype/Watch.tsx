@@ -6,6 +6,7 @@ import PostCard, { ago, initials, useByline } from "./PostCard";
 import { PostMenu } from "./PostMenu";
 import { FeedAd, SponsorBar, usePlacements } from "./Sponsored";
 import { useApp } from "./store";
+import { CommentsPreview } from "./Comments";
 import { logPostEvent } from "./live/recData";
 import { Avatar } from "./ui";
 
@@ -62,7 +63,7 @@ export function Watch({ id, onBack }: { id: string; onBack: () => void }) {
         )}
 
         <div className="flex items-center gap-3 px-3 pt-3">
-          <button onClick={() => { if (authorFollowable) { onBack(); setOverlay({ t: "profile", id: post.authorId }); } }} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
+          <button onClick={() => { onBack(); setOverlay(post.sourceName ? { t: "source", name: post.sourceName } : { t: "profile", id: post.authorId }); }} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
             <Avatar initials={initials(by.name)} color={by.color} size={36} /><span className="truncate text-[14px] font-semibold">{by.name}</span>
           </button>
           {authorFollowable && <button onClick={() => toggleFollow(post.authorId)} className={`shrink-0 rounded-full px-4 py-2 text-[13px] font-semibold ${isFollowing ? "bg-[var(--paper-dim)] text-[var(--text)]" : "bg-[var(--ink)] text-[var(--paper)]"}`}>{isFollowing ? "Following" : "Follow"}</button>}
@@ -74,6 +75,8 @@ export function Watch({ id, onBack }: { id: string; onBack: () => void }) {
           <button onClick={() => setSave(true)} className="flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--paper-dim)] px-3.5 py-2 text-[13px] font-semibold"><ListPlus size={16} /> Save</button>
           <button onClick={() => { onBack(); goBirdie({ courseId: "general", prompt: `Teach me the key ideas from the video "${post.title}"${post.field ? ` (${post.field})` : ""}, then quiz me on them.` }); }} className="flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--birdie-soft)] px-3.5 py-2 text-[13px] font-semibold text-[var(--birdie-text)]"><Sparkles size={16} /> Ask Birdie</button>
         </div>
+
+        <CommentsPreview post={post} onProfile={(pid) => { onBack(); setOverlay({ t: "profile", id: pid }); }} />
 
         <div className="mt-5 px-3 text-[15px] font-bold">Up next</div>
         <div className="mt-3 space-y-5">{upNext.map((p, i) => (

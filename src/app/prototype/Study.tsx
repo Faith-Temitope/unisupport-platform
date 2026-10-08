@@ -1,5 +1,6 @@
 "use client";
 
+import { useViewState } from "./persist";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Bell, BookOpen, ChevronRight, FileText, FolderInput, FolderPlus, Folder as FolderIcon, Image as ImageIcon, MoreHorizontal, Plus, Presentation, Printer, Search, Share2, Sparkles, StickyNote, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -21,9 +22,9 @@ const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, 
 export default function Study() {
   const { courses, folders, addCourse, addFolder, renameFolder, deleteFolder, deleteCourse, moveCourse, recommendation, dismissRec, goBirdie, studyIntent, clearStudyIntent, settings, flash, notices } = useApp();
   const [extra, setExtra] = useState<ExtraSheet>(null);
-  const [folderId, setFolderId] = useState<string | null>(null);
-  const [courseId, setCourseId] = useState<string | null>(null);
-  const [initialTab, setInitialTab] = useState<CTab>("materials");
+  const [folderId, setFolderId] = useViewState<string | null>("study.folder", null);
+  const [courseId, setCourseId] = useViewState<string | null>("study.course", null);
+  const [initialTab, setInitialTab] = useViewState<CTab>("study.courseTab", "materials");
   const [sheet, setSheet] = useState<null | "menu" | "course" | "folder" | { t: "folder-actions"; id: string } | { t: "course-actions"; id: string } | { t: "move"; id: string } | { t: "rename"; id: string }>(null);
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
@@ -196,7 +197,7 @@ function RecordingRow({ r, onDelete, readOnly }: { r: Rec; onDelete: () => void;
 
 function CourseView({ course, startTab, onBack }: { course: Course; startTab: CTab; onBack: () => void }) {
   const { addNote, deleteNote, addFile, deleteFile, deleteRec, goBirdie, setRecorderOpen, flash, loadRemoteCourseContent, sharedRemoteContent, openPrint } = useApp();
-  const [tab, setTab_] = useState<CTab>(startTab);
+  const [tab, setTab_] = useViewState<CTab>(`study.tab.${course.id}`, startTab);
   const [sheet, setSheet] = useState<null | "note" | "share">(null);
   const [nTitle, setNTitle] = useState(""); const [nBody, setNBody] = useState(""); const [nCat, setNCat] = useState("Notes");
   const [noteFilter, setNoteFilter] = useState("All"); const [fileFilter, setFileFilter] = useState("All");

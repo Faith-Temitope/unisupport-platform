@@ -40,7 +40,7 @@ export function Thumb({ post, rounded }: { post: Post; rounded?: boolean }) {
 
 /** One post per row, YouTube-style: picture, then avatar · title · byline · ⋮. Videos open the watch page. */
 export default function PostCard({ post, onProfile, edge }: { post: Post; onProfile: (id: string) => void; edge?: boolean }) {
-  const { watch: openWatch } = useApp();
+  const { watch: openWatch, setOverlay } = useApp();
   const [open, setOpen] = useState(false);
   const [menu, setMenu] = useState(false);
   const by = useByline(post);
@@ -58,7 +58,7 @@ export default function PostCard({ post, onProfile, edge }: { post: Post; onProf
         </button>
       )}
       <div className={`flex gap-3 pt-3 ${edge ? "px-3" : ""}`}>
-        <button onClick={() => !isMe && !post.sourceName && onProfile(post.authorId)} aria-label="Open channel" className="shrink-0"><Avatar initials={initials(by.name)} color={by.color} size={36} /></button>
+        <button onClick={() => (post.sourceName ? setOverlay({ t: "source", name: post.sourceName }) : onProfile(post.authorId))} aria-label="Open channel" className="shrink-0"><Avatar initials={initials(by.name)} color={by.color} size={36} /></button>
         <button onClick={post.kind === "video" ? watch : () => setOpen((o) => !o)} className="min-w-0 flex-1 text-left">
           {post.pinnedAt && <div className="mb-0.5 inline-flex items-center gap-1 text-[11px] font-bold text-[var(--study)]"><Pin size={11} /> Pinned</div>}
           {post.kind === "video" && <div className="line-clamp-2 text-[15px] font-semibold leading-snug text-[var(--text)]">{post.title}</div>}
