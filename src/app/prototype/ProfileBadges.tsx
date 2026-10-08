@@ -10,6 +10,7 @@ import { Sheet } from "./ui";
 /** Every badge Birdie can show on a channel, like Discord/Webnovel profile badges. */
 export const BADGE_INFO: Record<string, { label: string; desc: string; Icon: LucideIcon; bg: string }> = {
   founding_creator: { label: "Founding Creator", desc: "One of the first creators on Birdie. This badge is never given again once the programme closes.", Icon: Crown, bg: "linear-gradient(135deg,#F7C948,#E8892B)" },
+  team_plus: { label: "Team Plus", desc: "Part of the team building Birdie. Has every Plus feature.", Icon: Crown, bg: "linear-gradient(135deg,#C05BD6,#F7C948)" },
   plus: { label: "Birdie Plus", desc: "Supports Birdie with a Plus membership.", Icon: Crown, bg: "linear-gradient(135deg,#F7C948,#C9971F)" },
   team: { label: "Birdie team", desc: "Works on Birdie.", Icon: ShieldCheck, bg: "linear-gradient(135deg,#C05BD6,#7B2A91)" },
   unisupport: { label: "Unisupport", desc: "Unisupport help desk or writer.", Icon: BadgeCheck, bg: "linear-gradient(135deg,#7C4DDB,#4C2FA3)" },
@@ -29,7 +30,7 @@ export const BADGE_INFO: Record<string, { label: string; desc: string; Icon: Luc
   top_helper: { label: "Top helper", desc: "Given by the Birdie team for helping other students.", Icon: Heart, bg: "linear-gradient(135deg,#FF6F59,#D9467E)" },
   ambassador: { label: "Ambassador", desc: "Represents Birdie on campus.", Icon: Flame, bg: "linear-gradient(135deg,#FF8A3D,#E2553F)" },
 };
-export const GRANTABLE = ["founding_creator", "verified", "top_helper", "ambassador"];
+export const GRANTABLE = ["team_plus", "founding_creator", "verified", "top_helper", "ambassador"];
 
 type Earned = { id: string; at: string | null; note: string | null };
 

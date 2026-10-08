@@ -57,6 +57,9 @@ export default function Birdie({ active }: { active: boolean }) {
   const [attach, setAttach] = useState(false);
   const [lesson, setLesson] = useState(false);
   const [holdPick, setHoldPick] = useState(false);
+  // "Use a course file": Birdie answers from just that file until you clear it.
+  const [focusSrc, setFocusSrc] = useState<string | null>(null);
+  const [focusPick, setFocusPick] = useState(false);
   const [listening, setListening] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -106,7 +109,9 @@ export default function Birdie({ active }: { active: boolean }) {
     const t = text.toLowerCase();
     const local = () => respond(text, c, settings.answerLength);
     const finish = (m: BMsg) => { setTyping(false); append(key, m, base); };
-    const cdocs = c ? docsOf(c) : [];
+    const all = c ? docsOf(c) : [];
+    const focused = focusSrc ? all.filter((d) => d.source === focusSrc) : [];
+    const cdocs = focused.length ? focused : all;
     const quizAsk = /quiz|test me|mock/.test(t);
 
     // Guests and quiz requests use the offline engine (no AI cost).
@@ -139,7 +144,7 @@ export default function Birdie({ active }: { active: boolean }) {
     // Switched to another app while Birdie was thinking? Let them know the answer is in.
     void localNotify("Birdie replied", stripMarkdown(res.text).slice(0, 120), "/prototype?tab=birdie");
     finish(bird(stripMarkdown(res.text), { meta, cite, actions: (summary || guide) && c ? [{ label: "Save as note", run: "note", payload: `${guide ? "Study guide" : "Summary"} - ${c.code}` }] : undefined }));
-  }, [ctx, effectiveCourse, courses, folders, name, chats, setChats, append, settings.answerLength, settings.aiTier, logChat, live, brain, profile.level, profile.program, refreshWallet]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [focusSrc, ctx, effectiveCourse, courses, folders, name, chats, setChats, append, settings.answerLength, settings.aiTier, logChat, live, brain, profile.level, profile.program, refreshWallet]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Test mode: for signed-in students the AI writes the questions from their material.
   useEffect(() => {
@@ -277,6 +282,9 @@ export default function Birdie({ active }: { active: boolean }) {
         ) : null}
       </div>
 
+      {chatting && focusSrc && course && (
+        <div className="mx-4 mb-1 flex items-center gap-2 rounded-xl bg-[var(--study-soft)] px-3 py-2 text-[12.5px] font-semibold text-[var(--study)]"><Paperclip size={14} /><span className="min-w-0 flex-1 truncate">Answering from: {focusSrc.replace(/^Note: /, "")}</span><button onClick={() => setFocusSrc(null)} aria-label="Stop using this file"><X size={14} /></button></div>
+      )}
       {chatting && thread.length <= 2 && (<div className="no-scrollbar flex shrink-0 gap-2 overflow-x-auto px-5 pb-2 pt-1">{chips.map((c) => (<button key={c} onClick={() => sendChip(c)} className="shrink-0 rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[var(--text)] active:scale-95">{c}</button>))}</div>)}
 
       {!chatting && <div className="flex shrink-0 items-center justify-between border-t border-[var(--line)] px-5 py-2 text-[12.5px]"><span className="font-bold capitalize">{mode} mode</span><button onClick={() => setMode("chat")} className="font-semibold text-[var(--birdie-text)]">Back to chat</button></div>}
@@ -311,10 +319,21 @@ export default function Birdie({ active }: { active: boolean }) {
           <Tool label="Exam practice" sub="Theory questions, marked" Icon={FileQuestion} onClick={() => toolMode("exam")} />
           <Tool label="Practical" sub="Applied questions, marked" Icon={FlaskConical} onClick={() => toolMode("practical")} />
           <Tool label="Add a file" sub={course ? `Saved to ${course.code}` : "Pick a course first"} Icon={Paperclip} onClick={toolFile} />
+          <Tool label="Ask about a course file" sub="Use a file already in this course, no re-upload" Icon={FileQuestion} onClick={() => { setAttach(false); if (!course) { flash("Pick a course first"); return; } setFocusPick(true); }} />
           <Tool label="Hold a file for me" sub="Your buddy keeps it handy while you learn" Icon={Backpack} onClick={() => { setAttach(false); if (!course) { flash("Pick a course first"); return; } setHoldPick(true); }} />
         </div>
       </Sheet>
 
+      <Sheet open={focusPick} onClose={() => setFocusPick(false)} title={course ? `Ask about a file in ${course.code}` : "Ask about a file"}>
+        {course && (() => {
+          const srcs = Array.from(new Set(docsOf(course).map((d) => d.source)));
+          return srcs.length === 0 ? <p className="text-[13px] text-[var(--dim)]">Nothing Birdie can read in {course.code} yet. Add a PDF, Word file or note.</p> : (
+            <div className="max-h-[50vh] space-y-1.5 overflow-y-auto">{srcs.map((src) => (
+              <button key={src} onClick={() => { setFocusSrc(src); setFocusPick(false); setMode("chat"); flash("Ask your question. Birdie will answer from that file."); }} className="flex w-full items-center gap-2.5 rounded-xl bg-[var(--paper-dim)] px-3 py-2.5 text-left text-[13.5px] font-semibold"><Paperclip size={15} className="shrink-0 text-[var(--study)]" /><span className="truncate">{src.replace(/^Note: /, "")}</span></button>
+            ))}</div>
+          );
+        })()}
+      </Sheet>
       <Sheet open={holdPick} onClose={() => setHoldPick(false)} title={course ? `Hold a file from ${course.code}` : "Hold a file"}>
         {course && (course.files.length + course.notes.length === 0 ? <p className="text-[13px] text-[var(--dim)]">No files or notes in {course.code} yet.</p> : (
           <div className="max-h-[50vh] space-y-1.5 overflow-y-auto">

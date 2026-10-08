@@ -69,7 +69,7 @@ export interface Settings {
   /** Which study buddy you have, and whether it talks in bubbles or holds up a sign. */
   mascotSkin: "robot" | "bird" | "spider" | "me"; mascotBoard: boolean;
 }
-export type Overlay = null | { t: "chats" } | { t: "thread"; id: string } | { t: "settings" } | { t: "profile"; id: string } | { t: "source"; name: string } | { t: "post" };
+export type Overlay = null | { t: "chats" } | { t: "thread"; id: string } | { t: "settings" } | { t: "profile"; id: string } | { t: "source"; name: string } | { t: "group"; id: string } | { t: "post" };
 export interface MascotEvent { id: string; kind: Emote; text?: string }
 
 export const COLORS = ["#7C4DDB", "#A63FBD", "#4C6EF5", "#1B8A85", "#D9467E", "#E2553F"];
@@ -358,6 +358,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const { data } = await sb.from("profiles").select("exam_pass_until").eq("id", user.id).maybeSingle();
       const until = (data?.exam_pass_until as string | null) ?? null;
       setExamPassUntil(until); setPlusPaid(!!until && new Date(until) > new Date());
+      // Staff and the team (Team Plus) have Plus too; the server is the source of truth.
+      const { data: mp } = await sb.rpc("my_plus");
+      if (mp && typeof (mp as { plus?: boolean }).plus === "boolean") setPlusPaid((mp as { plus: boolean }).plus);
     } catch { /* keep what we have */ }
   }, []);
   useEffect(() => { if (auth.status === "in") void refreshExamPass(); }, [auth.status, refreshExamPass]);
