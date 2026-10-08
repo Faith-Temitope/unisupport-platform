@@ -186,3 +186,21 @@ export async function addComment(post: string, body: string, parent?: string): P
   return error ? { error: /slow_down/.test(error.message) ? "You're commenting too fast. Wait a moment." : rpcMsg(error) } : { id: data as string };
 }
 export async function deleteComment(id: string) { await createClient().rpc("delete_comment", { p_id: id }); }
+
+// ---------------- finding people by username ----------------
+
+/** Search everyone on Birdie by username or name (not just people already loaded). */
+export async function findChannels(q: string, me?: string): Promise<Channel[]> {
+  const t = q.trim().replace(/^@/, "").replace(/[,()*%"{}\\]/g, " ").trim();
+  if (t.length < 2) return [];
+  let query = createClient().from("channels").select("*").or(`handle.ilike.${t}*,display_name.ilike.*${t}*`).limit(20);
+  if (me) query = query.neq("id", me);
+  const { data } = await query;
+  return (data ?? []) as Channel[];
+}
+export async function channelByHandle(handle: string): Promise<Channel | null> {
+  const h = handle.trim().replace(/^@/, "").toLowerCase();
+  if (!/^[a-z0-9._]{2,30}$/.test(h)) return null;
+  const { data } = await createClient().from("channels").select("*").ilike("handle", h).maybeSingle();
+  return (data as Channel | null) ?? null;
+}

@@ -12,7 +12,7 @@ import {
 } from "./live/sharedData";
 import { logEvent } from "./live/analyticsData";
 import { fetchMyRep } from "./live/repData";
-import { createPost, deletePostRemote, fetchChannels, fetchFeed, fetchLikedPosts, fetchMyFollowing, fetchPostsBy, fetchPostsByIds, pinPost, setFollow, setLike, upsertMyChannel, type Channel, type FeedPost, type Link } from "./live/socialData";
+import { channelByHandle, createPost, deletePostRemote, fetchChannels, findChannels, fetchFeed, fetchLikedPosts, fetchMyFollowing, fetchPostsBy, fetchPostsByIds, pinPost, setFollow, setLike, upsertMyChannel, type Channel, type FeedPost, type Link } from "./live/socialData";
 import { clearViewState, useViewState } from "./persist";
 import { fetchForYou, fetchMyTopics, logPostEvent, type Ranked } from "./live/recData";
 import { DEMO_PEOPLE, DEMO_POSTS, DEMO_SHARED, DEMO_REPLIES } from "./demo";
@@ -112,6 +112,8 @@ interface AppCtx {
   examPassUntil: string | null; buyExamPass: () => Promise<{ ok: boolean; error?: string }>; refreshExamPass: () => Promise<void>;
   isRep: boolean; refreshRep: () => Promise<void>;
   people: Person[]; contacts: string[]; following: string[]; convos: Record<string, CMsg[]>; blocked: string[];
+  /** Search everyone by username or name; open someone from a shared username link. */
+  findPeople: (q: string) => Promise<Person[]>; openByHandle: (handle: string) => Promise<boolean>;
   addContact: (id: string) => void; removeContact: (id: string) => void; toggleFollow: (id: string) => void; sendChat: (id: string, text: string) => void; toggleBlock: (id: string) => void;
   posts: Post[]; addPost: (p: NewPost) => Promise<string | null>; toggleLike: (id: string) => void; deletePost: (id: string) => void;
   refreshFeed: () => Promise<void>; loadMoreFeed: () => Promise<number>; searchFeed: (term: string) => Promise<void>; loadChannel: (id: string) => Promise<void>;
@@ -473,6 +475,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (auth.status !== "in" || !auth.userId || !profile.onboarded) return;
     const uidNow = auth.userId;
     const t = setTimeout(async () => {
+      // Everyone gets a username (first name + 4 digits) so friends can find and chat with them.
+      if (!profile.handle) {
+        const base = (profile.name.split(" ")[0] || "birdie").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12) || "birdie";
+        for (let i = 0; i < 4; i++) {
+          const handle = `${base}${Math.floor(1000 + Math.random() * 9000)}`;
+          if (!(await upsertMyChannel(uidNow, { ...channelFields(profile), handle }))) { setProfileState((p) => ({ ...p, handle })); return; }
+        }
+      }
       const err = await upsertMyChannel(uidNow, channelFields(profile));
       if (err === "handle_taken") await upsertMyChannel(uidNow, { ...channelFields(profile), handle: null });
     }, 1500);
@@ -690,6 +700,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch { flash("Couldn't reach the payment server"); return null; }
     },
     people, contacts, following, convos, blocked,
+    findPeople: async (q) => {
+      const chs = await findChannels(q, auth.userId);
+      ingestChannels(chs);
+      return chs.filter((c) => c.id !== auth.userId).map(channelToPerson);
+    },
+    openByHandle: async (handle) => {
+      const ch = await channelByHandle(handle);
+      if (!ch) return false;
+      if (ch.id === auth.userId) { setOverlay({ t: "profile", id: "me" }); return true; }
+      ingestChannels([ch]); setOverlay({ t: "profile", id: ch.id }); return true;
+    },
     addContact: (id) => { setContacts((c) => (c.includes(id) ? c : [...c, id])); emote("happy", "New study buddy!"); },
     removeContact: (id) => setContacts((c) => c.filter((x) => x !== id)),
     toggleFollow: (id) => {

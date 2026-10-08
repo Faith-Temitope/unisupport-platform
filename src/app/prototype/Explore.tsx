@@ -103,11 +103,24 @@ export default function Explore({ active }: { active: boolean }) {
     if (tag === "For you" && !term && forYou.length) {
       // Birdie's ranking first, then anything newer that hasn't been ranked yet.
       const rank = new Map(forYou.map((r, i) => [r.id, i]));
-      list = [...list].sort((a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity) || b.createdAt - a.createdAt);
+      const ranked = [...list].sort((a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity) || b.createdAt - a.createdAt);
+      // Like YouTube, every 5th video is from outside your usual topics, so you still discover new things.
+      const mine = new Set(topics.filter((t) => t.mine).slice(0, 4).map((t) => t.topic));
+      const outside = mine.size ? ranked.filter((p) => !p.tags.some((t) => mine.has(t))) : [];
+      if (outside.length) {
+        const used = new Set<string>(); const mixed: typeof ranked = [];
+        const core = ranked.filter((p) => !outside.includes(p));
+        let o = 0;
+        for (const p of core) {
+          if ((mixed.length + 1) % 5 === 0 && o < outside.length) { mixed.push(outside[o]); used.add(outside[o++].id); }
+          mixed.push(p); used.add(p.id);
+        }
+        list = [...mixed, ...outside.filter((p) => !used.has(p.id))];
+      } else list = ranked;
     } else if (tag === "For you" && settings.personalTags && interests.length) list = [...list].sort((a, b) => Number(interests.some((i) => has(b, i))) - Number(interests.some((i) => has(a, i))) || b.createdAt - a.createdAt);
     else list = [...list].sort((a, b) => b.createdAt - a.createdAt);
     return list;
-  }, [posts, q, tag, following, blocked, interests, settings.personalTags, forYou]);
+  }, [posts, q, tag, following, blocked, interests, settings.personalTags, forYou, topics]);
 
   const filteredShared = shared.filter((s) => !q.trim() || `${s.code} ${s.name} ${s.field}`.toLowerCase().includes(q.trim().toLowerCase()));
   const sel = shared.find((s) => s.id === detail) ?? null;
