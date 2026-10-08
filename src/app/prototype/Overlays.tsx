@@ -1,5 +1,7 @@
 "use client";
 
+import type { Skin } from "@/components/brand/Buddy";
+import { MascotMeet } from "./MascotMeet";
 import { ArrowLeft, BookOpen, CheckCheck, Flag, Link2, MessageCircle, Plus, Search, Send, Settings as Cog, UserPlus, Video } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import PostCard, { colorFor, initials } from "./PostCard";
@@ -126,7 +128,8 @@ function Thread({ id, onBack }: { id: string; onBack: () => void }) {
     <div className="flex min-h-0 flex-1 flex-col">
       <Header onBack={onBack} title={<button onClick={() => setOverlay({ t: "profile", id })} className="flex items-center gap-3 text-left"><Avatar initials={initials(p.name)} color={p.color} size={36} /><div><div className="text-[14.5px] font-bold leading-tight">{p.name}</div><div className="text-[11.5px] text-[var(--dim)]">@{p.handle}</div></div></button>} />
       <div className="no-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto bg-[#F0E9F6] px-4 py-3">
-        {msgs.length === 0 && <div className="pt-20 text-center text-[13px] text-[var(--dim)]">Say hi to {p.name.split(" ")[0]}.</div>}
+        {!p.demo && <MascotMeet them={(["robot", "bird", "spider", "me"].includes(p.mascot ?? "") ? p.mascot : "robot") as Skin} themName={p.name} themColor={p.color} beat={msgs.length} />}
+        {msgs.length === 0 && <div className="pt-10 text-center text-[13px] text-[var(--dim)]">Say hi to {p.name.split(" ")[0]}.</div>}
         {msgs.map((m) => (<div key={m.id} className={`flex ${m.from === "me" ? "justify-end" : ""}`}><div className={`max-w-[80%] rounded-2xl px-3 py-2 text-[14px] leading-snug shadow-sm ${m.from === "me" ? "rounded-tr-md bg-[#EBD3F5]" : "rounded-tl-md bg-white"}`}><Linkified text={m.text} /><div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-[#8a7fa0]">{m.t}{m.from === "me" && <CheckCheck size={12} className="text-[#7C4DDB]" />}</div></div></div>))}
         <div ref={end} />
       </div>

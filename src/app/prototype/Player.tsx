@@ -1,5 +1,6 @@
 "use client";
 
+import { offlineUrl, useOfflineIndex } from "./offline";
 import { motion } from "framer-motion";
 import { ChevronDown, Pause, Play, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -28,6 +29,16 @@ export default function Player({ bottom }: { bottom: number }) {
   const pausedMs = useRef(0);
   const pausedAt = useRef<number | null>(null);
   const id = watching?.id;
+  // Downloaded videos play from the phone, so they work with no internet.
+  const offline = useOfflineIndex();
+  const [local, setLocal] = useState<{ id: string; url: string } | null>(null);
+  const savedHere = !!id && !!offline[`video:${id}`];
+  useEffect(() => {
+    if (!id || !savedHere) return;
+    let url: string | null = null;
+    void offlineUrl(`video:${id}`).then((u) => { url = u; if (u) setLocal({ id, url: u }); });
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [id, savedHere]);
   useEffect(() => {
     if (!id) return;
     void logPostEvent(id, "view");
@@ -63,7 +74,7 @@ export default function Player({ bottom }: { bottom: number }) {
           {post.youtubeId ? (
             <iframe ref={frame} key={post.id} src={`https://www.youtube-nocookie.com/embed/${post.youtubeId}?autoplay=1&rel=0&playsinline=1&modestbranding=1&enablejsapi=1`} title={post.title} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen className="absolute inset-0 h-full w-full border-0" />
           ) : post.videoUrl ? (
-            <video key={post.id} ref={vid} src={post.videoUrl} controls={!mini} autoPlay={!settings.dataSaver} playsInline onPlay={() => setPaused(null)} onPause={() => setPaused(post.id)} onEnded={() => { const el = vid.current; if (el && el.duration >= 60 && sponsor) setEnded(post.id); }} className="absolute inset-0 h-full w-full bg-black" />
+            <video key={post.id} ref={vid} src={local?.id === post.id ? local.url : post.videoUrl} controls={!mini} autoPlay={!settings.dataSaver} playsInline onPlay={() => setPaused(null)} onPause={() => setPaused(post.id)} onEnded={() => { const el = vid.current; if (el && el.duration >= 60 && sponsor) setEnded(post.id); }} className="absolute inset-0 h-full w-full bg-black" />
           ) : <div className="absolute inset-0 flex items-center justify-center text-[13px] text-white/70">Video unavailable</div>}
           {!mini && ended === post.id && sponsor && (
             <div className="absolute inset-0 z-10 flex flex-col justify-center gap-2 bg-black/75 p-3">

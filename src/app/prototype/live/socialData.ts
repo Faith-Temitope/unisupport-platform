@@ -9,6 +9,8 @@ export type Link = { label: string; url: string };
 export interface Channel {
   id: string; handle: string | null; display_name: string; bio: string; links: Link[];
   school: string | null; country: string | null; region: string | null; program: string | null; color: string;
+  /** Their study buddy's look, so it can meet yours in chats. */
+  mascot?: string | null;
 }
 export interface RemotePost {
   id: string; author_id: string; kind: "video" | "text"; title: string; body: string | null; video_path: string | null;
