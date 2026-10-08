@@ -2,6 +2,7 @@
 
 // Help for signed-in students, backed by Supabase: real sessions, messages, fees and files.
 // Desk agents and writers answer from the staff app (/prototype/live/staff). Nothing here is simulated.
+import { Linkified } from "./Linkified";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, BookOpen, Check, CheckCheck, Download, Eye, FileText, Lock, MoreVertical, Paperclip, PenLine, Pin, Printer, Send, Star, Wallet, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -195,7 +196,7 @@ export default function HelpLive({ active }: { active: boolean }) {
         ) : (
           <motion.div key={x.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className={`flex ${x.sender_role === "student" ? "justify-end" : "justify-start"}`}>
             <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-[14px] leading-snug shadow-sm ${x.sender_role === "student" ? "rounded-tr-md bg-[#EBD3F5]" : "rounded-tl-md bg-white"} text-[var(--text)]`}>
-              {x.attachment_path ? <button onClick={() => void openAttachment(x.attachment_path!)} className="flex items-center gap-2 text-left underline decoration-dotted"><Paperclip size={13} />{x.body.replace(/^📎\s*/, "")}</button> : <span className="whitespace-pre-line">{x.body}</span>}
+              {x.attachment_path ? <button onClick={() => void openAttachment(x.attachment_path!)} className="flex items-center gap-2 text-left underline decoration-dotted"><Paperclip size={13} />{x.body.replace(/^📎\s*/, "")}</button> : <Linkified text={x.body} />}
               <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-[#8a7fa0]">{clock(x.created_at)}{x.sender_role === "student" && <CheckCheck size={12} className="text-[#7C4DDB]" />}</div>
             </div>
           </motion.div>

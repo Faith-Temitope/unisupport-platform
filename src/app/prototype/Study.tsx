@@ -2,6 +2,7 @@
 
 import { useViewState } from "./persist";
 import { SlotAd } from "./Sponsored";
+import { CourseShares } from "./CourseShare";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Bell, BookOpen, ChevronRight, FileText, FolderInput, FolderPlus, Folder as FolderIcon, Image as ImageIcon, MoreHorizontal, Plus, Presentation, Printer, Search, Share2, Sparkles, StickyNote, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -319,6 +320,7 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
       <Sheet open={sheet === "share"} onClose={() => setSheet(null)} title={isShared ? "Manage sharing" : "Share this course"}>
         {!isShared && <p className="mb-3 text-[13px] leading-snug text-[var(--dim)]">Classmates find it in Explore, add it to their Study, and chat inside it. You pick exactly what they get, and you can charge for it.</p>}
         {sheet === "share" && <ShareCourseForm course={course} mode={isShared ? "manage" : "new"} onDone={() => setSheet(null)} />}
+        {sheet === "share" && <CourseShares courseId={course.id} />}
       </Sheet>
     </div>
   );

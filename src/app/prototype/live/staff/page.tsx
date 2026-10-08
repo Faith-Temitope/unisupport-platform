@@ -2,6 +2,7 @@
 
 // Live staff app for Unisupport: help desk agents (role support/admin) and writers (role writer).
 // Same Supabase project as the student app. Roles are set on profiles.role by an admin.
+import { Linkified } from "../../Linkified";
 import { ArrowLeft, Check, LogOut, Paperclip, Send } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
@@ -158,7 +159,7 @@ function Chat({ s, desk, messages, jobs, writers, onBack, rpc, flash, reload }: 
           : m.card ? <div key={m.id} className="mx-auto w-fit max-w-[90%] rounded-xl border border-dashed border-[#b9a6cc] bg-white/70 px-3 py-2 text-[12px] text-[#5b4b70]">{cardText(m, jobs.find((j) => j.id === m.job_id), s)}</div>
           : (<div key={m.id} className={`flex ${m.sender_role === "student" ? "justify-start" : "justify-end"}`}><div className={`max-w-[75%] rounded-2xl px-3 py-2 text-[14px] shadow-sm ${m.sender_role === "student" ? "bg-white" : "bg-[#EBD3F5]"}`}>
             <div className="mb-0.5 text-[10px] font-bold uppercase text-[#8b3fa6]">{m.sender_role}</div>
-            {m.attachment_path ? <button className="flex items-center gap-1.5 underline decoration-dotted" onClick={() => void openAtt(m.attachment_path!)}><Paperclip size={12} />{m.body.replace(/^📎\s*/, "")}</button> : <span className="whitespace-pre-line">{m.body}</span>}
+            {m.attachment_path ? <button className="flex items-center gap-1.5 underline decoration-dotted" onClick={() => void openAtt(m.attachment_path!)}><Paperclip size={12} />{m.body.replace(/^📎\s*/, "")}</button> : <Linkified text={m.body} />}
             <div className="mt-0.5 text-right text-[10px] text-[#8a7fa0]">{clock(m.created_at)}</div></div></div>))}
         <div ref={endRef} />
       </div>

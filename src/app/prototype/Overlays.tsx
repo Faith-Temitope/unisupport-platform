@@ -1,11 +1,13 @@
 "use client";
 
-import { ArrowLeft, CheckCheck, Flag, Link2, MessageCircle, Plus, Search, Send, Settings as Cog, UserPlus, Video } from "lucide-react";
+import { ArrowLeft, BookOpen, CheckCheck, Flag, Link2, MessageCircle, Plus, Search, Send, Settings as Cog, UserPlus, Video } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import PostCard, { colorFor, initials } from "./PostCard";
 import { naira, useApp, type Person, type Post } from "./store";
 import { LikedTab, PlaylistsTab } from "./Playlists";
 import { Watch } from "./Watch";
+import { CourseShareSheet } from "./CourseShare";
+import { Linkified } from "./Linkified";
 import { cleanUrl, fetchChannelStats } from "./live/socialData";
 import { Avatar, Btn, Empty, IconBtn, Screen, Segmented, Sheet, TextField } from "./ui";
 
@@ -91,6 +93,7 @@ function Thread({ id, onBack }: { id: string; onBack: () => void }) {
   const { personById, convos, sendChat, setOverlay } = useApp();
   const p = personById(id);
   const [draft, setDraft] = useState("");
+  const [shareCourse, setShareCourse] = useState(false);
   const end = useRef<HTMLDivElement>(null);
   const msgs = convos[id] ?? [];
   useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length]);
@@ -101,13 +104,15 @@ function Thread({ id, onBack }: { id: string; onBack: () => void }) {
       <Header onBack={onBack} title={<button onClick={() => setOverlay({ t: "profile", id })} className="flex items-center gap-3 text-left"><Avatar initials={initials(p.name)} color={p.color} size={36} /><div><div className="text-[14.5px] font-bold leading-tight">{p.name}</div><div className="text-[11.5px] text-[var(--dim)]">@{p.handle}</div></div></button>} />
       <div className="no-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto bg-[#F0E9F6] px-4 py-3">
         {msgs.length === 0 && <div className="pt-20 text-center text-[13px] text-[var(--dim)]">Say hi to {p.name.split(" ")[0]}.</div>}
-        {msgs.map((m) => (<div key={m.id} className={`flex ${m.from === "me" ? "justify-end" : ""}`}><div className={`max-w-[80%] rounded-2xl px-3 py-2 text-[14px] leading-snug shadow-sm ${m.from === "me" ? "rounded-tr-md bg-[#EBD3F5]" : "rounded-tl-md bg-white"}`}>{m.text}<div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-[#8a7fa0]">{m.t}{m.from === "me" && <CheckCheck size={12} className="text-[#7C4DDB]" />}</div></div></div>))}
+        {msgs.map((m) => (<div key={m.id} className={`flex ${m.from === "me" ? "justify-end" : ""}`}><div className={`max-w-[80%] rounded-2xl px-3 py-2 text-[14px] leading-snug shadow-sm ${m.from === "me" ? "rounded-tr-md bg-[#EBD3F5]" : "rounded-tl-md bg-white"}`}><Linkified text={m.text} /><div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-[#8a7fa0]">{m.t}{m.from === "me" && <CheckCheck size={12} className="text-[#7C4DDB]" />}</div></div></div>))}
         <div ref={end} />
       </div>
       <div className="flex items-center gap-2 bg-[var(--paper)] px-4 pb-4 pt-2.5">
+        {!p.demo && <button onClick={() => setShareCourse(true)} aria-label="Share a course" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--paper-dim)] text-[var(--dim)] active:scale-90"><BookOpen size={17} /></button>}
         <input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder="Message" className="min-w-0 flex-1 rounded-full bg-[var(--paper-dim)] px-4 py-3 text-[14px] outline-none placeholder:text-[#a99fb8]" />
         <button onClick={send} disabled={!draft.trim()} aria-label="Send" className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--uni)] text-white transition active:scale-90 disabled:opacity-40"><Send size={17} /></button>
       </div>
+      <CourseShareSheet open={shareCourse} onClose={() => setShareCourse(false)} to={{ grantee: id }} who={p.name.split(" ")[0]} onShared={(c, role) => sendChat(id, `Shared my course ${c.code} · ${c.name} with you${role === "edit" ? " (you can add notes)" : ""} /course/${c.id}`)} />
     </div>
   );
 }
