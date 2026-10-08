@@ -494,8 +494,15 @@ function AiTab({ show }: { show: (m: string) => void }) {
     setModels((m.data ?? []) as AiModel[]);
   }, []);
   useEffect(() => { void reload(); }, [reload]);
+  // Whether each vendor's API key is installed on the server (Vercel env). A brain can only be
+  // switched on once its key is in and the vendor account has credit.
+  const [keys, setKeys] = useState<Record<string, boolean> | null>(null);
+  useEffect(() => { void fetch("/api/ai/status").then((r) => (r.ok ? r.json() : null)).then(setKeys).catch(() => setKeys(null)); }, []);
+  const KEY_OF: Record<string, string> = { gemini: "GEMINI_API_KEY", openai: "OPENAI_API_KEY", anthropic: "ANTHROPIC_API_KEY" };
 
   async function toggleProvider(id: string, enabled: boolean) {
+    const p = providers.find((x) => x.id === id);
+    if (enabled && p && keys && !keys[KEY_OF[p.vendor]]) return show(`Add ${KEY_OF[p.vendor]} in Vercel > Project > Settings > Environment Variables, redeploy, then switch ${p.brand_name} on.`);
     const { error } = await createClient().from("ai_providers").update({ enabled }).eq("id", id);
     if (error) return show(error.message);
     void reload();
@@ -517,7 +524,7 @@ function AiTab({ show }: { show: (m: string) => void }) {
         <div className="divide-y divide-[#F0EAF7]">
           {providers.map((p) => (
             <div key={p.id} className="flex flex-wrap items-center gap-3 py-3">
-              <div className="min-w-0 flex-1"><div className="text-[14px] font-semibold">{p.brand_name}</div><div className="text-[12px] text-[var(--dim)]">{p.vendor_name ?? p.vendor}{p.is_free ? " · free tier" : ""}</div></div>
+              <div className="min-w-0 flex-1"><div className="text-[14px] font-semibold">{p.brand_name}</div><div className="text-[12px] text-[var(--dim)]">{p.vendor_name ?? p.vendor}{p.is_free ? " · free tier" : " · charged to the student's wallet"}{keys && <> · {keys[KEY_OF[p.vendor]] ? <span className="font-semibold text-[#2E8B57]">key installed</span> : <span className="font-semibold text-[#C2412D]">no key yet</span>}</>}</div></div>
               <NumField value={Number(p.margin)} onSave={(v) => void saveMargin(p.id, v)} step="0.01" suffix="x margin" />
               <Switch on={p.enabled} onChange={(v) => void toggleProvider(p.id, v)} />
             </div>

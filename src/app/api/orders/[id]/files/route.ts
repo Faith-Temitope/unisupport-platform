@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 // GET /api/orders/<id>/files -> short-lived download links for a print/handwrite order's files.
-// Staff only (help desk or admin). The files live in the student's private study-files folder, so
+// Staff (help desk or admin), or the print partner the order is assigned to. The files live in the student's private study-files folder, so
 // staff never get bucket access, just a 15-minute link per file for the order they're working on.
 const err = (status: number, error: string) => NextResponse.json({ error }, { status });
 
@@ -20,10 +20,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
   const { data: me } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
-  if (me?.role !== "admin" && me?.role !== "support") return err(403, "not_allowed");
+  const staff = me?.role === "admin" || me?.role === "support";
 
-  const { data: order } = await admin.from("print_orders").select("user_id,files").eq("id", id).maybeSingle();
+  const { data: order } = await admin.from("print_orders").select("user_id,files,partner_id").eq("id", id).maybeSingle();
   if (!order) return err(404, "not_found");
+  // Print partners get links only for orders assigned to them, while they're an active partner.
+  if (!staff) {
+    const { data: partner } = order.partner_id ? await admin.from("print_partners").select("user_id,status").eq("id", order.partner_id).maybeSingle() : { data: null };
+    if (!partner || partner.user_id !== user.id || partner.status !== "active") return err(403, "not_allowed");
+  }
   const files = (order.files ?? []) as { name: string; path: string }[];
   const out = await Promise.all(files.map(async (f) => {
     // Only ever sign paths inside the ordering student's own folder.
