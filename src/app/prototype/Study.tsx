@@ -9,6 +9,8 @@ import { openUrl, safeName, signedUrl, uploadTo } from "./live/helpData";
 import { folderPath, uid, useApp, type Course, type FileItem, type Folder, type Rec } from "./store";
 import { Btn, Empty, IconBtn, Label, Sheet, TextField, TopBar } from "./ui";
 import { DeadlinesCard, ExtraSheets, TodayCard, type ExtraSheet } from "./StudyExtras";
+import { CategoryFilter, CategoryPicker, CategoryPill } from "./Categories";
+import { ShareCourseForm } from "./ShareCourseForm";
 
 type CTab = "materials" | "notes" | "recordings" | "progress";
 const KIND_ICON = { pdf: FileText, img: ImageIcon, slides: Presentation, notes: StickyNote, link: FileText, text: FileText } as const;
@@ -193,15 +195,15 @@ function RecordingRow({ r, onDelete, readOnly }: { r: Rec; onDelete: () => void;
 }
 
 function CourseView({ course, startTab, onBack }: { course: Course; startTab: CTab; onBack: () => void }) {
-  const { addNote, deleteNote, addFile, deleteFile, deleteRec, goBirdie, setRecorderOpen, flash, shared, shareCourse, setTab, profile, loadRemoteCourseContent, sharedRemoteContent } = useApp();
-  const [sName, setSName] = useState(profile.name); const [sSchool, setSSchool] = useState(profile.institution);
+  const { addNote, deleteNote, addFile, deleteFile, deleteRec, goBirdie, setRecorderOpen, flash, loadRemoteCourseContent, sharedRemoteContent } = useApp();
   const [tab, setTab_] = useState<CTab>(startTab);
   const [sheet, setSheet] = useState<null | "note" | "share">(null);
-  const [nTitle, setNTitle] = useState(""); const [nBody, setNBody] = useState("");
-  const [desc, setDesc] = useState(""); const [field, setField] = useState("");
+  const [nTitle, setNTitle] = useState(""); const [nBody, setNBody] = useState(""); const [nCat, setNCat] = useState("Notes");
+  const [fCat, setFCat] = useState("Materials");
+  const [noteFilter, setNoteFilter] = useState("All"); const [fileFilter, setFileFilter] = useState("All");
   const input = useRef<HTMLInputElement>(null);
   const overall = course.topics.length ? Math.round(course.topics.reduce((a, t) => a + t.mastery, 0) / course.topics.length) : null;
-  const sharedCourse = shared.find((s) => s.id === course.sharedId);
+  const isShared = !!course.sharedId;
   const tabs: [CTab, string][] = [["materials", "Materials"], ["notes", "Notes"], ["recordings", "Recordings"], ["progress", "Progress"]];
 
   // A joined (not owned) shared course: show the owner's real, live content read-only instead of
@@ -214,8 +216,10 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
     const i = setInterval(() => loadRemoteCourseContent(course.sourceCourseId!), 5000);
     return () => clearInterval(i);
   }, [readOnly, course.sourceCourseId, loadRemoteCourseContent]);
-  const shownFiles = readOnly ? sharedRemoteContent?.files ?? [] : course.files;
-  const shownNotes = readOnly ? sharedRemoteContent?.notes ?? [] : course.notes;
+  const allFiles = readOnly ? sharedRemoteContent?.files ?? [] : course.files;
+  const allNotes = readOnly ? sharedRemoteContent?.notes ?? [] : course.notes;
+  const shownFiles = fileFilter === "All" ? allFiles : allFiles.filter((f) => (f.category || "Materials") === fileFilter);
+  const shownNotes = noteFilter === "All" ? allNotes : allNotes.filter((n) => (n.category || "Notes") === noteFilter);
   const shownRecs = readOnly ? sharedRemoteContent?.recs ?? [] : course.recs;
 
   async function pick(files: FileList | null) {
@@ -235,7 +239,7 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
         const err = await uploadTo("study-files", path, f);
         if (!err) storagePath = path; else console.error("study file upload failed", err);
       }
-      addFile(course.id, { name: f.name, kind: kindOf(f), size: f.size, text, url: URL.createObjectURL(f), storagePath });
+      addFile(course.id, { name: f.name, kind: kindOf(f), size: f.size, text, url: URL.createObjectURL(f), storagePath, category: fCat === "Materials" ? undefined : fCat });
     }
     flash(`${list.length} file${list.length === 1 ? "" : "s"} added`);
     if (input.current) input.current.value = "";
@@ -265,7 +269,7 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
         </div>
         <div className="no-scrollbar mt-3 flex items-center gap-1.5 overflow-x-auto">
           {tabs.map(([id, label]) => (<button key={id} onClick={() => setTab_(id)} className={`shrink-0 rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold transition active:scale-95 ${tab === id ? "bg-[var(--study)] text-white" : "bg-[var(--paper-dim)] text-[var(--dim)]"}`}>{label}</button>))}
-          {!readOnly && <button onClick={() => (sharedCourse ? (setTab("explore"), flash("Open Shared courses in Explore")) : setSheet("share"))} className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[var(--dim)] active:scale-95"><Share2 size={13} /> {sharedCourse ? "Shared" : "Share"}</button>}
+          {!readOnly && <button onClick={() => setSheet("share")} className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[var(--dim)] active:scale-95"><Share2 size={13} /> {isShared ? "Sharing" : "Share"}</button>}
         </div>
       </div>
 
@@ -273,11 +277,13 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
         <div className="space-y-2.5">
           {tab === "materials" && (<>
             {!readOnly && <input ref={input} type="file" multiple hidden onChange={(e) => pick(e.target.files)} />}
-            {shownFiles.length === 0 ? <Empty icon={<Upload size={20} />} title="No materials yet" text={readOnly ? "This classmate hasn't added any materials yet." : "Add slides, PDFs, photos of the whiteboard, or .txt / .md notes. Text files can be read by Birdie right away."} action={readOnly ? undefined : <Btn variant="study" onClick={() => input.current?.click()}>Choose files</Btn>} /> : (<>
+            {!readOnly && <div><div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">New files go under</div><CategoryPicker value={fCat} onChange={setFCat} base="Materials" /></div>}
+            <CategoryFilter items={allFiles} base="Materials" value={fileFilter} onChange={setFileFilter} />
+            {allFiles.length === 0 ? <Empty icon={<Upload size={20} />} title="No materials yet" text={readOnly ? "This classmate hasn't added any materials yet." : "Add slides, PDFs, past questions, photos of the whiteboard, or .txt / .md notes. Text files can be read by Birdie right away."} action={readOnly ? undefined : <Btn variant="study" onClick={() => input.current?.click()}>Choose files</Btn>} /> : (<>
               {shownFiles.map((f) => { const Icon = KIND_ICON[f.kind] ?? KIND_ICON.pdf; return (
                 <div key={f.id} className="flex items-center gap-3 rounded-2xl border border-[var(--line)] bg-white p-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--study-soft)] text-[var(--study)]"><Icon size={18} /></div>
-                  <div className="min-w-0 flex-1"><div className="truncate text-[13.5px] font-semibold text-[var(--text)]">{f.name}</div><div className="text-[11.5px] text-[var(--dim)]">{f.added}{f.size ? ` · ${fmtSize(f.size)}` : ""} · {f.text ? "Birdie can read this" : "Birdie reads this once AI is connected"}</div></div>
+                  <div className="min-w-0 flex-1"><div className="truncate text-[13.5px] font-semibold text-[var(--text)]">{f.name}</div><div className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-[var(--dim)]"><CategoryPill category={f.category} />{f.added}{f.size ? ` · ${fmtSize(f.size)}` : ""} · {f.text ? "Birdie can read this" : "Birdie reads this once AI is connected"}</div></div>
                   {(f.url || f.storagePath) && <button onClick={() => void openFile(f)} className="rounded-lg bg-[var(--paper-dim)] px-2.5 py-1.5 text-[11.5px] font-bold text-[var(--dim)]">Open</button>}
                   {!readOnly && <button onClick={() => deleteFile(course.id, f.id)} aria-label="Delete file" className="text-[var(--dim)] active:scale-90"><Trash2 size={15} /></button>}
                 </div>); })}
@@ -285,8 +291,9 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
             </>)}
           </>)}
 
-          {tab === "notes" && (shownNotes.length === 0 ? <Empty icon={<StickyNote size={20} />} title="No notes yet" text={readOnly ? "This classmate hasn't added any notes yet." : "Write what you want to remember. Birdie builds quizzes and answers from your notes."} action={readOnly ? undefined : <Btn variant="study" onClick={() => setSheet("note")}>Write a note</Btn>} /> : (<>
-            {shownNotes.map((n) => (<div key={n.id} className="rounded-2xl border border-[var(--line)] bg-white p-3.5"><div className="flex items-start justify-between gap-2"><div className="text-[14px] font-semibold text-[var(--text)]">{n.title}</div>{!readOnly && <button onClick={() => deleteNote(course.id, n.id)} aria-label="Delete note" className="text-[var(--dim)] active:scale-90"><Trash2 size={14} /></button>}</div><div className="mt-1 whitespace-pre-line text-[13px] leading-snug text-[var(--dim)]">{n.body}</div><div className="mt-1.5 text-[11px] text-[#a99fb8]">{n.date}</div></div>))}
+          {tab === "notes" && (allNotes.length === 0 ? <Empty icon={<StickyNote size={20} />} title="No notes yet" text={readOnly ? "This classmate hasn't added any notes yet." : "Write what you want to remember. Birdie builds quizzes and answers from your notes."} action={readOnly ? undefined : <Btn variant="study" onClick={() => setSheet("note")}>Write a note</Btn>} /> : (<>
+            <CategoryFilter items={allNotes} base="Notes" value={noteFilter} onChange={setNoteFilter} />
+            {shownNotes.map((n) => (<div key={n.id} className="rounded-2xl border border-[var(--line)] bg-white p-3.5"><div className="flex items-start justify-between gap-2"><div className="text-[14px] font-semibold text-[var(--text)]">{n.title} <CategoryPill category={n.category} /></div>{!readOnly && <button onClick={() => deleteNote(course.id, n.id)} aria-label="Delete note" className="text-[var(--dim)] active:scale-90"><Trash2 size={14} /></button>}</div><div className="mt-1 whitespace-pre-line text-[13px] leading-snug text-[var(--dim)]">{n.body}</div><div className="mt-1.5 text-[11px] text-[#a99fb8]">{n.date}</div></div>))}
             {!readOnly && <Btn variant="ghost" onClick={() => setSheet("note")}>+ New note</Btn>}</>))}
 
           {tab === "recordings" && (shownRecs.length === 0 ? <Empty icon={<BookOpen size={20} />} title="No recordings yet" text={readOnly ? "This classmate hasn't recorded anything yet." : "Tap the mascot, choose Record, and capture a lecture. You choose the course after you stop."} action={readOnly ? undefined : <Btn variant="study" onClick={() => setRecorderOpen(true)}>Record a lecture</Btn>} /> : (<>
@@ -301,16 +308,12 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
       </div>
 
       <Sheet open={sheet === "note"} onClose={() => setSheet(null)} title="New note">
-        <div className="space-y-3"><TextField value={nTitle} onChange={setNTitle} placeholder="Title, e.g. Eigenvalues" /><TextField multiline value={nBody} onChange={setNBody} placeholder="Write it in full sentences. Birdie quizzes you on these." />
-          <Btn variant="study" disabled={!nTitle.trim() || !nBody.trim()} onClick={() => { addNote(course.id, nTitle.trim(), nBody.trim()); setNTitle(""); setNBody(""); setSheet(null); flash("Note saved"); }}>Save note</Btn></div>
+        <div className="space-y-3"><CategoryPicker value={nCat} onChange={setNCat} base="Notes" /><TextField value={nTitle} onChange={setNTitle} placeholder={nCat === "Past Questions" ? "e.g. 2023 exam, Q1-Q5" : "Title, e.g. Eigenvalues"} /><TextField multiline value={nBody} onChange={setNBody} placeholder="Write it in full sentences. Birdie quizzes you on these." />
+          <Btn variant="study" disabled={!nTitle.trim() || !nBody.trim()} onClick={() => { addNote(course.id, nTitle.trim(), nBody.trim(), nCat === "Notes" ? undefined : nCat); setNTitle(""); setNBody(""); setSheet(null); flash("Note saved"); }}>Save</Btn></div>
       </Sheet>
-      <Sheet open={sheet === "share"} onClose={() => setSheet(null)} title="Share this course">
-        <p className="mb-3 text-[13px] leading-snug text-[var(--dim)]">Classmates can find it in Explore, add it to their Study, and chat with each other inside it.</p>
-        <div className="space-y-3">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Shown on the course</div>
-          <TextField value={sName} onChange={setSName} placeholder="Your name" /><TextField value={sSchool} onChange={setSSchool} placeholder="Your school (optional)" />
-          <TextField value={field} onChange={setField} placeholder="Field, e.g. Computer Science" /><TextField multiline value={desc} onChange={setDesc} placeholder="What's in it? Who is it for?" />
-          <Btn variant="study" disabled={!sName.trim() || !field.trim() || !desc.trim()} onClick={() => { shareCourse(course.id, desc.trim(), field.trim(), sName.trim(), sSchool.trim()); setSheet(null); flash("Shared to Explore"); }}>Publish to Explore</Btn></div>
+      <Sheet open={sheet === "share"} onClose={() => setSheet(null)} title={isShared ? "Manage sharing" : "Share this course"}>
+        {!isShared && <p className="mb-3 text-[13px] leading-snug text-[var(--dim)]">Classmates find it in Explore, add it to their Study, and chat inside it. You pick exactly what they get, and you can charge for it.</p>}
+        {sheet === "share" && <ShareCourseForm course={course} mode={isShared ? "manage" : "new"} onDone={() => setSheet(null)} />}
       </Sheet>
     </div>
   );

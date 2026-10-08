@@ -4,11 +4,22 @@ import { BadgeCheck, BookmarkPlus, Search, Send, Users } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { topInterests } from "./engine";
 import PostCard, { initials } from "./PostCard";
-import { firstName, nowTime, useApp, type SharedCourse } from "./store";
-import { Avatar, Btn, DemoControls, Empty, Label, Segmented, Sheet, TextField, TopBar } from "./ui";
+import { firstName, naira, nowTime, useApp, type SharedCourse } from "./store";
+import { Avatar, Btn, DemoControls, Empty, Label, Segmented, Sheet, TopBar } from "./ui";
+import { ShareCourseForm } from "./ShareCourseForm";
 
 export default function Explore({ active }: { active: boolean }) {
-  const { posts, courses, chats, settings, following, blocked, shared, setOverlay, setTab, goStudy, joinShared, leaveShared, shareCourse, sendShared, loadSharedDetail, personById, profile, flash } = useApp();
+  const { posts, courses, chats, settings, following, blocked, shared, setOverlay, setTab, goStudy, joinShared, leaveShared, sendShared, loadSharedDetail, personById, profile, flash, setWalletOpen } = useApp();
+  const [buying, setBuying] = useState(false);
+  async function join(s: SharedCourse) {
+    setBuying(true);
+    const r = await joinShared(s.id);
+    setBuying(false);
+    if (!r.error) return flash(s.priceNgn ? `Unlocked. ${s.code} is in your Study` : "Added to your Study");
+    if (r.error === "insufficient_funds") { flash(`Top up first. This course is ${naira(s.priceNgn ?? 0)}`); setWalletOpen(true); return; }
+    if (r.error === "sign_in_required") return flash("Sign in to add shared courses");
+    flash("Couldn't add that course. Try again.");
+  }
   const [seg, setSeg] = useState<"feed" | "courses">("feed");
   const [q, setQ] = useState("");
   const [tag, setTag] = useState("For you");
@@ -64,11 +75,11 @@ export default function Explore({ active }: { active: boolean }) {
           <div className="space-y-3">
             <Btn variant="ghost" onClick={() => (courses.length ? setShareOpen(true) : flash("Create a course in Study first"))}>Share one of my courses</Btn>
             {filteredShared.length === 0 ? <Empty icon={<Users size={20} />} title="No shared courses yet" text="Students share their course libraries here. Add one to your Study and chat with everyone in it." /> : filteredShared.map((s) => {
-              const joined = s.members.includes("me");
+              const joined = s.members.includes("me") || s.ownerId === "me";
               return (
                 <button key={s.id} onClick={() => setDetail(s.id)} className="w-full rounded-2xl border border-[var(--line)] bg-white p-3.5 text-left active:scale-[0.98]">
-                  <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="text-[14.5px] font-bold text-[var(--text)]">{s.code} · {s.name}</div><div className="mt-0.5 text-[12px] text-[var(--dim)]">{s.school ? `${s.school} · ` : ""}shared by {s.ownerName || (s.ownerId === "me" ? profile.name || "you" : personById(s.ownerId)?.name)}</div></div>{joined && <BadgeCheck size={18} className="shrink-0 text-[var(--uni)]" />}</div>
-                  <div className="mt-2.5 flex gap-4 text-[12px] font-semibold text-[var(--dim)]"><span className="flex items-center gap-1"><Users size={13} /> {s.members.length}</span><span>{s.files.length} files</span><span>{s.messages.length} messages</span></div>
+                  <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="text-[14.5px] font-bold text-[var(--text)]">{s.code} · {s.name}</div><div className="mt-0.5 text-[12px] text-[var(--dim)]">{s.school ? `${s.school} · ` : ""}shared by {s.ownerName || (s.ownerId === "me" ? profile.name || "you" : personById(s.ownerId)?.name)}</div></div>{joined ? <BadgeCheck size={18} className="shrink-0 text-[var(--uni)]" /> : <PriceTag price={s.priceNgn} />}</div>
+                  <div className="mt-2.5 flex gap-4 text-[12px] font-semibold text-[var(--dim)]"><span className="flex items-center gap-1"><Users size={13} /> {s.members.length}</span><span>{contentsLabel(s)}</span><span>{s.messages.length} messages</span></div>
                 </button>
               );
             })}
@@ -77,10 +88,10 @@ export default function Explore({ active }: { active: boolean }) {
       </div>
 
       <Sheet open={!!sel} onClose={() => setDetail(null)} title={sel ? `${sel.code} · ${sel.name}` : ""}>
-        {sel && <SharedDetail s={sel} onJoin={() => { const id = joinShared(sel.id); flash("Added to your Study"); if (id) void id; }} onOpen={() => { const c = courses.find((x) => x.sharedId === sel.id); setDetail(null); if (c) goStudy({ courseId: c.id }); else setTab("study"); }} onLeave={() => { leaveShared(sel.id); flash("Left the course chat"); }} onSend={(t) => sendShared(sel.id, t)} onProfile={(id) => { setDetail(null); setOverlay({ t: "profile", id }); }} me={firstName(profile)} personName={(id) => (id === "me" ? "You" : personById(id)?.name ?? "Someone")} />}
+        {sel && <SharedDetail s={sel} buying={buying} onJoin={() => void join(sel)} onOpen={() => { const c = courses.find((x) => x.sharedId === sel.id); setDetail(null); if (c) goStudy({ courseId: c.id }); else setTab("study"); }} onLeave={() => { leaveShared(sel.id); flash("Left the course chat"); }} onSend={(t) => sendShared(sel.id, t)} onProfile={(id) => { setDetail(null); setOverlay({ t: "profile", id }); }} me={firstName(profile)} personName={(id) => (id === "me" ? "You" : personById(id)?.name ?? "Someone")} />}
       </Sheet>
 
-      <ShareSheet open={shareOpen} onClose={() => setShareOpen(false)} onShare={(cid, d, f, n, sc) => { shareCourse(cid, d, f, n, sc); setShareOpen(false); flash("Shared to Explore"); }} />
+      <ShareSheet open={shareOpen} onClose={() => setShareOpen(false)} />
 
       <DemoControls active={active} title="Explore: how it works">
         <ul className="list-disc space-y-1.5 pl-4 text-[12.5px] leading-snug text-[var(--text)]"><li>Videos play as you hover over them (turn off in Settings)</li><li>Tags come from your courses and your Birdie chats</li><li>Tap a creator's avatar to view and follow them</li><li>Inside a shared course, use its Chat tab to talk to everyone in it</li><li>Tap the mascot and choose Post to upload a video or write a post</li></ul>
@@ -89,11 +100,23 @@ export default function Explore({ active }: { active: boolean }) {
   );
 }
 
-function SharedDetail({ s, onJoin, onOpen, onLeave, onSend, onProfile, personName }: { s: SharedCourse; onJoin: () => void; onOpen: () => void; onLeave: () => void; onSend: (t: string) => void; onProfile: (id: string) => void; me: string; personName: (id: string) => string }) {
+function PriceTag({ price }: { price?: number }) {
+  return price ? <span className="shrink-0 rounded-full bg-[var(--ink)] px-2.5 py-1 text-[11.5px] font-bold text-[var(--paper)]">{naira(price)}</span> : <span className="shrink-0 rounded-full bg-[var(--study-soft)] px-2.5 py-1 text-[11.5px] font-bold text-[var(--study)]">Free</span>;
+}
+function contentsLabel(s: SharedCourse) {
+  const c = s.itemCounts;
+  if (!c) return `${s.files.length} files`;
+  const parts = [c.notes && `${c.notes} note${c.notes === 1 ? "" : "s"}`, c.files && `${c.files} file${c.files === 1 ? "" : "s"}`, c.recs && `${c.recs} recording${c.recs === 1 ? "" : "s"}`].filter(Boolean);
+  return parts.length ? parts.join(", ") : "Nothing shared yet";
+}
+
+function SharedDetail({ s, buying, onJoin, onOpen, onLeave, onSend, onProfile, personName }: { s: SharedCourse; buying: boolean; onJoin: () => void; onOpen: () => void; onLeave: () => void; onSend: (t: string) => void; onProfile: (id: string) => void; me: string; personName: (id: string) => string }) {
   const [tab, setTab] = useState<"about" | "chat">("about");
   const [draft, setDraft] = useState("");
   const end = useRef<HTMLDivElement>(null);
-  const joined = s.members.includes("me");
+  const owner = s.ownerId === "me";
+  const joined = s.members.includes("me") || owner;
+  const joinLabel = buying ? "Working..." : s.priceNgn ? `Buy for ${naira(s.priceNgn)}` : "Add to my Study and join chat";
   useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth" }); }, [s.messages.length, tab]);
   return (
     <div>
@@ -103,8 +126,11 @@ function SharedDetail({ s, onJoin, onOpen, onLeave, onSend, onProfile, personNam
           <p className="text-[13.5px] leading-snug text-[var(--text)]">{s.description}</p>
           <div className="rounded-xl bg-[var(--paper-dim)] px-3 py-2 text-[12.5px] text-[var(--dim)]">Shared by <b className="text-[var(--text)]">{s.ownerName || personName(s.ownerId)}</b>{s.school ? <> · <b className="text-[var(--text)]">{s.school}</b></> : null}</div>
           <div><Label>Members ({s.members.length})</Label><div className="flex flex-wrap gap-2">{s.members.map((id) => (<button key={id} onClick={() => id !== "me" && onProfile(id)} className="flex items-center gap-2 rounded-full bg-white py-1 pl-1 pr-3 ring-1 ring-[var(--line)]"><Avatar initials={initials(personName(id))} color="#7C4DDB" size={26} /><span className="text-[12.5px] font-semibold">{personName(id)}</span></button>))}</div></div>
-          <div><Label>Files</Label><div className="space-y-1.5">{s.files.map((f) => (<div key={f} className="rounded-xl bg-white px-3 py-2 text-[13px] ring-1 ring-[var(--line)]">{f}</div>))}{s.files.length === 0 && <div className="text-[13px] text-[var(--dim)]">No files in this course yet.</div>}</div></div>
-          {joined ? (<div className="space-y-2"><Btn variant="study" onClick={onOpen}>Open in my Study</Btn>{s.ownerId !== "me" && <Btn variant="ghost" onClick={onLeave}>Leave chat</Btn>}</div>) : <Btn variant="study" onClick={onJoin}><span className="inline-flex items-center gap-2"><BookmarkPlus size={16} /> Add to my Study and join chat</span></Btn>}
+          <div><Label>What&apos;s included</Label><div className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2.5 text-[13px] ring-1 ring-[var(--line)]"><span>{contentsLabel(s)}</span><PriceTag price={s.priceNgn} /></div></div>
+          {joined ? (<div className="space-y-2"><Btn variant="study" onClick={onOpen}>{owner ? "Open (manage sharing from the course)" : "Open in my Study"}</Btn>{!owner && !s.priceNgn && <Btn variant="ghost" onClick={onLeave}>Leave chat</Btn>}</div>) : (<>
+            <Btn variant="study" disabled={buying} onClick={onJoin}><span className="inline-flex items-center gap-2"><BookmarkPlus size={16} /> {joinLabel}</span></Btn>
+            {!!s.priceNgn && <p className="text-center text-[11.5px] text-[var(--dim)]">One-time payment from your Birdie balance. You keep access, including anything the owner adds to this listing later.</p>}
+          </>)}
         </div>
       ) : (
         <div className="mt-3">
@@ -113,28 +139,24 @@ function SharedDetail({ s, onJoin, onOpen, onLeave, onSend, onProfile, personNam
             {s.messages.map((m) => (<div key={m.id} className={`flex ${m.authorId === "me" ? "justify-end" : ""}`}><div className={`max-w-[82%] rounded-2xl px-3 py-2 text-[13.5px] leading-snug shadow-sm ${m.authorId === "me" ? "rounded-tr-md bg-[#EBD3F5]" : "rounded-tl-md bg-white"}`}>{m.authorId !== "me" && <div className="text-[11px] font-bold text-[var(--birdie)]">{personName(m.authorId)}</div>}{m.text}<div className="mt-0.5 text-right text-[10px] text-[#8a7fa0]">{m.t}</div></div></div>))}
             <div ref={end} />
           </div>
-          {joined ? (<div className="mt-3 flex gap-2"><input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && draft.trim()) { onSend(draft.trim()); setDraft(""); } }} placeholder="Message the class" className="min-w-0 flex-1 rounded-full bg-[var(--paper-dim)] px-4 py-3 text-[14px] outline-none placeholder:text-[#a99fb8]" /><button onClick={() => { if (draft.trim()) { onSend(draft.trim()); setDraft(""); } }} aria-label="Send" className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--uni)] text-white active:scale-90"><Send size={17} /></button></div>) : <div className="mt-3"><Btn variant="study" onClick={onJoin}>Join to chat</Btn></div>}
+          {joined ? (<div className="mt-3 flex gap-2"><input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && draft.trim()) { onSend(draft.trim()); setDraft(""); } }} placeholder="Message the class" className="min-w-0 flex-1 rounded-full bg-[var(--paper-dim)] px-4 py-3 text-[14px] outline-none placeholder:text-[#a99fb8]" /><button onClick={() => { if (draft.trim()) { onSend(draft.trim()); setDraft(""); } }} aria-label="Send" className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--uni)] text-white active:scale-90"><Send size={17} /></button></div>) : <div className="mt-3"><Btn variant="study" disabled={buying} onClick={onJoin}>{s.priceNgn ? joinLabel : "Join to chat"}</Btn></div>}
         </div>
       )}
     </div>
   );
 }
 
-function ShareSheet({ open, onClose, onShare }: { open: boolean; onClose: () => void; onShare: (courseId: string, desc: string, field: string, ownerName: string, school: string) => void }) {
-  const { courses, profile } = useApp();
-  const [cid, setCid] = useState("");
-  const [desc, setDesc] = useState(""); const [field, setField] = useState("");
-  const [name, setName] = useState(""); const [school, setSchool] = useState("");
-  const avail = courses.filter((c) => !c.sharedId);
-  useEffect(() => { if (open) { setCid(avail[0]?.id ?? ""); setName(profile.name); setSchool(profile.institution); setField(profile.program); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+function ShareSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { courses } = useApp();
+  const avail = courses.filter((c) => !c.sharedId && !c.sourceCourseId);
+  const [picked, setPicked] = useState("");
+  const cid = avail.some((c) => c.id === picked) ? picked : avail[0]?.id ?? "";
+  const course = avail.find((c) => c.id === cid);
   return (
     <Sheet open={open} onClose={onClose} title="Share a course">
-      {avail.length === 0 ? <p className="text-[13.5px] text-[var(--dim)]">All your courses are already shared.</p> : (<div className="space-y-3">
-        <div className="no-scrollbar flex gap-2 overflow-x-auto">{avail.map((c) => (<button key={c.id} onClick={() => setCid(c.id)} className={`shrink-0 rounded-full px-3.5 py-2 text-[13px] font-semibold ${cid === c.id ? "bg-[var(--ink)] text-[var(--paper)]" : "bg-[var(--paper-dim)] text-[var(--dim)]"}`}>{c.code}</button>))}</div>
-        <div><div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Shown on the course</div>
-          <div className="space-y-2.5"><TextField value={name} onChange={setName} placeholder="Your name" /><TextField value={school} onChange={setSchool} placeholder="Your school (optional)" /></div></div>
-        <TextField value={field} onChange={setField} placeholder="Field, e.g. Computer Science" /><TextField multiline value={desc} onChange={setDesc} placeholder="What's in it? Who is it for?" />
-        <Btn variant="study" disabled={!cid || !name.trim() || !field.trim() || !desc.trim()} onClick={() => { onShare(cid, desc.trim(), field.trim(), name.trim(), school.trim()); setDesc(""); }}>Publish</Btn>
+      {!course ? <p className="text-[13.5px] text-[var(--dim)]">All your courses are already shared.</p> : (<div className="space-y-4">
+        <div className="no-scrollbar flex gap-2 overflow-x-auto">{avail.map((c) => (<button key={c.id} onClick={() => setPicked(c.id)} className={`shrink-0 rounded-full px-3.5 py-2 text-[13px] font-semibold ${cid === c.id ? "bg-[var(--ink)] text-[var(--paper)]" : "bg-[var(--paper-dim)] text-[var(--dim)]"}`}>{c.code}</button>))}</div>
+        {open && <ShareCourseForm key={course.id} course={course} mode="new" onDone={onClose} />}
       </div>)}
     </Sheet>
   );
