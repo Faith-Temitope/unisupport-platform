@@ -1,8 +1,9 @@
 "use client";
 
 import { useViewState } from "./persist";
+import { VideoLesson } from "./VideoLesson";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Menu, Mic, Paperclip, Send, SquarePen, Volume2, X } from "lucide-react";
+import { BookOpenCheck, Check, Clapperboard, ClipboardCheck, FileQuestion, FlaskConical, Menu, Mic, Paperclip, Plus, Send, SquarePen, Volume2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { answer, docsOf, flashcards, general, makeFree, makeQuiz, summarize, type FreeQ, type MCQ } from "./engine";
@@ -11,7 +12,7 @@ import { Btn, DemoControls, Empty, Sheet } from "./ui";
 import { brainName } from "./BrainPicker";
 import { SponsoredCard, usePlacements } from "./Sponsored";
 import { brainById } from "@/lib/ai/registry";
-import { CARDS_SYSTEM, GRADE_SYSTEM, QUIZ_SYSTEM, askAI, chatSystem, contextFor, parseJson, sanitizeDeep, stripMarkdown, type AiFail } from "./aiClient";
+import { CARDS_SYSTEM, GRADE_SYSTEM, QUIZ_SYSTEM, askAI, chatSystem, libraryOutline, contextFor, parseJson, sanitizeDeep, stripMarkdown, type AiFail } from "./aiClient";
 
 type Mode = "chat" | "test" | "exam" | "practical";
 const bird = (text: string, extra: Partial<BMsg> = {}): BMsg => ({ id: uid(), from: "bird", text, t: nowTime(), at: Date.now(), ...extra });
@@ -45,13 +46,14 @@ function respond(text: string, c: Course | null, length: "short" | "normal" | "d
 }
 
 export default function Birdie({ active }: { active: boolean }) {
-  const { courses, profile, settings, chats, setChats, birdieIntent, clearBirdieIntent, applyQuiz, addNote, addFile, flash, setTab, goStudy, goHelp, phone, setOverlay, logChat, setBrainOpen, auth, setWalletOpen, setSetting, refreshWallet, loadRemoteCourseContent, sharedRemoteContent } = useApp();
+  const { courses, folders, profile, settings, chats, setChats, birdieIntent, clearBirdieIntent, applyQuiz, addNote, addFile, flash, setTab, goStudy, goHelp, phone, setOverlay, logChat, setBrainOpen, auth, setWalletOpen, setSetting, refreshWallet, loadRemoteCourseContent, sharedRemoteContent, setBarsHidden } = useApp();
   const [ctx, setCtx] = useViewState<string>("birdie.ctx", "general");
   const [typing, setTyping] = useState(false);
   const [mode, setMode] = useViewState<Mode>("birdie.mode", "chat");
   const [draft, setDraft] = useState("");
   const [drawer, setDrawer] = useState(false);
   const [attach, setAttach] = useState(false);
+  const [lesson, setLesson] = useState(false);
   const [listening, setListening] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -103,12 +105,12 @@ export default function Birdie({ active }: { active: boolean }) {
     const cdocs = c ? docsOf(c) : [];
     const quizAsk = /quiz|test me|mock/.test(t);
 
-    // Guests, empty courses and quiz requests use the offline engine (no AI cost).
-    if (!live || quizAsk || (c && cdocs.length === 0)) { timers.current.push(setTimeout(() => finish(local()), 600)); return; }
+    // Guests and quiz requests use the offline engine (no AI cost).
+    if (!live || quizAsk) { timers.current.push(setTimeout(() => finish(local()), 600)); return; }
 
-    const cards = /flash/.test(t), summary = /summar/.test(t), guide = /study guide|guide/.test(t);
+    const cards = /flash/.test(t) && cdocs.length > 0, summary = /summar/.test(t) && cdocs.length > 0, guide = /study guide/.test(t) && cdocs.length > 0;
     const info = c ? contextFor(cdocs, cards || summary || guide ? "" : text) : { text: "", used: [] };
-    let system = chatSystem({ name, level: profile.level, program: profile.program, course: c ? `${c.code} ${c.name}` : null, material: info.text, length: settings.answerLength });
+    let system = chatSystem({ name, level: profile.level, program: profile.program, course: c ? `${c.code} ${c.name}` : null, material: info.text, length: settings.answerLength, library: libraryOutline(folders, courses) });
     let messages: { role: "user" | "assistant"; content: string }[];
     if (cards) { system = CARDS_SYSTEM(info.text, 6); messages = [{ role: "user", content: "Make the flashcards now." }]; }
     else if (summary) messages = [{ role: "user", content: "Summarise this course material as clear bullet points a student can revise from." }];
@@ -131,7 +133,7 @@ export default function Birdie({ active }: { active: boolean }) {
       if (Array.isArray(list) && list.length && list.every((x) => x && typeof x.q === "string" && typeof x.a === "string")) return finish(bird(`Here are ${Math.min(list.length, 8)} flashcards from your ${c!.code} material. Tap a card to flip it.`, { cards: list.slice(0, 8), meta, actions: [{ label: "Save to course", run: "file", payload: `Flashcards - ${c!.code}.txt` }] }));
     }
     finish(bird(stripMarkdown(res.text), { meta, cite, actions: (summary || guide) && c ? [{ label: "Save as note", run: "note", payload: `${guide ? "Study guide" : "Summary"} - ${c.code}` }] : undefined }));
-  }, [ctx, effectiveCourse, name, chats, setChats, append, settings.answerLength, settings.aiTier, logChat, live, brain, profile.level, profile.program, refreshWallet]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ctx, effectiveCourse, courses, folders, name, chats, setChats, append, settings.answerLength, settings.aiTier, logChat, live, brain, profile.level, profile.program, refreshWallet]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Test mode: for signed-in students the AI writes the questions from their material.
   useEffect(() => {
@@ -202,9 +204,24 @@ export default function Birdie({ active }: { active: boolean }) {
     setListening(true); r.start();
   }
 
-  const chips = course ? ["Summarize my notes", "Make flashcards", "Study guide", "Quiz me"] : ["I'm feeling stressed", "Help me plan my week"];
+  // "Teach me step by step" is the Learn mode: Birdie guides with questions instead of handing over answers.
+  const TEACH = course ? `Teach me ${course.code} step by step. Start with the first key idea from my notes, check I understand with a question, and only move on when I get it.` : "Teach me something step by step. Ask me what I want to learn first, then guide me with questions instead of just giving answers.";
+  const chips = course ? ["Teach me step by step", "Summarize my notes", "Make flashcards", "Quiz me"] : ["Teach me step by step", "Help me plan my week", "I'm feeling stressed"];
+  const sendChip = (c: string) => send(c === "Teach me step by step" ? TEACH : c);
   const birdieCards = usePlacements("card", "birdie", active);
   const chatting = mode === "chat";
+  function toolTeach() { setAttach(false); setMode("chat"); send(TEACH); }
+  function toolLesson() { setAttach(false); if (!live) { flash("Sign in to make video lessons"); return; } setLesson(true); }
+  function toolMode(m: Mode) { setAttach(false); pickMode(m); }
+  function toolFile() { if (!course) { flash("Pick a course to attach files to"); return; } fileIn.current?.click(); }
+  // Scrolling up through a long chat tucks the bottom nav away, so there's more room to read.
+  const lastY = useRef(0);
+  const onChatScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const y = e.currentTarget.scrollTop, max = e.currentTarget.scrollHeight - e.currentTarget.clientHeight;
+    if (y < lastY.current - 8 && max - y > 120) setBarsHidden(true);
+    else if (max - y < 40) setBarsHidden(false);
+    lastY.current = y;
+  };
   const sponsor = birdieCards.length ? birdieCards[(ctx.length + thread.length) % birdieCards.length] : null;
 
   return (
@@ -215,15 +232,15 @@ export default function Birdie({ active }: { active: boolean }) {
         <button onClick={() => { setChats((cs) => { const n = { ...cs }; delete n[ctx]; return n; }); setMode("chat"); }} aria-label="New chat" className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--paper-dim)] active:scale-90"><SquarePen size={16} /></button>
       </div>
 
-      <div className="no-scrollbar flex shrink-0 gap-2 overflow-x-auto px-5 pb-3">
+      <div className="no-scrollbar flex shrink-0 gap-2 overflow-x-auto px-5 pb-2">
         {[...courses.map((c) => ({ id: c.id, label: c.code })), { id: "general", label: "General" }].map((c) => (
-          <button key={c.id} onClick={() => { setCtx(c.id); setMode("chat"); }} className={`shrink-0 rounded-full px-3.5 py-2 text-[13px] font-semibold transition active:scale-95 ${ctx === c.id ? "bg-[var(--birdie)] text-white" : "bg-[var(--birdie-soft)] text-[var(--birdie-text)]"}`}>{c.label}</button>
+          <button key={c.id} onClick={() => { setCtx(c.id); setMode("chat"); }} className={`shrink-0 rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition active:scale-95 ${ctx === c.id ? "bg-[var(--birdie)] text-white" : "bg-[var(--birdie-soft)] text-[var(--birdie-text)]"}`}>{c.label}</button>
         ))}
       </div>
 
       <div className="relative min-h-0 flex-1">
         {chatting ? (
-          <div className="no-scrollbar absolute inset-0 space-y-3 overflow-y-auto px-5 pb-3">
+          <div onScroll={onChatScroll} className="no-scrollbar absolute inset-0 space-y-3 overflow-y-auto px-5 pb-3">
             {courses.length === 0 && <div className="rounded-2xl bg-[var(--birdie-soft)] p-3.5 text-[13px] leading-snug text-[var(--birdie-text)]">Birdie learns from your courses. <button onClick={() => setTab("study")} className="font-bold underline">Create one in Study</button> to get answers from your own material.</div>}
             {thread.map((m) => (
               <motion.div key={m.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`flex ${m.from === "me" ? "justify-end" : "justify-start"}`}>
@@ -254,14 +271,12 @@ export default function Birdie({ active }: { active: boolean }) {
         ) : null}
       </div>
 
-      {chatting && (<div className="no-scrollbar flex shrink-0 gap-2 overflow-x-auto px-5 pb-2 pt-1">{chips.map((c) => (<button key={c} onClick={() => send(c)} className="shrink-0 rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[var(--text)] active:scale-95">{c}</button>))}</div>)}
+      {chatting && thread.length <= 2 && (<div className="no-scrollbar flex shrink-0 gap-2 overflow-x-auto px-5 pb-2 pt-1">{chips.map((c) => (<button key={c} onClick={() => sendChip(c)} className="shrink-0 rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[var(--text)] active:scale-95">{c}</button>))}</div>)}
 
-      <div className="flex shrink-0 gap-1.5 border-t border-[var(--line)] px-5 py-2.5">
-        {(["chat", "test", "exam", "practical"] as Mode[]).map((m) => (<button key={m} onClick={() => pickMode(m)} className={`flex-1 rounded-xl py-2 text-[12.5px] font-bold capitalize transition active:scale-95 ${mode === m ? "bg-[var(--ink)] text-[var(--paper)]" : "bg-[var(--paper-dim)] text-[var(--dim)]"}`}>{m}</button>))}
-      </div>
-      <div className="flex shrink-0 items-center gap-2 px-5 pb-3">
+      {!chatting && <div className="flex shrink-0 items-center justify-between border-t border-[var(--line)] px-5 py-2 text-[12.5px]"><span className="font-bold capitalize">{mode} mode</span><button onClick={() => setMode("chat")} className="font-semibold text-[var(--birdie-text)]">Back to chat</button></div>}
+      <div className="flex shrink-0 items-center gap-2 px-4 pb-3 pt-2">
         <input ref={fileIn} type="file" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (!f || !course) return; const text = /\.(txt|md)$/i.test(f.name) ? await f.text() : undefined; addFile(course.id, { name: f.name, kind: text ? "text" : "pdf", size: f.size, text, url: URL.createObjectURL(f) }); setAttach(false); flash(`Saved to ${course.code}`); append(ctx, bird(text ? `Added ${f.name} to ${course.code}. I can read it now.` : `Added ${f.name} to ${course.code}. I'll be able to read it once the AI is connected.`)); }} />
-        <button onClick={() => (course ? fileIn.current?.click() : flash("Pick a course to attach files to"))} aria-label="Attach" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--paper-dim)] text-[var(--dim)] active:scale-90"><Paperclip size={17} /></button>
+        <button onClick={() => setAttach(true)} aria-label="More tools" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--paper-dim)] text-[var(--dim)] active:scale-90"><Plus size={19} /></button>
         <input value={draft} disabled={!chatting} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { send(draft); setDraft(""); } }} placeholder={!chatting ? `${mode} mode` : listening ? "Listening..." : course ? `Ask about ${course.code}...` : "Talk to Birdie..."} className="min-w-0 flex-1 rounded-full bg-[var(--paper-dim)] px-4 py-3 text-[14px] outline-none placeholder:text-[#a99fb8] disabled:opacity-50" />
         <button onClick={dictate} aria-label="Dictate" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:scale-90 ${listening ? "bg-[var(--help)] text-white" : "bg-[var(--paper-dim)] text-[var(--dim)]"}`}><Mic size={17} /></button>
         <button onClick={() => { send(draft); setDraft(""); }} disabled={!draft.trim() || !chatting} aria-label="Send" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--birdie)] text-white transition active:scale-90 disabled:opacity-40"><Send size={17} /></button>
@@ -282,7 +297,18 @@ export default function Birdie({ active }: { active: boolean }) {
           )}
         </AnimatePresence>, phone)}
 
-      <Sheet open={attach} onClose={() => setAttach(false)} title="Add to Birdie"><Btn variant="ink" onClick={() => fileIn.current?.click()}>Choose a file</Btn></Sheet>
+      <Sheet open={attach} onClose={() => setAttach(false)} title={course ? `Tools for ${course.code}` : "Tools"}>
+        <div className="grid grid-cols-2 gap-2">
+          <Tool label="Teach me step by step" sub="Birdie guides you with questions" Icon={BookOpenCheck} onClick={toolTeach} />
+          <Tool label="Video lesson" sub="A narrated explainer from your notes" Icon={Clapperboard} onClick={toolLesson} />
+          <Tool label="Quiz me" sub="Multiple choice from your notes" Icon={ClipboardCheck} onClick={() => toolMode("test")} />
+          <Tool label="Exam practice" sub="Theory questions, marked" Icon={FileQuestion} onClick={() => toolMode("exam")} />
+          <Tool label="Practical" sub="Applied questions, marked" Icon={FlaskConical} onClick={() => toolMode("practical")} />
+          <Tool label="Add a file" sub={course ? `Saved to ${course.code}` : "Pick a course first"} Icon={Paperclip} onClick={toolFile} />
+        </div>
+      </Sheet>
+
+      {lesson && <VideoLesson course={course ?? null} onClose={() => setLesson(false)} />}
 
       <DemoControls active={active} title="Birdie: how it works right now">
         <p className="text-[12.5px] leading-snug text-[var(--dim)]">Claude isn't connected, so Birdie runs on a local engine that works <b className="text-[var(--text)]">only from your notes and .txt files</b>. It searches them, builds fill-the-gap quizzes and flashcards, and marks free answers by key terms. Nothing is made up.</p>
@@ -392,4 +418,8 @@ function FreeResponse({ q, onGrade, onExit, onAdd }: { q: FreeQ | null; onGrade?
       )}
     </div>
   );
+}
+
+function Tool({ label, sub, Icon, onClick }: { label: string; sub: string; Icon: typeof Paperclip; onClick: () => void }) {
+  return <button onClick={onClick} className="rounded-2xl border border-[var(--line)] bg-white p-3 text-left active:scale-[0.98]"><Icon size={18} className="text-[var(--birdie)]" /><div className="mt-1.5 text-[13.5px] font-bold leading-tight">{label}</div><div className="text-[11.5px] leading-snug text-[var(--dim)]">{sub}</div></button>;
 }

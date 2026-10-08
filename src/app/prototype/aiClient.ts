@@ -4,7 +4,8 @@ import { words, type Doc } from "./engine";
 export type AiOk = { ok: true; text: string; brain: string; model: string; charged_ngn: number; usage: { in: number; out: number } };
 export type AiFail = { ok: false; code: "guest" | "insufficient_funds" | "free_allowance_used" | "not_configured" | "error"; message: string; need?: number };
 export type AiResult = AiOk | AiFail;
-export interface AiCall { brain: string; tier: string; system?: string; messages: { role: "user" | "assistant"; content: string }[]; feature?: string }
+export interface AiImage { mime: string; data: string }
+export interface AiCall { brain: string; tier: string; system?: string; messages: { role: "user" | "assistant"; content: string }[]; feature?: string; /** Photos sent with the last message (base64, no data: prefix). */ images?: AiImage[] }
 
 export async function askAI(body: AiCall): Promise<AiResult> {
   try {
@@ -70,18 +71,28 @@ export function contextFor(docs: Doc[], question: string, budget = 12000): { tex
   return { text: used.map((d) => `[${d.source}]\n${d.text}`).join("\n\n"), used };
 }
 
-export function chatSystem(o: { name: string; level: string; program: string; course: string | null; material: string; length: keyof typeof LEN }) {
+export function chatSystem(o: { name: string; level: string; program: string; course: string | null; material: string; length: keyof typeof LEN; library?: string }) {
   const who = `${o.name}${o.level || o.program ? `, a ${[o.level, o.program].filter(Boolean).join(" ")} student` : ""}`;
-  if (!o.course) return `You are Birdie, a warm, encouraging study partner for ${who}. You are in a general chat that isn't tied to a course. Be kind and practical, and keep replies short. If they ask about their coursework, tell them to pick a course above so you can answer from their own notes.\n${NO_MARKDOWN}`;
-  return [
-    `You are Birdie, a friendly study partner for ${who}, helping with the course "${o.course}".`,
-    "Answer using ONLY the course material below. Do not use outside knowledge to fill gaps.",
-    "If the material does not cover the question, say so plainly in one sentence and suggest adding a note, or talking to a writer. Never invent facts.",
-    "When you use the material, name where it came from in square brackets, for example [Note: Eigenvalues].",
-    LEN[o.length],
-    NO_MARKDOWN,
-    o.material ? `\n--- COURSE MATERIAL ---\n${o.material}` : "\n(The student has not added any material yet. Say so and suggest adding a note.)",
+  const lib = o.library ? `\nTheir study library (folders and courses):\n${o.library}` : "";
+  const teach = "If they ask you to teach them step by step, teach one small idea at a time, ask a short check question, and wait for their answer before moving on. Don't dump everything at once.";
+  if (!o.course) return [
+    `You are Birdie, a warm, encouraging and genuinely knowledgeable study partner for ${who}. This is a general chat, not tied to one course.`,
+    "Answer study questions properly from your own knowledge: accurate, specific and useful. When a question clearly belongs to one of their courses, mention they can open that course above for answers from their own notes.",
+    teach, LEN[o.length], NO_MARKDOWN, lib,
   ].join("\n");
+  return [
+    `You are Birdie, a friendly, knowledgeable study partner for ${who}, helping with the course "${o.course}".`,
+    "Use the course material below first, because it's what their lecturer taught. When you use it, name where it came from in square brackets, for example [Note: Eigenvalues].",
+    "If the material doesn't cover the question, still answer it properly from general knowledge, but start that part with 'Not from your notes:' so they know. Never present outside knowledge as if it came from their notes.",
+    teach, LEN[o.length], NO_MARKDOWN, lib,
+    o.material ? `\n--- COURSE MATERIAL ---\n${o.material}` : "\n(No material has been added to this course yet. Answer from general knowledge, starting with 'Not from your notes:', and suggest adding their notes so you can match their lecturer.)",
+  ].join("\n");
+}
+
+/** A short outline of the student's folders and courses, so Birdie knows how their studies are organised. */
+export function libraryOutline(folders: { id: string; name: string; parentId: string | null }[], courses: { code: string; name: string; folderId: string | null }[]): string {
+  const path = (id: string | null): string => { const f = folders.find((x) => x.id === id); return f ? [path(f.parentId), f.name].filter(Boolean).join(" > ") : ""; };
+  return courses.slice(0, 40).map((c) => `- ${c.code} ${c.name}${c.folderId ? ` (in ${path(c.folderId)})` : ""}`).join("\n");
 }
 
 /** Ask for strict JSON and parse it, tolerating code fences. Returns null if it can't be parsed. */

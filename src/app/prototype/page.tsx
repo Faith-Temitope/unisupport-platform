@@ -33,7 +33,7 @@ function Shell() {
   useEffect(() => { void logEvent("page_view", tab); }, [tab]);
   const dark = useDark(settings.theme);
   // Bottom nav slides away while scrolling down the Explore feed (same signal as its header).
-  const hideNav = barsHidden && tab === "explore";
+  const hideNav = barsHidden && (tab === "explore" || tab === "birdie");
   const [navH, setNavH] = useState(0);
   const navRef = useRef<HTMLDivElement>(null);
   useEffect(() => {

@@ -8,7 +8,7 @@ import {
   deleteRemoteFile, deleteRemoteNote, deleteRemoteRecording,
   leaveSharedCourse, listMessages, postMessage, publishSharedCourse,
   fetchRemoteCourseContent, listPublishedSharedWithCounts,
-  syncCourseForSharing, setSharedItems, getSharedItems, updateSharedSettings, buySharedCourse, type ShareItem,
+  syncCourseForSharing, grantCourse, type GrantRole, setSharedItems, getSharedItems, updateSharedSettings, buySharedCourse, type ShareItem,
 } from "./live/sharedData";
 import { logEvent } from "./live/analyticsData";
 import { fetchMyRep } from "./live/repData";
@@ -120,6 +120,8 @@ interface AppCtx {
   loadPostsByIds: (ids: string[]) => Promise<void>; loadLiked: () => Promise<string[]>; setPinned: (id: string, on: boolean) => Promise<string | null>;
   saveProfile: (p: Profile) => Promise<string | null>;
   shared: SharedCourse[];
+  /** Give one person (or a Unisupport chat) access to a course: view only, or add notes too. */
+  grantCourseAccess: (courseId: string, role: GrantRole, to: { grantee?: string; session?: string }) => Promise<string | null>;
   shareCourse: (courseId: string, info: { description: string; field: string; ownerName: string; school: string; priceNgn: number; audience: Audience; audienceValue: string | null }, picked: Picked) => Promise<string | null>;
   getSharing: (courseId: string) => Promise<{ priceNgn: number; picked: Picked; audience: Audience } | null>;
   updateSharing: (courseId: string, priceNgn: number, picked: Picked, audience: Audience, audienceValue: string | null) => Promise<string | null>;
@@ -751,6 +753,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Publishes for real: syncs the course to Supabase, creates the listing, then records exactly
     // which items the owner ticked -- members (free or paid) only ever see those. Anything added
     // to the course later stays private until the owner adds it via updateSharing.
+    grantCourseAccess: async (courseId, role, to) => {
+      const c = coursesRef.current.find((x) => x.id === courseId);
+      if (!c || !userId) return "Sign in to share a course";
+      await syncCourseForSharing(c, userId);
+      return grantCourse(courseId, role, to);
+    },
     shareCourse: async (courseId, info, picked) => {
       const c = coursesRef.current.find((x) => x.id === courseId);
       if (!c || !userId) return "Sign in to share a course";

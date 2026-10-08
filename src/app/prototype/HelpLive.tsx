@@ -3,36 +3,33 @@
 // Help for signed-in students, backed by Supabase: real sessions, messages, fees and files.
 // Desk agents and writers answer from the staff app (/prototype/live/staff). Nothing here is simulated.
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, BookOpenCheck, Check, CheckCheck, Compass, Download, Eye, FileText, Lock, MoreVertical, Paperclip, PenLine, Printer, Send, Star, Wallet, Zap } from "lucide-react";
+import { ArrowLeft, BookOpen, Check, CheckCheck, Download, Eye, FileText, Lock, MoreVertical, Paperclip, PenLine, Pin, Printer, Send, Star, Wallet, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
-import { Learn, JustDoIt } from "./Help";
+import { JustDoIt } from "./JustDoIt";
+import { CourseShareSheet } from "./CourseShare";
+import { useViewState } from "./persist";
 import { ACCESS_LABEL, DL_LABEL, SERVICE_LABEL, UNIT_LABEL, clock, listFolder, openUrl, rpcError, safeName, sendMessage, signedUrl, uploadTo, useHelpData, type HJob, type HMessage, type HSession } from "./live/helpData";
 import { logEvent } from "./live/analyticsData";
-import { InternshipCard, usePlacements } from "./Sponsored";
+import { InternshipCard, SlotAd, usePlacements } from "./Sponsored";
 import { TutorialsSection } from "./Tutorials";
 import { naira, uid, useApp } from "./store";
 import { Avatar, Btn, Sheet, TopBar } from "./ui";
 
-type Mode = "mentor" | "full";
-const MODES: { id: Mode; label: string; sub: string; icon: typeof Compass }[] = [
-  { id: "mentor", label: "Mentor me", sub: "Talk it through with a writer. You do the work, they guide you.", icon: Compass },
-  { id: "full", label: "Do it for me", sub: "A writer completes it. You review and approve.", icon: Zap },
-];
 const initials = (n: string) => n.split(" ").filter((x) => !/^dr\.?$/i.test(x)).map((x) => x[0]).join("").slice(0, 2).toUpperCase();
 const PALETTE = ["#A63FBD", "#4C6EF5", "#D9467E", "#7C4DDB"];
 const colorOf = (s: string) => PALETTE[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % PALETTE.length];
 const first = (n: string) => (n.startsWith("Dr.") ? n.split(" ")[1] : n.split(" ")[0]);
 
 export default function HelpLive({ active }: { active: boolean }) {
-  const { courses, setWalletOpen, balance, flash, helpIntent, clearHelpIntent, refreshWallet, openPrint } = useApp();
+  const { setWalletOpen, balance, flash, helpIntent, clearHelpIntent, refreshWallet, openPrint, grantCourseAccess } = useApp();
   const internships = usePlacements("internship", undefined, active);
   const [jobsOpen, setJobsOpen] = useState(false);
-  const [view, setView] = useState<"hub" | "chat" | "learn" | "jdi">("hub");
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [view, setView] = useViewState<"hub" | "chat" | "jdi">("help.view", "hub");
+  const [activeId, setActiveId] = useViewState<string | null>("help.chat", null);
+  const [courseShare, setCourseShare] = useState(false);
+  const [attachMenu, setAttachMenu] = useState(false);
   const { sessions, messages, jobs, loading, reload } = useHelpData(activeId);
-  const [pickMode, setPickMode] = useState<Mode>("mentor");
-  const [pickCourse, setPickCourse] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -45,15 +42,23 @@ export default function HelpLive({ active }: { active: boolean }) {
   const writer = s?.writers ?? null;
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length, view]);
 
-  async function start(mode: Mode, courseId: string | null) {
-    if (busy) return; setBusy(true);
-    const code = courses.find((c) => c.id === courseId)?.code ?? null;
-    const { data, error } = await createClient().rpc("open_help_session", { p_mode: mode, p_label: code });
-    setBusy(false);
-    if (error) return flash(rpcError(error));
-    await reload(); setActiveId(data as string); setView("chat");
+  // One Unisupport chat: reopen the open help-desk conversation, or start one. The desk handles
+  // everything from there (and connects you to a writer when you need one).
+  const deskChat = sessions.find((x) => !x.writer_id) ?? null;
+  async function openDesk(courseId?: string | null) {
+    if (busy) return;
+    let id = deskChat?.id ?? null;
+    if (!id) {
+      setBusy(true);
+      const { data, error } = await createClient().rpc("open_help_session", { p_mode: "full", p_label: null });
+      setBusy(false);
+      if (error) return flash(rpcError(error));
+      id = data as string; await reload();
+    }
+    if (courseId) { const err = await grantCourseAccess(courseId, "view", { session: id }); if (err) flash("Couldn't attach the course"); }
+    setActiveId(id); setView("chat");
   }
-  useEffect(() => { if (helpIntent) { void start(helpIntent.mode, helpIntent.courseId); clearHelpIntent(); } }, [helpIntent]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (helpIntent) { void openDesk(helpIntent.courseId); clearHelpIntent(); } }, [helpIntent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function send(text: string, path?: string) {
     if (!s || !text.trim()) return;
@@ -99,54 +104,51 @@ export default function HelpLive({ active }: { active: boolean }) {
   async function openAttachment(path: string) { const u = await signedUrl("session-uploads", path); if (u) openUrl(u); else flash("Couldn't open that file"); }
 
   // ---------------- HUB ----------------
-  if (view === "learn") return <Learn onBack={() => setView("hub")} />;
   if (view === "jdi") return <JustDoIt onBack={() => setView("hub")} />;
   if (view === "hub" || !s) {
-    const cta = pickMode === "mentor" ? (pickCourse ? `Start mentoring on ${courses.find((c) => c.id === pickCourse)?.code}` : "Talk to a writer") : "Get a writer";
+    const writerChats = sessions.filter((x) => x.writers);
+    const pastDesk = sessions.filter((x) => !x.writers && x.id !== deskChat?.id);
+    const row = (x: HSession) => (
+      <button key={x.id} onClick={() => { setActiveId(x.id); setView("chat"); }} className="flex w-full items-center gap-3 border-b border-[var(--line)] p-3 text-left last:border-0 active:bg-[var(--paper-dim)]">
+        {x.writers ? <Avatar initials={initials(x.writers.display_name)} color={colorOf(x.writers.display_name)} size={46} /> : <div className="disp flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full bg-[var(--ink)] text-[17px] font-bold text-[var(--birdie)]">U</div>}
+        <div className="min-w-0 flex-1">
+          <div className="flex justify-between gap-2"><span className="flex min-w-0 items-center gap-1.5 truncate text-[14.5px] font-semibold text-[var(--text)]">{x.writers ? x.writers.display_name : "Unisupport Help"}{x.writers && <Pin size={12} className="shrink-0 text-[var(--dim)]" />}</span><span className="shrink-0 text-[11px] text-[var(--dim)]">{clock(x.created_at)}</span></div>
+          <div className="truncate text-[12.5px] text-[var(--dim)]">{x.writers ? `Your writer · ${x.writers.specialization ?? x.title}` : x.phase === "fee" ? "Waiting to connect you to a writer" : x.title || "Earlier chat"}</div>
+        </div>
+      </button>
+    );
     return (
       <div className="flex h-full flex-col">
         <TopBar title={<h2 className="disp text-[24px] font-bold text-[var(--text)]">Help</h2>} right={<button onClick={() => setWalletOpen(true)} className="flex items-center gap-2 rounded-full border border-[var(--line)] bg-white py-1.5 pl-2.5 pr-3.5 text-[13px] font-semibold active:scale-95"><Wallet size={15} className="text-[var(--birdie)]" />{naira(balance)}</button>} />
         <div className="no-scrollbar flex-1 space-y-5 overflow-y-auto px-5 pb-28">
-          {sessions.length > 0 && (
-            <section><div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Your writers and chats</div>
-              <div className="overflow-hidden rounded-2xl border border-[var(--line)] bg-white">
-                {sessions.map((x) => (
-                  <button key={x.id} onClick={() => { setActiveId(x.id); setView("chat"); }} className="flex w-full items-center gap-3 border-b border-[var(--line)] p-3 text-left last:border-0 active:bg-[var(--paper-dim)]">
-                    {x.writers ? <Avatar initials={initials(x.writers.display_name)} color={colorOf(x.writers.display_name)} size={44} /> : <div className="disp flex h-11 w-11 items-center justify-center rounded-full bg-[var(--ink)] text-[17px] font-bold text-[var(--birdie)]">U</div>}
-                    <div className="min-w-0 flex-1"><div className="flex justify-between gap-2"><span className="truncate text-[14.5px] font-semibold text-[var(--text)]">{x.writers ? x.writers.display_name : "Unisupport Help Desk"}</span><span className="shrink-0 text-[11px] text-[var(--dim)]">{clock(x.created_at)}</span></div><div className="truncate text-[12.5px] text-[var(--dim)]">{x.title}{x.phase === "fee" ? " · waiting to connect you" : ""}</div></div>
-                  </button>))}
-              </div>
-            </section>
-          )}
-          {loading && sessions.length === 0 && <div className="py-2 text-center text-[12.5px] text-[var(--dim)]">Loading your chats...</div>}
-
           <section>
-            <div className="mb-2 flex items-center gap-2"><span className="disp text-[16px] font-bold text-[var(--text)]">Connect with a writer</span><span className="rounded-md bg-[var(--ink)] px-1.5 py-0.5 text-[10px] font-semibold text-[#E6B3F2]">Unisupport</span></div>
-            <div className="space-y-2.5">
-              {MODES.map((o) => { const on = pickMode === o.id; return (
-                <button key={o.id} onClick={() => setPickMode(o.id)} className={`w-full rounded-[18px] border-2 p-3.5 text-left transition active:scale-[0.985] ${on ? "border-[var(--birdie)] bg-[var(--birdie-soft)]" : "border-[var(--line)] bg-white"}`}>
-                  <div className="flex items-center gap-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--birdie)] text-white"><o.icon size={17} /></div><div className="flex-1"><div className="disp text-[15px] font-bold">{o.label}</div><div className="text-[12px] leading-snug text-[var(--dim)]">{o.sub}</div></div><div className={`flex h-5 w-5 items-center justify-center rounded-full border-2 text-white ${on ? "border-[var(--birdie)] bg-[var(--birdie)]" : "border-[var(--line)]"}`}>{on && <Check size={12} strokeWidth={3} />}</div></div>
-                </button>); })}
+            <div className="overflow-hidden rounded-2xl border border-[var(--line)] bg-white">
+              {/* Unisupport Help is always on top, like a pinned chat. */}
+              <button onClick={() => void openDesk()} disabled={busy} className="flex w-full items-center gap-3 border-b border-[var(--line)] p-3 text-left last:border-0 active:bg-[var(--paper-dim)]">
+                <div className="disp relative flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full bg-[var(--ink)] text-[17px] font-bold text-[var(--birdie)]">U<span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-[#3FB56B]" /></div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 text-[14.5px] font-semibold text-[var(--text)]">Unisupport Help <Pin size={12} className="text-[var(--dim)]" /></div>
+                  <div className="truncate text-[12.5px] text-[var(--dim)]">{busy ? "Opening..." : deskChat ? "Continue your chat" : "Tell us what you need. We're here to help."}</div>
+                </div>
+              </button>
+              {writerChats.map(row)}
             </div>
-            <div className="mb-2 mt-4 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Course (optional)</div>
-            <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5">
-              {[{ id: null as string | null, label: "No course" }, ...courses.map((c) => ({ id: c.id as string | null, label: c.code }))].map((c) => (<button key={c.label} onClick={() => setPickCourse(c.id)} className={`shrink-0 rounded-full px-3.5 py-2 text-[13px] font-semibold transition active:scale-95 ${pickCourse === c.id ? "bg-[var(--ink)] text-[var(--paper)]" : "bg-[var(--paper-dim)] text-[var(--dim)]"}`}>{c.label}</button>))}
-            </div>
-            <div className="mt-4"><Btn disabled={busy} onClick={() => void start(pickMode, pickCourse)}>{busy ? "Opening chat..." : cta}</Btn></div>
-            <p className="mt-2 text-center text-[11.5px] leading-snug text-[var(--dim)]">You start with our help desk. The session fee is one-off. After that you chat with your writer directly.</p>
-          </section>
-
-          <section className="space-y-2.5"><div className="text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Or work it out with Birdie</div>
-            <button onClick={() => setView("learn")} className="flex w-full items-start gap-3.5 rounded-[18px] bg-[var(--study-soft)] p-3.5 text-left active:scale-[0.98]"><BookOpenCheck className="mt-0.5 shrink-0 text-[var(--study)]" size={21} /><div><div className="disp text-[15px] font-bold">Learn (Guide Me)</div><div className="text-[12px] leading-snug text-[var(--dim)]">Birdie asks questions until it clicks. Free.</div></div></button>
-            <button onClick={() => setView("jdi")} className="flex w-full items-start gap-3.5 rounded-[18px] bg-[var(--paper-dim)] p-3.5 text-left active:scale-[0.98]"><Zap className="mt-0.5 shrink-0 text-[var(--birdie)]" size={21} /><div><div className="disp text-[15px] font-bold">Just Do It</div><div className="text-[12px] leading-snug text-[var(--dim)]">Birdie drafts an answer from your notes.</div></div></button>
+            {loading && sessions.length === 0 && <div className="py-2 text-center text-[12.5px] text-[var(--dim)]">Loading your chats...</div>}
+            {pastDesk.length > 0 && (
+              <details className="mt-2"><summary className="cursor-pointer text-[12px] font-semibold text-[var(--dim)]">Earlier chats ({pastDesk.length})</summary>
+                <div className="mt-2 overflow-hidden rounded-2xl border border-[var(--line)] bg-white">{pastDesk.map(row)}</div>
+              </details>
+            )}
+            <p className="mt-2 text-center text-[11.5px] leading-snug text-[var(--dim)]">Writers the help desk connects you with are pinned here. Share a course in any chat with the clip button.</p>
           </section>
 
           <TutorialsSection active={active} />
 
           <section className="space-y-2.5">
             <div className="flex items-center justify-between"><span className="disp text-[16px] font-bold text-[var(--text)]">Print &amp; deliver</span><button onClick={() => openPrint({ kind: "orders" })} className="text-[12.5px] font-bold text-[var(--uni)]">My orders</button></div>
-            <button onClick={() => openPrint({ kind: "print" })} className="flex w-full items-start gap-3.5 rounded-[18px] border border-[var(--line)] bg-white p-3.5 text-left active:scale-[0.98]"><Printer className="mt-0.5 shrink-0 text-[var(--uni)]" size={21} /><div><div className="disp text-[15px] font-bold">Print my project or assignment</div><div className="text-[12px] leading-snug text-[var(--dim)]">Printed and bound. Pick it up on campus or have it delivered.</div></div></button>
-            <button onClick={() => openPrint({ kind: "handwrite" })} className="flex w-full items-start gap-3.5 rounded-[18px] border border-[var(--line)] bg-white p-3.5 text-left active:scale-[0.98]"><PenLine className="mt-0.5 shrink-0 text-[var(--uni)]" size={21} /><div><div className="disp text-[15px] font-bold">Handwrite my assignment</div><div className="text-[12px] leading-snug text-[var(--dim)]">Send the softcopy. We write it out with your name and matric number.</div></div></button>
+            <button onClick={() => openPrint({ kind: "print" })} className="flex w-full items-start gap-3.5 rounded-[18px] border border-[var(--line)] bg-white p-3.5 text-left active:scale-[0.98]"><Printer className="mt-0.5 shrink-0 text-[var(--uni)]" size={21} /><div><div className="disp text-[15px] font-bold">Print my project or assignment</div><div className="text-[12px] leading-snug text-[var(--dim)]">Printed and bound by a print shop near you. Pick up or get it delivered.</div></div></button>
+            <button onClick={() => openPrint({ kind: "handwrite" })} className="flex w-full items-start gap-3.5 rounded-[18px] border border-[var(--line)] bg-white p-3.5 text-left active:scale-[0.98]"><PenLine className="mt-0.5 shrink-0 text-[var(--uni)]" size={21} /><div><div className="disp text-[15px] font-bold">Handwrite my assignment</div><div className="text-[12px] leading-snug text-[var(--dim)]">Send the softcopy. It&apos;s written out with your name and matric number.</div></div></button>
+            <a href="/partner" className="block text-center text-[12px] font-semibold text-[var(--dim)] underline decoration-dotted">Own a print shop? Become a Birdie print partner</a>
           </section>
 
           <section className="space-y-2.5">
@@ -154,6 +156,14 @@ export default function HelpLive({ active }: { active: boolean }) {
             {internships.length === 0 ? <p className="text-[12.5px] leading-snug text-[var(--dim)]">Placements and internships for students in your area will show up here. Make sure your school and region are on your profile.</p>
               : internships.slice(0, 2).map((p) => <InternshipCard key={p.id} p={p} />)}
           </section>
+
+          <SlotAd surface="help" active={active} />
+
+          {/* Deliberately last and low-key: Birdie should teach first, not do the work. */}
+          <button onClick={() => setView("jdi")} className="flex w-full items-center gap-3 rounded-2xl p-3 text-left opacity-80 active:scale-[0.98]">
+            <Zap className="shrink-0 text-[var(--dim)]" size={17} />
+            <div><div className="text-[13.5px] font-semibold text-[var(--text)]">Birdie: Just Do It</div><div className="text-[11.5px] leading-snug text-[var(--dim)]">Snap or pick a question and Birdie answers it</div></div>
+          </button>
         </div>
         <Sheet open={jobsOpen} onClose={() => setJobsOpen(false)} title="Internships & SIWES">
           <div className="space-y-3">{internships.map((p) => <InternshipCard key={p.id} p={p} />)}</div>
@@ -193,10 +203,10 @@ export default function HelpLive({ active }: { active: boolean }) {
         <div ref={endRef} />
       </div>
 
-      {messages.length <= 1 && s.phase === "desk" && (<div className="no-scrollbar flex shrink-0 gap-2 overflow-x-auto bg-[#F0E9F6] px-4 pb-2">{(s.mode === "mentor" ? ["How does this work?", "How much does it cost?"] : ["How much does it cost?", "Final year project, 40 pages, 2 weeks", "Assignment, 6 pages, due in 2 days"]).map((c) => (<button key={c} onClick={() => void send(c)} className="shrink-0 rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[var(--text)] active:scale-95">{c}</button>))}</div>)}
+      {messages.length <= 1 && s.phase === "desk" && (<div className="no-scrollbar flex shrink-0 gap-2 overflow-x-auto bg-[#F0E9F6] px-4 pb-2">{["How does this work?", "How much does it cost?", "I need help understanding a course", "Final year project, 40 pages, 2 weeks"].map((c) => (<button key={c} onClick={() => void send(c)} className="shrink-0 rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[var(--text)] active:scale-95">{c}</button>))}</div>)}
       <div className="flex shrink-0 items-center gap-2 bg-[var(--paper)] px-4 pb-4 pt-2.5">
         <input ref={fileIn} type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void attach(f); if (fileIn.current) fileIn.current.value = ""; }} />
-        <button onClick={() => fileIn.current?.click()} aria-label="Attach" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--paper-dim)] text-[var(--dim)] active:scale-90"><Paperclip size={17} /></button>
+        <button onClick={() => setAttachMenu(true)} aria-label="Attach" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--paper-dim)] text-[var(--dim)] active:scale-90"><Paperclip size={17} /></button>
         <input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && draft.trim()) { void send(draft); setDraft(""); } }} placeholder="Message" className="min-w-0 flex-1 rounded-full bg-[var(--paper-dim)] px-4 py-3 text-[14px] outline-none placeholder:text-[#a99fb8]" />
         <button onClick={() => { void send(draft); setDraft(""); }} disabled={!draft.trim()} aria-label="Send" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--uni)] text-white transition active:scale-90 disabled:opacity-40"><Send size={17} /></button>
       </div>
@@ -214,6 +224,14 @@ export default function HelpLive({ active }: { active: boolean }) {
           {previewJob.delivery_paid_at ? <Btn onClick={() => void download(previewJob)}>Download</Btn> : <Btn onClick={async () => { const ok = await rpc("pay_work_fee", { p_job: previewJob.id }); if (ok) setPreviewJob(null); }}>Pay {naira(Number(previewJob.delivery_price ?? 0))} to download</Btn>}
         </>)}
       </Sheet>
+
+      <Sheet open={attachMenu} onClose={() => setAttachMenu(false)} title="Attach">
+        <div className="space-y-2">
+          <Btn variant="ghost" onClick={() => { setAttachMenu(false); fileIn.current?.click(); }}><span className="inline-flex items-center gap-2"><Paperclip size={15} /> A file or photo</span></Btn>
+          <Btn variant="ghost" onClick={() => { setAttachMenu(false); setCourseShare(true); }}><span className="inline-flex items-center gap-2"><BookOpen size={15} /> One of my courses</span></Btn>
+        </div>
+      </Sheet>
+      <CourseShareSheet open={courseShare} onClose={() => { setCourseShare(false); void reload(); }} to={{ session: s.id }} who={wname ? first(wname) : "Unisupport"} />
 
       <Sheet open={menu} onClose={() => setMenu(false)} title={wname}>
         <p className="mb-3 text-[13px] leading-snug text-[var(--dim)]">You can message {wname ? first(wname) : "your writer"} any time, with no help desk and no new fee. Only ask for a different writer if this isn&apos;t working out.</p>
