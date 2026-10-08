@@ -49,6 +49,7 @@ export interface Settings {
   autoplay: boolean; personalTags: boolean; recs12h: boolean; readAloud: boolean; answerLength: "short" | "normal" | "detailed";
   notifChat: boolean; notifRec: boolean; notifSession: boolean; notifExplore: boolean;
   dyslexia: boolean; textSize: "s" | "m" | "l"; reduceMotion: boolean;
+  theme: "light" | "dark" | "system"; accent: "purple" | "blue" | "green" | "orange" | "pink";
   calendar: boolean; schoolApps: boolean; offline: boolean; dataSaver: boolean;
   profileVisibility: "everyone" | "followers" | "private"; whoCanChat: "everyone" | "contacts"; recordReminder: boolean; twoFactor: boolean;
   aiBrain: "spark" | "nova" | "sage"; aiTier: "quick" | "balanced" | "deep";
@@ -67,6 +68,7 @@ const defaultSettings: Settings = {
   autoplay: true, personalTags: true, recs12h: true, readAloud: true, answerLength: "normal",
   notifChat: true, notifRec: true, notifSession: true, notifExplore: false,
   dyslexia: false, textSize: "m", reduceMotion: false,
+  theme: "system", accent: "purple",
   calendar: false, schoolApps: false, offline: false, dataSaver: false,
   profileVisibility: "everyone", whoCanChat: "everyone", recordReminder: true, twoFactor: false,
   aiBrain: "spark", aiTier: "balanced",
