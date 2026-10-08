@@ -5,9 +5,11 @@
 // security boundary). Four tabs: Users (role changes), Schools (per-institution policy toggles),
 // Pricing (the quiz/writing x standard/full rate card, deadline multipliers, app config), AI
 // (provider/model enable + margin).
+import { AlertsBell, AlertsTab } from "./Alerts";
+import { ReportsCard } from "./ReportsCard";
 import { SchoolSuggestions } from "./SchoolSuggestions";
 import { BadgesTab } from "./BadgesTab";
-import { BadgeCheck, BarChart3, Building2, Cpu, Crown, LogOut, Megaphone, Printer, Sliders, Users as UsersIcon } from "lucide-react";
+import { BadgeCheck, BarChart3, Bell, Building2, Cpu, Crown, LogOut, Megaphone, Printer, Sliders, Users as UsersIcon } from "lucide-react";
 import { OrdersTab } from "./OrdersTab";
 import { adminListReps, adminSetRep, type AdminRep } from "../live/repData";
 import { SponsorsTab } from "./SponsorsTab";
@@ -72,9 +74,12 @@ function SignIn({ onDone }: { onDone: () => void }) {
 }
 
 function Workspace({ me, onOut }: { me: { id: string; name: string }; onOut: () => void }) {
-  const [tab, setTab] = useState<"activity" | "orders" | "users" | "reps" | "badges" | "sponsors" | "schools" | "pricing" | "ai">("activity");
+  const [tab, setTab] = useState<"alerts" | "activity" | "orders" | "users" | "reps" | "badges" | "sponsors" | "schools" | "pricing" | "ai">("activity");
   const { show, node } = useToast();
+  // Alerts link straight to the right tab (?tab=orders etc.).
+  useEffect(() => { void Promise.resolve().then(() => { const t = new URLSearchParams(location.search).get("tab"); if (t) setTab(t as typeof tab); }); }, []);
   const nav = [
+    { id: "alerts", label: "Alerts", icon: <Bell size={17} /> },
     { id: "activity", label: "Activity", icon: <BarChart3 size={17} /> },
     { id: "orders", label: "Orders", icon: <Printer size={17} /> },
     { id: "users", label: "Users", icon: <UsersIcon size={17} /> },
@@ -86,11 +91,13 @@ function Workspace({ me, onOut }: { me: { id: string; name: string }; onOut: () 
     { id: "ai", label: "AI models", icon: <Cpu size={17} /> },
   ];
   return (
-    <div className="mx-auto max-w-[1180px] p-6">
-      <PageTitle title="Unisupport console" sub={`Signed in as ${me.name}`} right={<button onClick={onOut} className={`${btn} flex items-center gap-1.5 bg-white`}><LogOut size={14} />Sign out</button>} />
-      <div className="mb-5 flex gap-2 border-b border-[#E6DCF0] pb-2">
-        {nav.map((n) => (<button key={n.id} onClick={() => setTab(n.id as typeof tab)} className={`${btn} flex items-center gap-2 ${tab === n.id ? "bg-[#1a1024] text-white" : "bg-white"}`}>{n.icon}{n.label}</button>))}
+    <div className="mx-auto max-w-[1180px] overflow-x-hidden p-4 md:p-6">
+      <PageTitle title="Unisupport console" sub={`Signed in as ${me.name}`} right={<div className="flex items-center gap-2"><AlertsBell onOpen={() => setTab("alerts")} /><button onClick={onOut} className={`${btn} flex items-center gap-1.5 bg-white`}><LogOut size={14} />Sign out</button></div>} />
+      {/* Tabs scroll sideways on small screens instead of running off the page. */}
+      <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto border-b border-[#E6DCF0] px-4 pb-2 md:mx-0 md:flex-wrap md:px-0">
+        {nav.map((n) => (<button key={n.id} onClick={() => setTab(n.id as typeof tab)} className={`${btn} flex shrink-0 items-center gap-2 whitespace-nowrap ${tab === n.id ? "bg-[#1a1024] text-white" : "bg-white"}`}>{n.icon}{n.label}</button>))}
       </div>
+      {tab === "alerts" && <AlertsTab show={show} go={(t) => setTab(t as typeof tab)} />}
       {tab === "activity" && <ActivityTab />}
       {tab === "orders" && <OrdersTab show={show} />}
       {tab === "users" && <UsersTab show={show} />}
@@ -274,6 +281,7 @@ function UsersTab({ show }: { show: (m: string) => void }) {
 
   return (
     <div className="space-y-4">
+      <ReportsCard show={show} />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {(["student", "writer", "support", "admin"] as Role[]).map((r) => (
           <Card key={r} pad><div className="text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">{r}s</div><div className="disp mt-1 text-[26px] font-bold">{counts[r]}</div></Card>

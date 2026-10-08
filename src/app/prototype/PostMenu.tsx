@@ -1,8 +1,8 @@
 "use client";
 
-import { Check, Lock, Pin, Plus, Trash2 } from "lucide-react";
+import { Check, Flag, Lock, Pin, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { myPlaylistsFor, playlistToggle, savePlaylist } from "./live/socialData";
+import { myPlaylistsFor, playlistToggle, reportThing, savePlaylist } from "./live/socialData";
 import { logPostEvent } from "./live/recData";
 import { useApp, type Post } from "./store";
 import { Btn, Sheet } from "./ui";
@@ -61,6 +61,7 @@ export function PostMenu({ post, open, onClose }: { post: Post; open: boolean; o
           </div>
         )}
         {isMe && post.remote && <Btn variant="ghost" onClick={() => void pin()}><span className="inline-flex items-center gap-2"><Pin size={15} /> {post.pinnedAt ? "Unpin from my channel" : "Pin to the top of my channel"}</span></Btn>}
+        {!isMe && post.remote && <button onClick={async () => { const reason = prompt("What's wrong with this post? (optional)") ?? ""; onClose(); const err = await reportThing("post", post.id, reason); flash(err ?? "Thanks. Our team will look at it."); }} className="flex w-full items-center justify-center gap-2 py-2 text-[14px] font-semibold text-[var(--dim)]"><Flag size={15} /> Report this post</button>}
         {isMe && <button onClick={() => { if (confirm("Delete this post?")) { deletePost(post.id); onClose(); } }} className="flex w-full items-center justify-center gap-2 py-2 text-[14px] font-semibold text-[var(--help)]"><Trash2 size={15} /> Delete post</button>}
         {!canPlaylist && !isMe && <p className="text-[13px] text-[var(--dim)]">Sign in to save videos to playlists.</p>}
       </div>
