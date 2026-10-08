@@ -13,8 +13,9 @@ export interface Channel {
 export interface RemotePost {
   id: string; author_id: string; kind: "video" | "text"; title: string; body: string | null; video_path: string | null;
   field: string | null; tags: string[]; duration_seconds: number | null; created_at: string;
-  youtube_id: string | null; source_name: string | null;
+  youtube_id: string | null; source_name: string | null; pinned_at: string | null;
 }
+export interface Playlist { id: string; title: string; description: string; is_public: boolean; count: number; cover: string | null; cover_kind: "youtube" | "upload" | "text" | null }
 export interface FeedPost extends RemotePost { videoUrl?: string; likes: number; liked: boolean }
 
 /** Only http(s) links are ever stored or rendered -- a `javascript:` URL in a bio link would run
@@ -109,6 +110,47 @@ export async function setLike(postId: string, userId: string, on: boolean) {
   const sb = createClient();
   if (on) await sb.from("post_likes").upsert({ post_id: postId, user_id: userId }, { onConflict: "post_id,user_id", ignoreDuplicates: true });
   else await sb.from("post_likes").delete().eq("post_id", postId).eq("user_id", userId);
+}
+
+/** Posts by id, kept in the order given (playlists, liked list). */
+export async function fetchPostsByIds(ids: string[], me?: string): Promise<FeedPost[]> {
+  if (!ids.length) return [];
+  const { data } = await createClient().from("posts").select("*").in("id", ids.slice(0, 500));
+  const byId = new Map(((data ?? []) as RemotePost[]).map((p) => [p.id, p]));
+  return withLikes(ids.map((id) => byId.get(id)).filter((p): p is RemotePost => !!p), me);
+}
+export async function fetchLikedPosts(me: string): Promise<FeedPost[]> {
+  const { data } = await createClient().from("post_likes").select("post_id").eq("user_id", me).order("created_at", { ascending: false }).limit(300);
+  return fetchPostsByIds((data ?? []).map((r) => r.post_id as string), me);
+}
+
+// ---------------- pins & playlists ----------------
+
+const rpcMsg = (e: { message?: string } | null) => (e?.message ?? "").replace(/^.*?exception:\s*/i, "");
+export async function pinPost(id: string, on: boolean): Promise<string | null> {
+  const { error } = await createClient().rpc("pin_post", { p_id: id, p_on: on });
+  return error ? rpcMsg(error) : null;
+}
+export async function listPlaylists(owner: string): Promise<Playlist[]> {
+  const { data } = await createClient().rpc("list_playlists", { p_owner: owner });
+  return (data ?? []) as Playlist[];
+}
+export async function getPlaylist(id: string): Promise<{ id: string; owner_id: string; title: string; description: string; is_public: boolean; post_ids: string[] } | null> {
+  const { data } = await createClient().rpc("get_playlist", { p_id: id });
+  return (data as never) ?? null;
+}
+export async function savePlaylist(id: string | null, title: string, description: string, isPublic: boolean): Promise<{ id?: string; error?: string }> {
+  const { data, error } = await createClient().rpc("save_playlist", { p_id: id, p_title: title, p_description: description, p_public: isPublic });
+  return error ? { error: rpcMsg(error) } : { id: data as string };
+}
+export async function deletePlaylist(id: string) { await createClient().rpc("delete_playlist", { p_id: id }); }
+export async function playlistToggle(playlist: string, post: string, on: boolean): Promise<string | null> {
+  const { error } = await createClient().rpc("playlist_toggle", { p_playlist: playlist, p_post: post, p_on: on });
+  return error ? rpcMsg(error) : null;
+}
+export async function myPlaylistsFor(post: string): Promise<{ id: string; title: string; is_public: boolean; has: boolean }[]> {
+  const { data } = await createClient().rpc("my_playlists_for", { p_post: post });
+  return (data ?? []) as { id: string; title: string; is_public: boolean; has: boolean }[];
 }
 
 // ---------------- follows ----------------

@@ -3,7 +3,8 @@
 import { ArrowLeft, CheckCheck, Flag, Link2, MessageCircle, Plus, Search, Send, Settings as Cog, UserPlus, Video } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import PostCard, { initials } from "./PostCard";
-import { naira, useApp, type Person } from "./store";
+import { naira, useApp, type Person, type Post } from "./store";
+import { LikedTab, PlaylistsTab } from "./Playlists";
 import { cleanUrl, fetchChannelStats } from "./live/socialData";
 import { Avatar, Btn, Empty, IconBtn, Screen, Segmented, Sheet, TextField } from "./ui";
 
@@ -112,7 +113,7 @@ function Thread({ id, onBack }: { id: string; onBack: () => void }) {
 function ProfileScreen({ id, onBack }: { id: string; onBack: () => void }) {
   const { personById, posts, shared, following, contacts, blocked, toggleBlock, toggleFollow, addContact, setOverlay, profile, flash, auth, loadChannel, openShared } = useApp();
   const [menu, setMenu] = useState(false);
-  const [tab, setTab] = useState<"videos" | "posts" | "courses">("videos");
+  const [tab, setTab] = useState<"videos" | "posts" | "playlists" | "courses" | "liked">("videos");
   const [stats, setStats] = useState<{ followers: number; likes: number } | null>(null);
   const isMe = id === "me";
   const p = isMe ? null : personById(id);
@@ -126,7 +127,9 @@ function ProfileScreen({ id, onBack }: { id: string; onBack: () => void }) {
 
   if (!isMe && !p) return null;
   const mine = posts.filter((x) => x.authorId === id);
-  const videos = mine.filter((x) => x.kind === "video"), texts = mine.filter((x) => x.kind === "text");
+  // Pinned posts (up to 3) sit at the top, most recently pinned first.
+  const pinnedFirst = (a: Post, b: Post) => (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0) || b.createdAt - a.createdAt;
+  const videos = mine.filter((x) => x.kind === "video").sort(pinnedFirst), texts = mine.filter((x) => x.kind === "text").sort(pinnedFirst);
   const courses = shared.filter((s) => s.ownerId === id);
   const name = isMe ? profile.name || "You" : p!.name;
   const handle = isMe ? profile.handle : p!.handle;
@@ -166,7 +169,11 @@ function ProfileScreen({ id, onBack }: { id: string; onBack: () => void }) {
               <button onClick={() => { if (!isContact) addContact(id); setOverlay({ t: "thread", id }); }} className="rounded-2xl bg-[var(--ink)] py-3 text-[14px] font-semibold text-[var(--paper)] active:scale-95">{isContact ? "Message" : "Add and message"}</button>
             </div>
           )}
-          <Segmented value={tab} onChange={setTab} options={[{ id: "videos", label: `Videos (${videos.length})` }, { id: "posts", label: `Posts (${texts.length})` }, { id: "courses", label: `Courses (${courses.length})` }]} />
+          <div className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4">{([["videos", `Videos ${videos.length}`], ["posts", `Posts ${texts.length}`], ["playlists", "Playlists"], ["courses", `Courses ${courses.length}`], ...(isMe ? [["liked", "Liked"]] : [])] as [typeof tab, string][]).map(([id, label]) => (
+            <button key={id} onClick={() => setTab(id)} className={`shrink-0 rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold transition active:scale-95 ${tab === id ? "bg-[var(--ink)] text-[var(--paper)]" : "bg-[var(--paper-dim)] text-[var(--dim)]"}`}>{label}</button>
+          ))}</div>
+          {tab === "playlists" && <PlaylistsTab ownerId={realId} isMe={isMe} />}
+          {tab === "liked" && isMe && <LikedTab />}
           {tab === "videos" && (videos.length === 0 ? <Empty title="No videos yet" text={isMe ? "Tap the mascot in Explore and choose Post to upload one." : `${name.split(" ")[0]} hasn't uploaded a video yet.`} /> : <div className="space-y-4">{videos.map((x) => (<PostCard key={x.id} post={x} onProfile={() => undefined} />))}</div>)}
           {tab === "posts" && (texts.length === 0 ? <Empty title="No posts yet" text={isMe ? "Tap the mascot in Explore and choose Post." : `${name.split(" ")[0]} hasn't written a post yet.`} /> : <div className="space-y-4">{texts.map((x) => (<PostCard key={x.id} post={x} onProfile={() => undefined} />))}</div>)}
           {tab === "courses" && (courses.length === 0 ? <Empty title="No shared courses" text={isMe ? "Share a course from Study and it shows up here." : `${name.split(" ")[0]} hasn't shared a course you can see.`} /> : (

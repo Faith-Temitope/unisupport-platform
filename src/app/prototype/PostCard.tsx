@@ -1,9 +1,10 @@
 "use client";
 
-import { Heart, Play, Volume2, VolumeX } from "lucide-react";
+import { Heart, MoreHorizontal, Pin, Play, Volume2, VolumeX } from "lucide-react";
 import { useRef, useState } from "react";
 import { useApp, type Post } from "./store";
 import { SponsoredCard, usePlacements } from "./Sponsored";
+import { PostMenu } from "./PostMenu";
 import { Avatar } from "./ui";
 
 export const ago = (t: number) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? "just now" : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`; };
@@ -11,7 +12,7 @@ export const initials = (n: string) => n.split(" ").map((x) => x[0]).slice(0, 2)
 
 /** One post per row, YouTube-style. Videos preview on hover (if Autoplay is on in Settings). */
 export default function PostCard({ post, onProfile }: { post: Post; onProfile: (id: string) => void }) {
-  const { settings, toggleLike, personById, profile, deletePost } = useApp();
+  const { settings, toggleLike, personById, profile } = useApp();
   const v = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(true);
@@ -19,6 +20,7 @@ export default function PostCard({ post, onProfile }: { post: Post; onProfile: (
   const [open, setOpen] = useState(false);
   const [ended, setEnded] = useState(false);
   const [ytOn, setYtOn] = useState(false);
+  const [menu, setMenu] = useState(false);
   const endCards = usePlacements("card", "video_end", post.kind === "video" && !post.youtubeId);
   const endCard = endCards.length ? endCards[post.id.charCodeAt(0) % endCards.length] : null;
   // One sponsor card after a long video the student actually watched (sound on), never mid-video,
@@ -72,15 +74,17 @@ export default function PostCard({ post, onProfile }: { post: Post; onProfile: (
       <div className="flex gap-3 p-3">
         <button onClick={() => !isMe && onProfile(post.authorId)} aria-label="Open profile"><Avatar initials={initials(a.name)} color={a.color} size={36} /></button>
         <div className="min-w-0 flex-1">
+          {post.pinnedAt && <div className="mb-0.5 inline-flex items-center gap-1 text-[11px] font-bold text-[var(--study)]"><Pin size={11} /> Pinned</div>}
           {post.kind === "video" && <div className="line-clamp-2 text-[14px] font-semibold leading-snug text-[var(--text)]">{post.title}</div>}
           <div className="mt-0.5 text-[12px] text-[var(--dim)]">{post.sourceName ? <>From YouTube · <b className="font-semibold text-[var(--text)]">{post.sourceName}</b></> : a.name} · {post.field} · {ago(post.createdAt)}</div>
           {post.tags.length > 0 && <div className="mt-1.5 flex flex-wrap gap-1.5">{post.tags.map((t) => (<span key={t} className="rounded-full bg-[var(--paper-dim)] px-2 py-0.5 text-[11px] font-semibold text-[var(--dim)]">#{t}</span>))}</div>}
         </div>
         <div className="flex flex-col items-center gap-1">
           <button onClick={() => toggleLike(post.id)} aria-label="Like" className="flex flex-col items-center text-[11px] font-semibold text-[var(--dim)] active:scale-90"><Heart size={18} className={post.liked ? "fill-[var(--birdie)] text-[var(--birdie)]" : ""} />{post.likes}</button>
-          {isMe && <button onClick={() => deletePost(post.id)} className="text-[10.5px] font-semibold text-[var(--help)]">Delete</button>}
+          <button onClick={() => setMenu(true)} aria-label="More options" className="text-[var(--dim)] active:scale-90"><MoreHorizontal size={18} /></button>
         </div>
       </div>
+      {menu && <PostMenu post={post} open={menu} onClose={() => setMenu(false)} />}
     </article>
   );
 }
