@@ -1,7 +1,8 @@
 "use client";
 
 import { BadgeCheck, BookmarkPlus, Search, Send, Users } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { CampusStrip, SponsoredCard, usePlacements } from "./Sponsored";
 import { topInterests } from "./engine";
 import PostCard, { initials } from "./PostCard";
 import { firstName, naira, nowTime, useApp, type SharedCourse } from "./store";
@@ -21,7 +22,10 @@ export default function Explore({ active }: { active: boolean }) {
     if (r.error === "not_available_to_you") return flash("This course is only open to students from a certain country, region or school");
     flash("Couldn't add that course. Try again.");
   }
-  const [seg, setSeg] = useState<"feed" | "courses">("feed");
+  const [seg, setSeg] = useState<"feed" | "courses" | "deals">("feed");
+  const campus = usePlacements("campus", undefined, seg === "deals");
+  const deals = usePlacements("deal", undefined, seg === "deals");
+  const feedCards = usePlacements("card", "explore", active);
   const [q, setQ] = useState("");
   const [tag, setTag] = useState("For you");
   const [detail, setDetail] = useState<string | null>(null);
@@ -68,7 +72,7 @@ export default function Explore({ active }: { active: boolean }) {
       <TopBar title={<h2 className="disp text-[24px] font-bold text-[var(--text)]">Explore</h2>} right={<button onClick={() => setOverlay({ t: "profile", id: "me" })} className="flex items-center gap-2 rounded-full bg-white py-1 pl-1 pr-3 text-[12.5px] font-semibold text-[var(--text)] ring-1 ring-[var(--line)] active:scale-95"><Avatar initials={initials(profile.name || "Me")} color="#A63FBD" size={26} />My channel</button>} />
       <div className="px-5 pb-3">
         <div className="flex items-center gap-2 rounded-2xl bg-[var(--paper-dim)] px-3.5 py-3"><Search size={16} className="text-[var(--dim)]" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search videos, posts, courses..." className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-[#a99fb8]" /></div>
-        <div className="mt-3"><Segmented value={seg} onChange={setSeg} options={[{ id: "feed", label: "Videos & posts" }, { id: "courses", label: "Shared courses" }]} /></div>
+        <div className="mt-3"><Segmented value={seg} onChange={setSeg} options={[{ id: "feed", label: "Videos & posts" }, { id: "courses", label: "Courses" }, { id: "deals", label: "Campus & deals" }]} /></div>
         {seg === "feed" && <div className="no-scrollbar mt-3 flex gap-2 overflow-x-auto">{tags.map((t) => (<button key={t} onClick={() => setTag(t)} className={`shrink-0 rounded-full px-3 py-1.5 text-[12px] font-semibold capitalize transition active:scale-95 ${tag === t ? "bg-[var(--ink)] text-[var(--paper)]" : "bg-white text-[var(--dim)] ring-1 ring-[var(--line)]"}`}>{t}</button>))}</div>}
       </div>
 
@@ -77,8 +81,22 @@ export default function Explore({ active }: { active: boolean }) {
           feed.length === 0 ? (
             <Empty icon={<Search size={20} />} title={posts.length === 0 ? "Nothing here yet" : "No matches"} text={posts.length === 0 ? "Follow creators and watch what other students post, or share something yourself. Tap the mascot and choose Post." : tag === "Following" ? "Follow a creator to see their posts here." : "Try another tag or search term."} action={<Btn variant="study" onClick={() => setOverlay({ t: "post" })}>Post something</Btn>} />
           ) : (
-            <div className="space-y-4">{feed.map((p) => (<PostCard key={p.id} post={p} onProfile={(id) => setOverlay({ t: "profile", id })} />))}</div>
+            <div className="space-y-4">{feed.map((p, i) => (<Fragment key={p.id}>
+              <PostCard post={p} onProfile={(id) => setOverlay({ t: "profile", id })} />
+              {feedCards.length > 0 && (i === 3 || (i > 3 && (i - 3) % 8 === 0)) && <SponsoredCard p={feedCards[Math.floor((i - 3) / 8) % feedCards.length]} />}
+            </Fragment>))}</div>
           )
+        ) : seg === "deals" ? (
+          <div className="space-y-5">
+            <div>
+              <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Near your campus</div>
+              {campus.length ? <CampusStrip items={campus} /> : <p className="text-[13px] text-[var(--dim)]">Food spots, printers, hostels and repair shops near your school will show up here. Add your school in Settings so we know where you are.</p>}
+            </div>
+            <div>
+              <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Student deals</div>
+              {deals.length ? <div className="space-y-3">{deals.map((d) => <SponsoredCard key={d.id} p={d} />)}</div> : <p className="text-[13px] text-[var(--dim)]">Discounts on laptops, data and gadgets for students will show up here.</p>}
+            </div>
+          </div>
         ) : (
           <div className="space-y-3">
             <Btn variant="ghost" onClick={() => (courses.length ? setShareOpen(true) : flash("Create a course in Study first"))}>Share one of my courses</Btn>

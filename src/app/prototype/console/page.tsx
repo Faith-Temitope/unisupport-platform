@@ -5,8 +5,9 @@
 // security boundary). Four tabs: Users (role changes), Schools (per-institution policy toggles),
 // Pricing (the quiz/writing x standard/full rate card, deadline multipliers, app config), AI
 // (provider/model enable + margin).
-import { BadgeCheck, BarChart3, Building2, Cpu, LogOut, Sliders, Users as UsersIcon } from "lucide-react";
+import { BadgeCheck, BarChart3, Building2, Cpu, LogOut, Megaphone, Sliders, Users as UsersIcon } from "lucide-react";
 import { adminListReps, adminSetRep, type AdminRep } from "../live/repData";
+import { SponsorsTab } from "./SponsorsTab";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { fetchActivityOverview, fetchDailySum, fetchOverview, fetchSchoolBreakdown, fetchTopWriters, type ActivityOverview, type DaySeries, type Overview, type SchoolBreakdown, type TopWriter } from "../live/analyticsData";
@@ -68,12 +69,13 @@ function SignIn({ onDone }: { onDone: () => void }) {
 }
 
 function Workspace({ me, onOut }: { me: { id: string; name: string }; onOut: () => void }) {
-  const [tab, setTab] = useState<"activity" | "users" | "reps" | "schools" | "pricing" | "ai">("activity");
+  const [tab, setTab] = useState<"activity" | "users" | "reps" | "sponsors" | "schools" | "pricing" | "ai">("activity");
   const { show, node } = useToast();
   const nav = [
     { id: "activity", label: "Activity", icon: <BarChart3 size={17} /> },
     { id: "users", label: "Users", icon: <UsersIcon size={17} /> },
     { id: "reps", label: "Reps", icon: <BadgeCheck size={17} /> },
+    { id: "sponsors", label: "Sponsors", icon: <Megaphone size={17} /> },
     { id: "schools", label: "Schools", icon: <Building2 size={17} /> },
     { id: "pricing", label: "Pricing", icon: <Sliders size={17} /> },
     { id: "ai", label: "AI models", icon: <Cpu size={17} /> },
@@ -87,6 +89,7 @@ function Workspace({ me, onOut }: { me: { id: string; name: string }; onOut: () 
       {tab === "activity" && <ActivityTab />}
       {tab === "users" && <UsersTab show={show} />}
       {tab === "reps" && <RepsTab show={show} />}
+      {tab === "sponsors" && <SponsorsTab show={show} />}
       {tab === "schools" && <SchoolsTab show={show} />}
       {tab === "pricing" && <PricingTab show={show} />}
       {tab === "ai" && <AiTab show={show} />}

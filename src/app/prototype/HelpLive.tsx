@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase";
 import { Learn, JustDoIt } from "./Help";
 import { ACCESS_LABEL, DL_LABEL, SERVICE_LABEL, UNIT_LABEL, clock, listFolder, openUrl, rpcError, safeName, sendMessage, signedUrl, uploadTo, useHelpData, type HJob, type HMessage, type HSession } from "./live/helpData";
 import { logEvent } from "./live/analyticsData";
+import { InternshipCard, usePlacements } from "./Sponsored";
 import { naira, uid, useApp } from "./store";
 import { Avatar, Btn, Sheet, TopBar } from "./ui";
 
@@ -24,7 +25,8 @@ const first = (n: string) => (n.startsWith("Dr.") ? n.split(" ")[1] : n.split(" 
 
 export default function HelpLive({ active }: { active: boolean }) {
   const { courses, setWalletOpen, balance, flash, helpIntent, clearHelpIntent, refreshWallet } = useApp();
-  void active;
+  const internships = usePlacements("internship", undefined, active);
+  const [jobsOpen, setJobsOpen] = useState(false);
   const [view, setView] = useState<"hub" | "chat" | "learn" | "jdi">("hub");
   const [activeId, setActiveId] = useState<string | null>(null);
   const { sessions, messages, jobs, loading, reload } = useHelpData(activeId);
@@ -137,7 +139,16 @@ export default function HelpLive({ active }: { active: boolean }) {
             <button onClick={() => setView("learn")} className="flex w-full items-start gap-3.5 rounded-[18px] bg-[var(--study-soft)] p-3.5 text-left active:scale-[0.98]"><BookOpenCheck className="mt-0.5 shrink-0 text-[var(--study)]" size={21} /><div><div className="disp text-[15px] font-bold">Learn (Guide Me)</div><div className="text-[12px] leading-snug text-[var(--dim)]">Birdie asks questions until it clicks. Free.</div></div></button>
             <button onClick={() => setView("jdi")} className="flex w-full items-start gap-3.5 rounded-[18px] bg-[var(--paper-dim)] p-3.5 text-left active:scale-[0.98]"><Zap className="mt-0.5 shrink-0 text-[var(--birdie)]" size={21} /><div><div className="disp text-[15px] font-bold">Just Do It</div><div className="text-[12px] leading-snug text-[var(--dim)]">Birdie drafts an answer from your notes.</div></div></button>
           </section>
+
+          <section className="space-y-2.5">
+            <div className="flex items-center justify-between"><span className="disp text-[16px] font-bold text-[var(--text)]">Internships &amp; SIWES</span>{internships.length > 2 && <button onClick={() => setJobsOpen(true)} className="text-[12.5px] font-bold text-[var(--uni)]">See all ({internships.length})</button>}</div>
+            {internships.length === 0 ? <p className="text-[12.5px] leading-snug text-[var(--dim)]">Placements and internships for students in your area will show up here. Make sure your school and region are on your profile.</p>
+              : internships.slice(0, 2).map((p) => <InternshipCard key={p.id} p={p} />)}
+          </section>
         </div>
+        <Sheet open={jobsOpen} onClose={() => setJobsOpen(false)} title="Internships & SIWES">
+          <div className="space-y-3">{internships.map((p) => <InternshipCard key={p.id} p={p} />)}</div>
+        </Sheet>
       </div>
     );
   }
