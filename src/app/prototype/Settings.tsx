@@ -31,7 +31,7 @@ const Row = ({ label, sub, onClick, danger }: { label: string; sub?: string; onC
 const Choice = ({ label, children }: { label: string; children: ReactNode }) => (<div className="border-b border-[var(--line)] py-3 last:border-0"><div className="mb-2 text-[14px] font-semibold text-[var(--text)]">{label}</div>{children}</div>);
 
 export default function Settings() {
-  const { overlay, setOverlay, profile, saveProfile, settings, setSetting, demoOn, setDemo, balance, txs, setWalletOpen, courses, folders, resetAll, flash, auth, signOut, setAuthOpen, plus, openPlus } = useApp();
+  const { overlay, setOverlay, profile, saveProfile, settings, setSetting, demoOn, setDemo, balance, txs, setWalletOpen, courses, folders, resetAll, flash, auth, signOut, setAuthOpen, plus, openPlus, setTourOpen } = useApp();
   const [sheet, setSheet] = useState<null | "profile" | "password" | "delete" | "about">(null);
   const [draft, setDraft] = useState(profile);
   const [saving, setSaving] = useState(false);
@@ -63,6 +63,7 @@ export default function Settings() {
 
             <Group icon={CreditCard} title="Wallet">
               <div className="flex items-center justify-between border-b border-[var(--line)] py-3"><div><div className="text-[12px] text-[var(--dim)]">Birdie balance</div><div className="disp text-[22px] font-bold">{naira(balance)}</div></div><button onClick={() => setWalletOpen(true)} className="rounded-xl bg-[var(--birdie)] px-4 py-2 text-[13px] font-semibold text-white active:scale-95">Top up</button></div>
+              <Row label="How Birdie works" sub="The quick tour: studying, Birdie AI, earning and more" onClick={() => setTourOpen(true)} />
               <Row label="Transactions" sub={txs.length ? `${txs.length} so far` : "Nothing yet"} onClick={() => setWalletOpen(true)} />
             </Group>
 

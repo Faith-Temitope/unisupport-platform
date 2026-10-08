@@ -47,7 +47,7 @@ function Field({ label, type = "text", value, onChange, placeholder, right }: { 
 }
 
 function AuthScreen() {
-  const { signUp, signIn, resetPassword, continueAsGuest, auth, setAuthOpen, flash } = useApp();
+  const { signUp, signIn, resetPassword, continueAsGuest, auth, setAuthOpen, flash, setTourOpen } = useApp();
   const upgrading = auth.status === "guest";
   const [mode, setMode] = useState<Mode>("welcome");
   const [name, setName] = useState(""); const [email, setEmail] = useState(""); const [pw, setPw] = useState("");
@@ -86,6 +86,7 @@ function AuthScreen() {
               <button onClick={() => setMode("signin")} className="w-full rounded-2xl border-2 border-white/20 py-3.5 text-[15px] font-semibold text-white active:scale-[0.97]">I already have an account</button>
               {upgrading ? <button onClick={() => setAuthOpen(false)} className="w-full py-3 text-[14px] font-semibold text-white/50">Not now</button>
                 : <button onClick={continueAsGuest} className="w-full py-3 text-[14px] font-semibold text-white/60 underline decoration-white/20 underline-offset-4">Continue as guest</button>}
+              <button onClick={() => setTourOpen(true)} className="mt-1 w-full rounded-2xl bg-white/10 py-3 text-[14px] font-semibold text-white">See how Birdie works</button>
               <p className="pt-1 text-center text-[11.5px] leading-snug text-white/35">{upgrading ? "" : "As a guest your work stays on this device. You can create an account any time."}</p>
             </div>
           </div>
