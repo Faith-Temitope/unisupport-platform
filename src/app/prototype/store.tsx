@@ -54,7 +54,7 @@ export interface Settings {
   aiBrain: "spark" | "nova" | "sage"; aiTier: "quick" | "balanced" | "deep";
   mascotOn: boolean; mascotChatty: boolean; dailyGoal: number;
 }
-export type Overlay = null | { t: "chats" } | { t: "thread"; id: string } | { t: "settings" } | { t: "profile"; id: string } | { t: "post" };
+export type Overlay = null | { t: "chats" } | { t: "thread"; id: string } | { t: "settings" } | { t: "profile"; id: string } | { t: "post" } | { t: "watch"; id: string };
 export interface MascotEvent { id: string; kind: Emote; text?: string }
 
 export const COLORS = ["#7C4DDB", "#A63FBD", "#4C6EF5", "#1B8A85", "#D9467E", "#E2553F"];

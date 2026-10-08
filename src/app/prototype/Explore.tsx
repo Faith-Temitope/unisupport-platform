@@ -2,13 +2,13 @@
 
 import { BadgeCheck, BookmarkPlus, Search, Send, Users } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { SponsoredCard, usePlacements } from "./Sponsored";
+import { FeedAd, usePlacements } from "./Sponsored";
 import { CampusDeals } from "./CampusDeals";
 import { CertStrip } from "./Certificates";
 import { topInterests } from "./engine";
 import PostCard, { initials } from "./PostCard";
 import { firstName, naira, nowTime, useApp, type SharedCourse } from "./store";
-import { Avatar, Btn, DemoControls, Empty, Label, Segmented, Sheet, TopBar } from "./ui";
+import { Avatar, Btn, DemoControls, Empty, Label, Segmented, Sheet } from "./ui";
 import { ShareCourseForm } from "./ShareCourseForm";
 
 export default function Explore({ active }: { active: boolean }) {
@@ -51,6 +51,17 @@ export default function Explore({ active }: { active: boolean }) {
     const t = setTimeout(() => void searchFeed(term), 350);
     return () => clearTimeout(t);
   }, [active, q, tag, searchFeed]);
+  // Header hides on scroll down, returns on scroll up.
+  const scroller = useRef<HTMLDivElement>(null);
+  const [hideHead, setHideHead] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const lastY = useRef(0);
+  const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const y = e.currentTarget.scrollTop;
+    if (y > lastY.current + 8 && y > 90) setHideHead(true);
+    else if (y < lastY.current - 8 || y < 40) setHideHead(false);
+    lastY.current = y;
+  };
   // Endless feed: the next page loads when the bottom of the list scrolls into view.
   const sentinel = useRef<HTMLDivElement>(null);
   const [feedEnd, setFeedEnd] = useState(false);
@@ -91,23 +102,34 @@ export default function Explore({ active }: { active: boolean }) {
   const filteredShared = shared.filter((s) => !q.trim() || `${s.code} ${s.name} ${s.field}`.toLowerCase().includes(q.trim().toLowerCase()));
   const sel = shared.find((s) => s.id === detail) ?? null;
 
+  const chip = (on: boolean) => `shrink-0 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition active:scale-95 ${on ? "bg-[var(--ink)] text-[var(--paper)]" : "bg-[var(--paper-dim)] text-[var(--text)]"}`;
+
   return (
     <div className="flex h-full flex-col">
-      <TopBar title={<h2 className="disp text-[24px] font-bold text-[var(--text)]">Explore</h2>} right={<button onClick={() => setOverlay({ t: "profile", id: "me" })} className="flex items-center gap-2 rounded-full bg-white py-1 pl-1 pr-3 text-[12.5px] font-semibold text-[var(--text)] ring-1 ring-[var(--line)] active:scale-95"><Avatar initials={initials(profile.name || "Me")} color="#A63FBD" size={26} />My channel</button>} />
-      <div className="px-5 pb-3">
-        <div className="flex items-center gap-2 rounded-2xl bg-[var(--paper-dim)] px-3.5 py-3"><Search size={16} className="text-[var(--dim)]" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search videos, posts, courses..." className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-[#a99fb8]" /></div>
-        <div className="mt-3"><Segmented value={seg} onChange={setSeg} options={[{ id: "feed", label: "Videos & posts" }, { id: "courses", label: "Courses" }, { id: "deals", label: "Campus & deals" }]} /></div>
-        {seg === "feed" && <div className="no-scrollbar mt-3 flex gap-2 overflow-x-auto">{tags.map((t) => (<button key={t} onClick={() => setTag(t)} className={`shrink-0 rounded-full px-3 py-1.5 text-[12px] font-semibold capitalize transition active:scale-95 ${tag === t ? "bg-[var(--ink)] text-[var(--paper)]" : "bg-white text-[var(--dim)] ring-1 ring-[var(--line)]"}`}>{t}</button>))}</div>}
-      </div>
+      <div ref={scroller} onScroll={onScroll} className="no-scrollbar relative flex-1 overflow-y-auto pb-32">
+        {/* Header slides away while scrolling down and returns on the way up, so videos get the screen. */}
+        <div className={`sticky top-0 z-20 bg-[var(--paper)] pb-2 transition-transform duration-200 ${hideHead ? "-translate-y-full" : ""}`}>
+          <div className="flex items-center gap-2 px-4 pt-2">
+            <h2 className="disp flex-1 text-[21px] font-bold text-[var(--text)]">Explore</h2>
+            <button onClick={() => setSearchOpen((o) => !o)} aria-label="Search" className="flex h-9 w-9 items-center justify-center rounded-full active:bg-[var(--paper-dim)]"><Search size={19} /></button>
+            <button onClick={() => setOverlay({ t: "profile", id: "me" })} aria-label="My channel" className="active:scale-95"><Avatar initials={initials(profile.name || "Me")} color="#A63FBD" size={30} /></button>
+          </div>
+          {(searchOpen || q) && <div className="mx-4 mt-2 flex items-center gap-2 rounded-full bg-[var(--paper-dim)] px-3.5 py-2.5"><Search size={15} className="text-[var(--dim)]" /><input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search videos, posts, courses..." className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-[#a99fb8]" />{q && <button onClick={() => { setQ(""); setSearchOpen(false); }} className="text-[12px] font-semibold text-[var(--dim)]">Clear</button>}</div>}
+          <div className="no-scrollbar mt-2 flex gap-2 overflow-x-auto px-4">
+            {([["feed", "Videos"], ["courses", "Courses"], ["deals", "Campus & deals"]] as const).map(([id, label]) => (<button key={id} onClick={() => setSeg(id)} className={chip(seg === id)}>{label}</button>))}
+            {seg === "feed" && <span className="my-1 w-px shrink-0 bg-[var(--line)]" />}
+            {seg === "feed" && tags.map((t) => (<button key={t} onClick={() => setTag(t)} className={`${chip(tag === t && t !== "For you")} capitalize`}>{t === "For you" ? "All" : t}</button>))}
+          </div>
+        </div>
 
-      <div className="no-scrollbar flex-1 overflow-y-auto px-5 pb-32">
+        <div className="px-5 pt-1">
         {seg === "feed" ? (
           feed.length === 0 ? (
             <Empty icon={<Search size={20} />} title={posts.length === 0 ? "Nothing here yet" : "No matches"} text={posts.length === 0 ? "Follow creators and watch what other students post, or share something yourself. Tap the mascot and choose Post." : tag === "Following" ? "Follow a creator to see their posts here." : "Try another tag or search term."} action={<Btn variant="study" onClick={() => setOverlay({ t: "post" })}>Post something</Btn>} />
           ) : (
-            <div className="space-y-4">{feed.map((p, i) => (<Fragment key={p.id}>
-              <PostCard post={p} onProfile={(id) => setOverlay({ t: "profile", id })} />
-              {feedCards.length > 0 && (i === 3 || (i > 3 && (i - 3) % 8 === 0)) && <SponsoredCard p={feedCards[Math.floor((i - 3) / 8) % feedCards.length]} />}
+            <div className="-mx-5 space-y-5">{feed.map((p, i) => (<Fragment key={p.id}>
+              <PostCard post={p} edge onProfile={(id) => setOverlay({ t: "profile", id })} />
+              {feedCards.length > 0 && (i === 3 || (i > 3 && (i - 3) % 8 === 0)) && <FeedAd p={feedCards[Math.floor((i - 3) / 8) % feedCards.length]} edge />}
             </Fragment>))}
               <div ref={sentinel} className="py-4 text-center text-[12px] text-[var(--dim)]">{feedEnd ? "You're all caught up" : "Loading more..."}</div>
             </div>
@@ -129,6 +151,7 @@ export default function Explore({ active }: { active: boolean }) {
             })}
           </div>
         )}
+        </div>
       </div>
 
       <Sheet open={!!sel} onClose={() => setDetail(null)} title={sel ? `${sel.code} · ${sel.name}` : ""}>
@@ -138,7 +161,7 @@ export default function Explore({ active }: { active: boolean }) {
       <ShareSheet open={shareOpen} onClose={() => setShareOpen(false)} />
 
       <DemoControls active={active} title="Explore: how it works">
-        <ul className="list-disc space-y-1.5 pl-4 text-[12.5px] leading-snug text-[var(--text)]"><li>Videos play as you hover over them (turn off in Settings)</li><li>Tags come from your courses and your Birdie chats</li><li>Tap a creator's avatar to view and follow them</li><li>Inside a shared course, use its Chat tab to talk to everyone in it</li><li>Tap the mascot and choose Post to upload a video or write a post</li></ul>
+        <ul className="list-disc space-y-1.5 pl-4 text-[12.5px] leading-snug text-[var(--text)]"><li>Tap a video to watch it, with more on the same subject underneath</li><li>Tags come from your courses and your Birdie chats</li><li>Tap a creator&apos;s avatar to view and follow them</li><li>Inside a shared course, use its Chat tab to talk to everyone in it</li><li>Tap the mascot and choose Post to upload a video or write a post</li></ul>
       </DemoControls>
     </div>
   );
