@@ -1,6 +1,6 @@
 "use client";
 
-import { CreditCard, MapPin, Zap } from "lucide-react";
+import { Copy, CreditCard, Heart, MapPin, Share2, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { naira, useApp } from "./store";
@@ -58,6 +58,21 @@ export default function Sheets() {
       setPassCfg({ price: Number(row("exam_pass_price_ngn") ?? 1000), days: Number(row("exam_pass_days") ?? 14) });
     });
   }, [walletOpen, walletLive]);
+  // Parent top-up: a private link a parent can pay into without an account.
+  const [payLink, setPayLink] = useState<string | null>(null);
+  useEffect(() => {
+    if (!walletOpen || !walletLive || payLink) return;
+    void createClient().rpc("my_topup_link").then(({ data }) => { if (data) setPayLink(`${window.location.origin}/pay/${data}`); });
+  }, [walletOpen, walletLive, payLink]);
+  async function sharePayLink() {
+    if (!payLink) return;
+    const text = `Hi, could you top up my Birdie study balance? It's only spent on study tools (AI study help, Exam Pass, course materials). You can pay here with Paystack: ${payLink}`;
+    try { if (navigator.share) await navigator.share({ text }); else { await navigator.clipboard.writeText(text); flash("Message and link copied"); } } catch { /* cancelled */ }
+  }
+  async function resetPayLink() {
+    const { data } = await createClient().rpc("reset_topup_link");
+    if (data) { setPayLink(`${window.location.origin}/pay/${data}`); flash("New link made. The old one no longer works."); }
+  }
   const passActive = !!examPassUntil && new Date(examPassUntil) > new Date();
   const repPerk = isRep && !passActive;
   async function buyPass() {
@@ -105,6 +120,17 @@ export default function Sheets() {
                 <Btn variant="birdie" disabled={passBusy} onClick={() => void buyPass()}><span className="inline-flex items-center gap-2"><Zap size={16} /> {passBusy ? "Activating..." : `Get Exam Pass -- ${naira(passCfg.price)}`}</span></Btn>
               </>
             )}
+          </div>
+        )}
+        {walletLive && (
+          <div className="mt-3 rounded-2xl border-2 border-[var(--line)] p-4">
+            <div className="flex items-center gap-2 text-[13.5px] font-bold"><Heart size={16} className="text-[var(--birdie-text)]" /> Ask a parent to pay</div>
+            <p className="mt-1 text-[12.5px] leading-snug text-[var(--dim)]">Send this link to a parent or sponsor. They pay with Paystack, no account needed, and it lands in your balance. It can only be spent on Birdie, so they know where it goes.</p>
+            <div className="mt-3 flex gap-2">
+              <Btn variant="birdie" disabled={!payLink} onClick={() => void sharePayLink()}><span className="inline-flex items-center gap-2"><Share2 size={15} /> Send link</span></Btn>
+              <button disabled={!payLink} onClick={() => { void navigator.clipboard.writeText(payLink ?? ""); flash("Link copied"); }} className="shrink-0 rounded-2xl bg-[var(--paper-dim)] px-4 text-[13px] font-semibold active:scale-95"><Copy size={15} /></button>
+            </div>
+            <button onClick={() => void resetPayLink()} className="mt-2 text-[11.5px] font-semibold text-[var(--dim)] underline">Make a new link (stops the old one)</button>
           </div>
         )}
         <div className="mb-2 mt-5 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Activity</div>
