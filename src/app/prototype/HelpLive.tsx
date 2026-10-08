@@ -10,6 +10,7 @@ import { Learn, JustDoIt } from "./Help";
 import { ACCESS_LABEL, DL_LABEL, SERVICE_LABEL, UNIT_LABEL, clock, listFolder, openUrl, rpcError, safeName, sendMessage, signedUrl, uploadTo, useHelpData, type HJob, type HMessage, type HSession } from "./live/helpData";
 import { logEvent } from "./live/analyticsData";
 import { InternshipCard, usePlacements } from "./Sponsored";
+import { TutorialsSection } from "./Tutorials";
 import { naira, uid, useApp } from "./store";
 import { Avatar, Btn, Sheet, TopBar } from "./ui";
 
@@ -139,6 +140,8 @@ export default function HelpLive({ active }: { active: boolean }) {
             <button onClick={() => setView("learn")} className="flex w-full items-start gap-3.5 rounded-[18px] bg-[var(--study-soft)] p-3.5 text-left active:scale-[0.98]"><BookOpenCheck className="mt-0.5 shrink-0 text-[var(--study)]" size={21} /><div><div className="disp text-[15px] font-bold">Learn (Guide Me)</div><div className="text-[12px] leading-snug text-[var(--dim)]">Birdie asks questions until it clicks. Free.</div></div></button>
             <button onClick={() => setView("jdi")} className="flex w-full items-start gap-3.5 rounded-[18px] bg-[var(--paper-dim)] p-3.5 text-left active:scale-[0.98]"><Zap className="mt-0.5 shrink-0 text-[var(--birdie)]" size={21} /><div><div className="disp text-[15px] font-bold">Just Do It</div><div className="text-[12px] leading-snug text-[var(--dim)]">Birdie drafts an answer from your notes.</div></div></button>
           </section>
+
+          <TutorialsSection active={active} />
 
           <section className="space-y-2.5">
             <div className="flex items-center justify-between"><span className="disp text-[16px] font-bold text-[var(--text)]">Print &amp; deliver</span><button onClick={() => openPrint({ kind: "orders" })} className="text-[12.5px] font-bold text-[var(--uni)]">My orders</button></div>
