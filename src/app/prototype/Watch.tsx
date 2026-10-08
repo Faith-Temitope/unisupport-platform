@@ -1,5 +1,6 @@
 "use client";
 
+import { HoldButton } from "./Pocket";
 import { removeOffline, saveOffline, useOfflineIndex } from "./offline";
 import { CheckCircle2, ChevronDown, Download, Heart, ListPlus, Share2, Sparkles } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
@@ -83,6 +84,7 @@ export function Watch({ id, onBack }: { id: string; onBack: () => void }) {
           <button onClick={() => toggleLike(post.id)} className="flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--paper-dim)] px-3.5 py-2 text-[13px] font-semibold"><Heart size={16} className={post.liked ? "fill-[var(--birdie)] text-[var(--birdie)]" : ""} />{post.likes || "Like"}</button>
           <button onClick={() => void share()} className="flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--paper-dim)] px-3.5 py-2 text-[13px] font-semibold"><Share2 size={16} /> Share</button>
           {post.videoUrl && !post.youtubeId && <button onClick={() => void download()} className="flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--paper-dim)] px-3.5 py-2 text-[13px] font-semibold">{saved[`video:${post.id}`] ? <><CheckCircle2 size={16} className="text-[var(--study)]" /> Downloaded</> : <><Download size={16} /> Download</>}</button>}
+          <HoldButton item={{ kind: "video", title: post.title, postId: post.id }} label=" Hold" className="flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--paper-dim)] px-3.5 py-2 text-[13px] font-semibold" />
           <button onClick={() => setSave(true)} className="flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--paper-dim)] px-3.5 py-2 text-[13px] font-semibold"><ListPlus size={16} /> Save</button>
           <button onClick={() => { onBack(); goBirdie({ courseId: "general", prompt: `Teach me the key ideas from the video "${post.title}"${post.field ? ` (${post.field})` : ""}, then quiz me on them.` }); }} className="flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--birdie-soft)] px-3.5 py-2 text-[13px] font-semibold text-[var(--birdie-text)]"><Sparkles size={16} /> Ask Birdie</button>
         </div>

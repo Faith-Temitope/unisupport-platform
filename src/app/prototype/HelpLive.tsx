@@ -2,6 +2,7 @@
 
 // Help for signed-in students, backed by Supabase: real sessions, messages, fees and files.
 // Desk agents and writers answer from the staff app (/prototype/live/staff). Nothing here is simulated.
+import { HoldButton } from "./Pocket";
 import { Linkified } from "./Linkified";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, BookOpen, Check, CheckCheck, Download, Eye, FileText, Lock, MoreVertical, Paperclip, PenLine, Pin, Printer, Send, Star, Wallet, Zap } from "lucide-react";
@@ -59,7 +60,11 @@ export default function HelpLive({ active }: { active: boolean }) {
     if (courseId) { const err = await grantCourseAccess(courseId, "view", { session: id }); if (err) flash("Couldn't attach the course"); }
     setActiveId(id); setView("chat");
   }
-  useEffect(() => { if (helpIntent) { void openDesk(helpIntent.courseId); clearHelpIntent(); } }, [helpIntent]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!helpIntent) return;
+    if (helpIntent.sessionId) { setActiveId(helpIntent.sessionId); setView("chat"); } else void openDesk(helpIntent.courseId);
+    clearHelpIntent();
+  }, [helpIntent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function send(text: string, path?: string) {
     if (!s || !text.trim()) return;
@@ -186,6 +191,7 @@ export default function HelpLive({ active }: { active: boolean }) {
             <div className="min-w-0"><div className="truncate text-[14.5px] font-bold leading-tight">{wname ?? "Unisupport Help"}</div><div className="truncate text-[11.5px] text-[var(--dim)]">{wname ? writer?.specialization ?? "Your writer" : s.phase === "fee" ? "Connecting you to a writer" : "Online · we're here to help"}</div></div>
           </motion.div>
         </AnimatePresence>
+        <HoldButton item={{ kind: "helpchat", title: wname ? `Chat with ${wname}` : "Unisupport Help", sessionId: s.id }} className="flex h-9 w-9 items-center justify-center rounded-xl text-[var(--dim)] active:scale-90" />
         {s.phase === "writer" && <button onClick={() => setMenu(true)} aria-label="Options" className="flex h-9 w-9 items-center justify-center rounded-xl text-[var(--dim)] active:scale-90"><MoreVertical size={18} /></button>}
       </div>
 

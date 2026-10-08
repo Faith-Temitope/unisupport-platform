@@ -2,7 +2,7 @@
 
 import { offlineUrl, useOfflineIndex } from "./offline";
 import { motion } from "framer-motion";
-import { ChevronDown, Pause, Play, X } from "lucide-react";
+import { ChevronDown, Pause, PictureInPicture2, Play, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { logPostEvent } from "./live/recData";
 import { useByline } from "./PostCard";
@@ -84,6 +84,10 @@ export default function Player({ bottom }: { bottom: number }) {
           )}
           {/* In the bar, tapping the picture opens the full page again (the iframe would swallow the tap). */}
           {mini && <button onClick={() => watch(post.id)} aria-label="Open video" className="absolute inset-0 z-10" />}
+          {/* Uploaded videos can float over other apps (picture in picture) and keep playing. */}
+          {!mini && post.videoUrl && !post.youtubeId && typeof document !== "undefined" && document.pictureInPictureEnabled && (
+            <button onClick={() => { void vid.current?.requestPictureInPicture().catch(() => undefined); }} aria-label="Float over other apps" className="absolute right-2 top-2 z-20 flex h-8 items-center gap-1 rounded-full bg-black/55 px-2.5 text-[11.5px] font-semibold text-white"><PictureInPicture2 size={15} /> Float</button>
+          )}
           {!mini && <button onClick={minimizeWatch} aria-label="Minimize" className="absolute left-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white"><ChevronDown size={18} /></button>}
         </motion.div>
         {mini && (

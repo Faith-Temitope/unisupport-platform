@@ -42,6 +42,15 @@ export interface Person { id: string; name: string; handle: string; field: strin
 export type Audience = "everyone" | "country" | "region" | "school";
 export interface CMsg { id: string; from: "me" | "them"; text: string; t: string; author?: string }
 export interface Post { id: string; authorId: string; kind: "video" | "text"; title: string; body?: string; videoUrl?: string; videoPath?: string; youtubeId?: string; sourceName?: string; pinnedAt?: number; field: string; tags: string[]; dur?: string; grad: string; createdAt: number; likes: number; liked: boolean; comments?: number; demo?: boolean; remote?: boolean }
+/** Something the study buddy is holding for you, to open from anywhere in the app. */
+export type PocketItem =
+  | { id: string; kind: "file"; title: string; courseId: string; fileId: string }
+  | { id: string; kind: "video"; title: string; postId: string }
+  | { id: string; kind: "chat"; title: string; personId: string }
+  | { id: string; kind: "helpchat"; title: string; sessionId: string }
+  | { id: string; kind: "note"; title: string; courseId: string; noteId: string };
+/** A pocket item before it gets an id (keeps the kinds separate). */
+export type NewPocketItem = PocketItem extends infer T ? (T extends PocketItem ? Omit<T, "id"> : never) : never;
 export type PrintIntent = { kind: "print" | "handwrite" | "orders"; file?: { name: string; path: string } };
 export type NewPost ={ kind: "video" | "text"; title: string; body?: string; field: string; tags: string[]; durationSeconds?: number; file?: File };
 export interface SharedCourse { id: string; ownerId: string; ownerName?: string; code: string; name: string; school?: string; field: string; description: string; files: string[]; members: string[]; messages: { id: string; authorId: string; text: string; t: string }[]; demo?: boolean; sourceCourseId?: string; priceNgn?: number; itemCounts?: { notes: number; files: number; recs: number } }
@@ -63,6 +72,7 @@ export type Overlay = null | { t: "chats" } | { t: "thread"; id: string } | { t:
 export interface MascotEvent { id: string; kind: Emote; text?: string }
 
 export const COLORS = ["#7C4DDB", "#A63FBD", "#4C6EF5", "#1B8A85", "#D9467E", "#E2553F"];
+const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 export const uid = () => Math.random().toString(36).slice(2, 9);
 export const nowTime = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 export const naira = (n: number) => "₦" + n.toLocaleString("en-NG");
@@ -148,7 +158,8 @@ interface AppCtx {
   toast: string | null; flash: (t: string) => void;
   birdieIntent: BirdieIntent | null; goBirdie: (i: BirdieIntent) => void; clearBirdieIntent: () => void;
   studyIntent: { courseId: string; tab?: string } | null; goStudy: (i: { courseId: string; tab?: string }) => void; clearStudyIntent: () => void;
-  helpIntent: { mode: "mentor" | "full"; courseId: string | null } | null; goHelp: (i: { mode: "mentor" | "full"; courseId: string | null }) => void; clearHelpIntent: () => void;
+  helpIntent: { mode: "mentor" | "full"; courseId: string | null; sessionId?: string } | null; goHelp: (i: { mode: "mentor" | "full"; courseId: string | null; sessionId?: string }) => void;
+  pocket: PocketItem[]; pocketAdd: (i: NewPocketItem) => void; pocketRemove: (id: string) => void; pocketOpen: boolean; setPocketOpen: (b: boolean) => void; clearHelpIntent: () => void;
   phone: HTMLElement | null; setPhone: (el: HTMLElement | null) => void; slot: HTMLElement | null; setSlot: (el: HTMLElement | null) => void;
   resetAll: () => void; resetKey: number; ready: boolean;
 }
@@ -211,6 +222,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [sharedIntent, setSharedIntent] = useState<string | null>(null);
   const [printIntent, setPrintIntent] = useState<PrintIntent | null>(null);
   const [barsHidden, setBarsHidden] = useState(false);
+  // The buddy's pocket: kept on this phone so it survives closing the app.
+  const [pocket, setPocket] = useState<PocketItem[]>([]);
+  const [pocketOpen, setPocketOpen] = useState(false);
+  useEffect(() => { void Promise.resolve().then(() => { try { const raw = localStorage.getItem("birdie-pocket"); if (raw) setPocket(JSON.parse(raw)); } catch { /* ignore */ } }); }, []);
+  const savePocket = useCallback((next: PocketItem[]) => { setPocket(next); try { localStorage.setItem("birdie-pocket", JSON.stringify(next)); } catch { /* full */ } }, []);
   // Changing screen always brings the bottom nav back.
   const setTab = useCallback((t: TabId) => { setBarsHidden(false); setTabState(t); }, [setTabState]);
   const setOverlay = useCallback((o: Overlay) => { setBarsHidden(false); setOverlayState(o); }, [setOverlayState]);
@@ -782,6 +798,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     sharedIntent, openShared: (id) => { setSharedIntent(id); setTab("explore"); }, clearSharedIntent: () => setSharedIntent(null),
     printIntent, openPrint: (i) => setPrintIntent(i), closePrint: () => setPrintIntent(null),
     barsHidden, setBarsHidden,
+    pocket, pocketOpen, setPocketOpen,
+    pocketAdd: (i) => {
+      const same = (p: PocketItem) => p.kind === i.kind && JSON.stringify({ ...p, id: "", title: "" }) === JSON.stringify({ ...i, id: "", title: "" });
+      if (pocket.some(same)) { flash("Your buddy is already holding that"); return; }
+      savePocket([{ ...i, id: uid() } as PocketItem, ...pocket].slice(0, 8));
+      emote("happy", pick(["Got it! Tap me when you need it.", "Holding it for you.", "In my pocket!"]));
+    },
+    pocketRemove: (id) => savePocket(pocket.filter((p) => p.id !== id)),
     forYou, loadForYou, topics, refreshTopics,
     watching, watch: (id) => setWatching({ id, mini: false }), minimizeWatch: () => setWatching((w) => (w ? { ...w, mini: true } : w)), closeWatch: () => setWatching(null),
     shared,
@@ -889,7 +913,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     resetKey, ready,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, refreshExamPass, isRep, refreshRep, plus, buyPlus, plusOpen, sharedIntent, printIntent, barsHidden, watching, forYou, loadForYou, topics, refreshTopics, refreshFeed, loadMoreFeed, searchFeed, loadChannel, loadPostsByIds, loadLiked, setPinned, toPost]);
+  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, refreshExamPass, isRep, refreshRep, plus, buyPlus, plusOpen, sharedIntent, printIntent, barsHidden, pocket, pocketOpen, watching, forYou, loadForYou, topics, refreshTopics, refreshFeed, loadMoreFeed, searchFeed, loadChannel, loadPostsByIds, loadLiked, setPinned, toPost]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
