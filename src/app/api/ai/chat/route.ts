@@ -10,27 +10,33 @@ import { DEFAULT_USD_NGN, brainById, modelOf, priceNgn, type Brain, type BrainMo
 // Not yet exercised against live vendor keys (none configured at the time of writing).
 
 type Msg = { role: "user" | "assistant"; content: string };
+type Img = { mime: string; data: string };
+const IMG_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_OUT = 2048;
 
 const err = (status: number, error: string, extra: Record<string, unknown> = {}) => NextResponse.json({ error, ...extra }, { status });
 
-async function callVendor(b: Brain, m: BrainModel, system: string | undefined, messages: Msg[], feature: string): Promise<{ text: string; inTok: number; outTok: number }> {
+// Photos ride along with the last user message, in each vendor's own format.
+async function callVendor(b: Brain, m: BrainModel, system: string | undefined, messages: Msg[], feature: string, images: Img[] = []): Promise<{ text: string; inTok: number; outTok: number }> {
+  const lastIdx = messages.length - 1;
   if (b.vendor === "anthropic") {
     const { default: Anthropic } = await import("@anthropic-ai/sdk");
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const r = await client.messages.create({ model: m.vendorModel, max_tokens: MAX_OUT, system, messages });
+    const msgs = messages.map((x, i) => (i === lastIdx && images.length ? { role: x.role, content: [...images.map((im) => ({ type: "image" as const, source: { type: "base64" as const, media_type: im.mime as "image/jpeg", data: im.data } })), { type: "text" as const, text: x.content }] } : x));
+    const r = await client.messages.create({ model: m.vendorModel, max_tokens: MAX_OUT, system, messages: msgs });
     const text = r.content.filter((c) => c.type === "text").map((c) => (c as { text: string }).text).join("\n");
     return { text, inTok: r.usage.input_tokens, outTok: r.usage.output_tokens };
   }
   if (b.vendor === "openai") {
     const { default: OpenAI } = await import("openai");
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const r = await client.chat.completions.create({ model: m.vendorModel, messages: [...(system ? [{ role: "system" as const, content: system }] : []), ...messages] });
+    const msgs = messages.map((x, i) => (i === lastIdx && images.length && x.role === "user" ? { role: "user" as const, content: [{ type: "text" as const, text: x.content }, ...images.map((im) => ({ type: "image_url" as const, image_url: { url: `data:${im.mime};base64,${im.data}` } }))] } : x));
+    const r = await client.chat.completions.create({ model: m.vendorModel, messages: [...(system ? [{ role: "system" as const, content: system }] : []), ...msgs] });
     return { text: r.choices[0]?.message?.content ?? "", inTok: r.usage?.prompt_tokens ?? 0, outTok: r.usage?.completion_tokens ?? 0 };
   }
   const { GoogleGenAI } = await import("@google/genai");
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  const contents = messages.map((x) => ({ role: x.role === "assistant" ? "model" : "user", parts: [{ text: x.content }] }));
+  const contents = messages.map((x, i) => ({ role: x.role === "assistant" ? "model" : "user", parts: [...(i === lastIdx ? images.map((im) => ({ inlineData: { mimeType: im.mime, data: im.data } })) : []), { text: x.content }] as never[] }));
   // Thinking tokens are billed as output. Ask for the least thinking the task allows; some models reject a level, so step up.
   const wanted = feature === "quiz" || feature === "grade" ? ["LOW"] : ["MINIMAL", "LOW"];
   let lastErr: unknown;
@@ -50,24 +56,27 @@ const transient = (e: unknown) => /503|UNAVAILABLE|overload|high demand|timeout|
 const outOfCapacity = (e: unknown) => /429|quota|rate limit|RESOURCE_EXHAUSTED/i.test(String((e as Error)?.message ?? e));
 
 /** Retry overloads; if the chosen model is busy or out of quota, use the brain's lightest tier so the student still gets an answer. */
-async function callWithRetry(b: Brain, m: BrainModel, system: string | undefined, messages: Msg[], feature: string) {
+async function callWithRetry(b: Brain, m: BrainModel, system: string | undefined, messages: Msg[], feature: string, images: Img[] = []) {
   let last: unknown;
   for (let i = 0; i < 3; i++) {
-    try { return { ...(await callVendor(b, m, system, messages, feature)), used: m }; }
+    try { return { ...(await callVendor(b, m, system, messages, feature, images)), used: m }; }
     catch (e) { last = e; if (outOfCapacity(e) || !transient(e)) break; await sleep(600 * (i + 1)); }
   }
   const quick = b.models.find((x) => x.tier === "quick");
   if (quick && quick.vendorModel !== m.vendorModel && (transient(last) || outOfCapacity(last))) {
-    try { return { ...(await callVendor(b, quick, system, messages, feature)), used: quick }; } catch (e) { last = e; }
+    try { return { ...(await callVendor(b, quick, system, messages, feature, images)), used: quick }; } catch (e) { last = e; }
   }
   throw last;
 }
 
 export async function POST(req: Request) {
-  let body: { brain?: string; tier?: string; system?: string; messages?: Msg[]; feature?: string };
+  let body: { brain?: string; tier?: string; system?: string; messages?: Msg[]; feature?: string; images?: Img[] };
   try { body = await req.json(); } catch { return err(400, "invalid_json"); }
   const { brain, tier = "balanced", system, messages, feature } = body;
   if (!brain || !Array.isArray(messages) || messages.length === 0) return err(400, "brain_and_messages_required");
+  // At most 3 photos, each a real JPEG/PNG/WebP under ~5 MB.
+  const images = (Array.isArray(body.images) ? body.images : []).slice(0, 3);
+  if (images.some((im) => !im || !IMG_TYPES.includes(im.mime) || typeof im.data !== "string" || im.data.length > 7_000_000 || !/^[A-Za-z0-9+/=]+$/.test(im.data))) return err(400, "bad_image");
 
   // 1. who is asking
   const store = await cookies();
@@ -119,7 +128,7 @@ export async function POST(req: Request) {
 
   // 3. ask the vendor
   let out: { text: string; inTok: number; outTok: number; used: BrainModel };
-  try { out = await callWithRetry(b, m, system, messages, feature ?? "chat"); }
+  try { out = await callWithRetry(b, m, system, messages, feature ?? "chat", images); }
   catch (e) {
     const msg = (e as Error).message ?? "";
     // No credits, a bad/revoked key, or the account isn't billing-enabled: this brain is down until

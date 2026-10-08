@@ -213,3 +213,21 @@ export async function postMessage(sharedId: string, authorId: string, body: stri
   const { error } = await createClient().from("shared_course_messages").insert({ shared_id: sharedId, author_id: authorId, body });
   return error ? error.message : null;
 }
+
+// ---------------- sharing a course inside a chat (view only or collaborate) ----------------
+
+export type GrantRole = "view" | "edit";
+export async function grantCourse(courseId: string, role: GrantRole, to: { grantee?: string; session?: string }): Promise<string | null> {
+  const { error } = await createClient().rpc("share_course", { p_course: courseId, p_role: role, p_grantee: to.grantee ?? null, p_session: to.session ?? null });
+  return error ? error.message.replace(/^.*?exception:\s*/i, "") : null;
+}
+export interface SharedWithMe { grant_id: string; course_id: string; code: string; name: string; role: GrantRole; owner: string }
+export async function coursesSharedWithMe(): Promise<SharedWithMe[]> {
+  const { data } = await createClient().rpc("courses_shared_with_me");
+  return (data ?? []) as SharedWithMe[];
+}
+export async function myCourseShares(courseId: string): Promise<{ grant_id: string; role: GrantRole; name: string; session_id: string | null }[]> {
+  const { data } = await createClient().rpc("my_course_shares", { p_course: courseId });
+  return (data ?? []) as never;
+}
+export async function unshareCourse(grantId: string) { await createClient().rpc("unshare_course", { p_grant: grantId }); }
