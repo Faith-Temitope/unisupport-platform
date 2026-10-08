@@ -1,5 +1,6 @@
 "use client";
 
+import { PushNudge } from "./PushToggle";
 import { offlineUrl, removeOffline, saveOffline, useOfflineIndex } from "./offline";
 import { useViewState } from "./persist";
 import { SlotAd } from "./Sponsored";
@@ -73,6 +74,7 @@ export default function Study() {
           )}
         </AnimatePresence>
 
+        {folderId === null && <PushNudge />}
         {folderId === null && <TodayCard open={setExtra} />}
         {folderId === null && <DeadlinesCard open={setExtra} />}
 

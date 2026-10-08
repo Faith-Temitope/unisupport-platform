@@ -1,5 +1,7 @@
 "use client";
 
+import { CountryPicker, RegionPicker, SchoolPicker } from "./PlacePicker";
+import { PushToggle } from "./PushToggle";
 import Buddy, { SKINS } from "@/components/brand/Buddy";
 import { Downloads } from "./Downloads";
 import { ArrowLeft, Bell, BookOpen, Bot as BotIcon, Cpu, Compass, CreditCard, Eye, FileText, Download, Lock, LogOut, Palette, PlugZap, ShieldCheck, Sparkles, Trash2, Type, UserRound, X } from "lucide-react";
@@ -100,6 +102,7 @@ export default function Settings() {
             </Group>
 
             <Group icon={Bell} title="Notifications">
+              <PushToggle />
               <Toggle on={settings.notifChat} onChange={(v) => setSetting("notifChat", v)} label="Messages" sub="People, shared courses and writers" />
               <Toggle on={settings.notifSession} onChange={(v) => setSetting("notifSession", v)} label="Writer sessions and payments" />
               <Toggle on={settings.notifRec} onChange={(v) => setSetting("notifRec", v)} label="Study recommendations" />
@@ -165,9 +168,9 @@ export default function Settings() {
           <TextField value={draft.handle} onChange={(v) => setDraft({ ...draft, handle: v.toLowerCase().replace(/[^a-z0-9._]/g, "") })} placeholder="Handle" />
           <TextField value={draft.level} onChange={(v) => setDraft({ ...draft, level: v })} placeholder="Level, e.g. 300 Level or Year 2" />
           <TextField value={draft.program} onChange={(v) => setDraft({ ...draft, program: v })} placeholder="Program, e.g. Computer Science" />
-          <TextField value={draft.institution} onChange={(v) => setDraft({ ...draft, institution: v })} placeholder="School" />
-          <TextField value={draft.country} onChange={(v) => setDraft({ ...draft, country: v })} placeholder="Country" />
-          <TextField value={draft.region ?? ""} onChange={(v) => setDraft({ ...draft, region: v })} placeholder="State or region, e.g. Lagos" />
+          <CountryPicker value={draft.country} onChange={(v) => setDraft({ ...draft, country: v, region: v === draft.country ? draft.region : "" })} />
+          <RegionPicker country={draft.country} value={draft.region ?? ""} onChange={(v) => setDraft({ ...draft, region: v })} />
+          <SchoolPicker country={draft.country} region={draft.region} value={draft.institution} onChange={(v) => setDraft({ ...draft, institution: v })} />
           <TextField multiline value={draft.bio} onChange={(v) => setDraft({ ...draft, bio: v })} placeholder="Channel description: what you post, what you study" />
           <div>
             <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Links (up to 5)</div>
