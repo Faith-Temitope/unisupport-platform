@@ -156,6 +156,7 @@ export default function HelpLive({ active }: { active: boolean }) {
             <div className="flex items-center justify-between"><span className="disp text-[16px] font-bold text-[var(--text)]">Internships &amp; SIWES</span>{internships.length > 2 && <button onClick={() => setJobsOpen(true)} className="text-[12.5px] font-bold text-[var(--uni)]">See all ({internships.length})</button>}</div>
             {internships.length === 0 ? <p className="text-[12.5px] leading-snug text-[var(--dim)]">Placements and internships for students in your area will show up here. Make sure your school and region are on your profile.</p>
               : internships.slice(0, 2).map((p) => <InternshipCard key={p.id} p={p} />)}
+            <a href="/internships" className="block text-center text-[12px] font-semibold text-[var(--dim)] underline decoration-dotted">Hiring interns? Post a placement on Birdie</a>
           </section>
 
           <SlotAd surface="help" active={active} />

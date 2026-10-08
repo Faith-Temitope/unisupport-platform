@@ -5,7 +5,8 @@
 // security boundary). Four tabs: Users (role changes), Schools (per-institution policy toggles),
 // Pricing (the quiz/writing x standard/full rate card, deadline multipliers, app config), AI
 // (provider/model enable + margin).
-import { BadgeCheck, BarChart3, Building2, Cpu, LogOut, Megaphone, Printer, Sliders, Users as UsersIcon } from "lucide-react";
+import { BadgesTab } from "./BadgesTab";
+import { BadgeCheck, BarChart3, Building2, Cpu, Crown, LogOut, Megaphone, Printer, Sliders, Users as UsersIcon } from "lucide-react";
 import { OrdersTab } from "./OrdersTab";
 import { adminListReps, adminSetRep, type AdminRep } from "../live/repData";
 import { SponsorsTab } from "./SponsorsTab";
@@ -70,13 +71,14 @@ function SignIn({ onDone }: { onDone: () => void }) {
 }
 
 function Workspace({ me, onOut }: { me: { id: string; name: string }; onOut: () => void }) {
-  const [tab, setTab] = useState<"activity" | "orders" | "users" | "reps" | "sponsors" | "schools" | "pricing" | "ai">("activity");
+  const [tab, setTab] = useState<"activity" | "orders" | "users" | "reps" | "badges" | "sponsors" | "schools" | "pricing" | "ai">("activity");
   const { show, node } = useToast();
   const nav = [
     { id: "activity", label: "Activity", icon: <BarChart3 size={17} /> },
     { id: "orders", label: "Orders", icon: <Printer size={17} /> },
     { id: "users", label: "Users", icon: <UsersIcon size={17} /> },
     { id: "reps", label: "Reps", icon: <BadgeCheck size={17} /> },
+    { id: "badges", label: "Badges", icon: <Crown size={17} /> },
     { id: "sponsors", label: "Sponsors", icon: <Megaphone size={17} /> },
     { id: "schools", label: "Schools", icon: <Building2 size={17} /> },
     { id: "pricing", label: "Pricing", icon: <Sliders size={17} /> },
@@ -92,6 +94,7 @@ function Workspace({ me, onOut }: { me: { id: string; name: string }; onOut: () 
       {tab === "orders" && <OrdersTab show={show} />}
       {tab === "users" && <UsersTab show={show} />}
       {tab === "reps" && <RepsTab show={show} />}
+      {tab === "badges" && <BadgesTab show={show} />}
       {tab === "sponsors" && <SponsorsTab show={show} />}
       {tab === "schools" && <SchoolsTab show={show} />}
       {tab === "pricing" && <PricingTab show={show} />}

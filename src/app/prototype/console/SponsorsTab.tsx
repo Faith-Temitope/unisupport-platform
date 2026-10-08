@@ -215,21 +215,21 @@ function BusinessApps({ show, onApproved }: { show: (m: string) => void; onAppro
   async function set(a: BusinessApp, status: "contacted" | "approved" | "rejected") {
     const err = await adminSetBusinessApp(a.id, status);
     if (err) return show(err);
-    show(status === "approved" ? `${a.business_name} is live in Campus & deals` : status === "contacted" ? "Marked as contacted" : "Rejected");
+    show(status === "approved" ? `${a.business_name} is live in ${a.kind === "internship" ? "Help > Internships & SIWES" : "Campus & deals"}` : status === "contacted" ? "Marked as contacted" : "Rejected");
     setRows(await adminListBusinessApps()); if (status === "approved") onApproved();
   }
   const open = rows.filter((a) => a.status === "new" || a.status === "contacted");
   const list = filter === "open" ? open : rows.filter((a) => a.status === "approved" || a.status === "rejected");
   const wa = (p: string) => `https://wa.me/${p.replace(/\D/g, "").replace(/^0/, "234")}`;
   return (
-    <Card title="Business applications & suggestions" sub="Businesses apply at /advertise (share that link). Students suggest places from Campus & deals. Call them, agree the fee, then approve." pad={false}>
+    <Card title="Business, internship applications & suggestions" sub="Businesses apply at /advertise and companies post internships at /internships (share those links). Students suggest places from Campus & deals. Call them, agree the details, then approve." pad={false}>
       <div className="flex gap-2 px-5 pt-3">{(["open", "done"] as const).map((f) => (<button key={f} onClick={() => setFilter(f)} className={`rounded-xl px-3 py-1.5 text-[12.5px] font-semibold ${filter === f ? "bg-[#1a1024] text-white" : "bg-[#F4EFF8]"}`}>{f === "open" ? `To follow up (${open.length})` : "Done"}</button>))}</div>
       {list.length === 0 ? <div className="p-6 text-center text-sm text-[var(--dim)]">Nothing here.</div> : (
         <div className="divide-y divide-[#F0EAF7]">{list.map((a) => (
           <div key={a.id} className="space-y-1 px-5 py-3.5">
-            <div className="flex flex-wrap items-center gap-2"><span className="text-[14px] font-bold">{a.business_name}</span><Pill tone={a.kind === "business" ? "purple" : "amber"}>{a.kind === "business" ? "applied" : "student suggestion"}</Pill>{a.category && <Pill tone="gray">{a.category}</Pill>}<Pill tone={a.status === "approved" ? "green" : a.status === "rejected" ? "gray" : a.status === "contacted" ? "amber" : "red"}>{a.status}</Pill></div>
+            <div className="flex flex-wrap items-center gap-2"><span className="text-[14px] font-bold">{a.business_name}</span><Pill tone={a.kind === "suggestion" ? "amber" : "purple"}>{a.kind === "internship" ? "internship / SIWES" : a.kind === "business" ? "business" : "student suggestion"}</Pill>{a.category && <Pill tone="gray">{a.category}</Pill>}<Pill tone={a.status === "approved" ? "green" : a.status === "rejected" ? "gray" : a.status === "contacted" ? "amber" : "red"}>{a.status}</Pill></div>
             <div className="text-[12.5px] text-[var(--dim)]">{[a.school, a.location].filter(Boolean).join(" · ")}{a.contact_name ? ` · ${a.contact_name}` : ""}{a.submitter ? ` · suggested by ${a.submitter}` : ""}</div>
-            {a.offer && <div className="text-[13px]">Offer: <b>{a.offer}</b>{a.discount_code ? ` · code ${a.discount_code}` : ""}</div>}
+            {a.offer && <div className="text-[13px]">{a.kind === "internship" ? "Role" : "Offer"}: <b>{a.offer}</b>{a.discount_code ? ` · code ${a.discount_code}` : ""}{a.deadline ? ` · apply by ${a.deadline}` : ""}</div>}
             {a.note && <div className="text-[13px] text-[#4a3a5e]">&ldquo;{a.note}&rdquo;</div>}
             <div className="flex flex-wrap items-center gap-2 pt-1">
               {a.phone && <a href={wa(a.phone)} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-[#DDF5EC] px-3 py-1.5 text-[12.5px] font-semibold text-[#0a7a56]">WhatsApp {a.phone}</a>}
