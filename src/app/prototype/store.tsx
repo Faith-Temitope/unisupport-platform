@@ -1,5 +1,6 @@
 "use client";
 
+import { isLowEndDevice } from "./perf";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase";
 import { recommend, type Recommendation } from "./engine";
@@ -183,7 +184,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [boot, setBootState] = useState<Boot>("splash");
   // The climbing splash plays when the app is opened, not on every refresh of an open app.
   const setBoot = useCallback((b: Boot) => { setBootState(b); if (b === "done") { try { sessionStorage.setItem("birdie-booted", "1"); } catch { /* ignore */ } } }, []);
-  useEffect(() => { void Promise.resolve().then(() => { try { if (sessionStorage.getItem("birdie-booted")) setBootState("done"); } catch { /* ignore */ } }); }, []);
+  // Weak phones skip the climb and only show the name, so the app opens fast.
+  useEffect(() => { void Promise.resolve().then(() => { try { if (sessionStorage.getItem("birdie-booted")) setBootState("done"); else if (isLowEndDevice()) setBootState("word"); } catch { /* ignore */ } }); }, []);
   const [auth, setAuth] = useState<{ status: AuthStatus; email?: string; userId?: string }>({ status: "loading" });
   const [authOpen, setAuthOpen] = useState(false);
   const [tab, setTabState] = useViewState<TabId>("tab", "study");

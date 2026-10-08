@@ -1,6 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- YouTube's own thumbnails */
+import { isSlowNetwork } from "./perf";
 import { MoreVertical, Pin } from "lucide-react";
 import { useState } from "react";
 import { useApp, type Post } from "./store";
@@ -14,6 +15,8 @@ export const ago = (t: number) => {
   return `${Math.round(d / 365)}y ago`;
 };
 export const initials = (n: string) => n.split(" ").map((x) => x[0]).slice(0, 2).join("").toUpperCase() || "?";
+// Slow or metered data: half-size thumbnails (about 12 KB instead of 30 KB) and no video previews.
+const SLOW = isSlowNetwork();
 const PALETTE = ["#7C4DDB", "#A63FBD", "#E0557A", "#2E8B6E", "#D9822B", "#3A6FD8", "#8A2FA3", "#C0392B"];
 export const colorFor = (s: string) => PALETTE[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % PALETTE.length];
 
@@ -30,8 +33,8 @@ export function Thumb({ post, rounded }: { post: Post; rounded?: boolean }) {
   const { settings } = useApp();
   return (
     <div className={`relative aspect-video w-full overflow-hidden bg-gradient-to-br ${post.grad} ${rounded ? "rounded-xl" : ""}`}>
-      {post.youtubeId ? <img src={`https://i.ytimg.com/vi/${post.youtubeId}/hqdefault.jpg`} alt="" loading="lazy" className="h-full w-full object-cover" />
-        : post.videoUrl && !settings.dataSaver ? <video src={`${post.videoUrl}#t=0.5`} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+      {post.youtubeId ? <img src={`https://i.ytimg.com/vi/${post.youtubeId}/${SLOW ? "mqdefault" : "hqdefault"}.jpg`} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+        : post.videoUrl && !settings.dataSaver && !SLOW ? <video src={`${post.videoUrl}#t=0.5`} muted playsInline preload="metadata" className="h-full w-full object-cover" />
         : null}
       {post.dur && <span className="absolute bottom-1.5 right-1.5 rounded bg-black/80 px-1.5 py-0.5 text-[11.5px] font-semibold text-white">{post.dur}</span>}
     </div>
@@ -47,7 +50,8 @@ export default function PostCard({ post, onProfile, edge }: { post: Post; onProf
   const watch = () => openWatch(post.id);
 
   return (
-    <article>
+    // Off-screen posts skip layout and painting until they're scrolled near (smoother on slow phones).
+    <article style={{ contentVisibility: "auto", containIntrinsicSize: "auto 330px" }}>
       {post.kind === "video" ? (
         <button onClick={watch} aria-label={`Watch ${post.title}`} className="block w-full active:opacity-90"><Thumb post={post} rounded={!edge} /></button>
       ) : (

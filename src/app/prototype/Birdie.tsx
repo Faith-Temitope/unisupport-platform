@@ -1,5 +1,6 @@
 "use client";
 
+import { whileVisible } from "./perf";
 import { localNotify } from "./push";
 import { useViewState } from "./persist";
 import { VideoLesson } from "./VideoLesson";
@@ -73,7 +74,7 @@ export default function Birdie({ active }: { active: boolean }) {
   useEffect(() => {
     if (!course?.sourceCourseId) return;
     loadRemoteCourseContent(course.sourceCourseId);
-    const i = setInterval(() => loadRemoteCourseContent(course.sourceCourseId!), 5000);
+    const i = setInterval(whileVisible(() => loadRemoteCourseContent(course.sourceCourseId!)), 8000);
     return () => clearInterval(i);
   }, [course?.sourceCourseId, loadRemoteCourseContent]);
   const effectiveCourse = useMemo(() => (course?.sourceCourseId ? { ...course, notes: sharedRemoteContent?.notes ?? [], files: sharedRemoteContent?.files ?? [], recs: sharedRemoteContent?.recs ?? [] } : course), [course, sharedRemoteContent]);

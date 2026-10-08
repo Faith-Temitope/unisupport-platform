@@ -38,8 +38,8 @@ export function ClimbSplash({ onDone, loop = false, scale = 1 }: { onDone?: () =
           className="absolute bottom-0 left-0" style={{ width: BOT, height: BOT }}
           initial={{ x: xs[0], y: 0 }}
           animate={{ x: xs, y: ys, scaleY: sy }}
-          transition={{ duration: 3.2, times, ease: "easeInOut", delay: 0.75, repeat: loop ? Infinity : 0, repeatDelay: 0.9 }}
-          onAnimationComplete={() => { if (loop) return; setHappy(true); setTimeout(() => onDone?.(), 1000); }}
+          transition={{ duration: 2.2, times, ease: "easeInOut", delay: 0.3, repeat: loop ? Infinity : 0, repeatDelay: 0.9 }}
+          onAnimationComplete={() => { if (loop) return; setHappy(true); setTimeout(() => onDone?.(), 450); }}
         >
           <div style={{ transformOrigin: "50% 100%" }}><Bot size={BOT} mood={happy ? "happy" : "idle"} showFeet /></div>
         </motion.div>
@@ -58,13 +58,13 @@ export function Wordmark({ onDone, size = 46 }: { onDone?: () => void; size?: nu
     <div className="flex flex-col items-center">
       <div className="flex" style={{ fontFamily: "var(--font-display), system-ui, sans-serif" }}>
         {letters.map((l, i) => (
-          <motion.span key={i} initial={{ opacity: 0, x: -14, filter: "blur(6px)" }} animate={{ opacity: 1, x: 0, filter: "blur(0px)" }} transition={{ delay: 0.15 + i * 0.16, duration: 0.55, ease: "easeOut" }}
-            onAnimationComplete={i === letters.length - 1 ? () => setTimeout(() => onDone?.(), 650) : undefined}
+          <motion.span key={i} initial={{ opacity: 0, x: -14 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 + i * 0.07, duration: 0.35, ease: "easeOut" }}
+            onAnimationComplete={i === letters.length - 1 ? () => setTimeout(() => onDone?.(), 350) : undefined}
             className="bg-gradient-to-b from-white to-[#E2B3F0] bg-clip-text font-bold text-transparent" style={{ fontSize: size, letterSpacing: "0.12em", marginRight: "-0.04em" }}>{l}</motion.span>
         ))}
       </div>
-      <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ delay: 0.2, duration: 1.2, ease: "easeOut" }} className="mt-2 h-[3px] w-full origin-left rounded-full bg-gradient-to-r from-[#C05BD6] via-[#E9B6F5] to-transparent" />
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.1, duration: 0.6 }} className="mt-3 text-[13px] font-medium tracking-wide text-white/60">Study smarter, together.</motion.div>
+      <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ delay: 0.15, duration: 0.7, ease: "easeOut" }} className="mt-2 h-[3px] w-full origin-left rounded-full bg-gradient-to-r from-[#C05BD6] via-[#E9B6F5] to-transparent" />
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5, duration: 0.4 }} className="mt-3 text-[13px] font-medium tracking-wide text-white/60">Study smarter, together.</motion.div>
     </div>
   );
 }
