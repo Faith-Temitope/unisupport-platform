@@ -10,7 +10,7 @@ const TIPS: Record<string, string[]> = {
   study: ["Add a note and I'll quiz you on it.", "Streaks are fun. Keep yours alive!", "Tap New to make a course or folder."],
   explore: ["Ooh, hover a video to preview it.", "Follow someone whose videos help you.", "Share your course with your class!"],
   birdie: ["Ask me anything from your notes.", "Try Test mode. I dare you.", "I only answer from what you've taught me."],
-  help: ["A writer can help when I can't.", "Mentor mode keeps you learning.", "Check the price in the chat first."],
+  help: ["Unisupport can help when I can't.", "Stuck? Message the help desk.", "Share a course in the chat so they see your notes."],
   any: ["Time for some water?", "Stretch your shoulders for a sec.", "You're doing great, {name}."],
 };
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
