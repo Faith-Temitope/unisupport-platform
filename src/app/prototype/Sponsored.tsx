@@ -70,6 +70,38 @@ export function SponsoredCard({ p, dark }: { p: Placement; dark?: boolean }) {
   );
 }
 
+/** Feed-sized ad, YouTube style: big picture, avatar + headline + "Sponsored · name", full-width button. */
+export function FeedAd({ p, edge }: { p: Placement; edge?: boolean }) {
+  const ref = useViewLog(p.id);
+  return (
+    <div ref={ref}>
+      {p.image_url && <button onClick={() => open(p)} className="block w-full"><img src={p.image_url} alt="" className={`aspect-video w-full object-cover ${edge ? "" : "rounded-xl"}`} /></button>}
+      <div className={`flex gap-3 pt-3 ${edge ? "px-3" : ""}`}>
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--paper-dim)] text-[13px] font-bold text-[var(--dim)]">{p.image_url ? <img src={p.image_url} alt="" className="h-full w-full object-cover" /> : p.sponsor_name.slice(0, 1)}</div>
+        <div className="min-w-0 flex-1">
+          <div className="line-clamp-2 text-[15px] font-semibold leading-snug">{p.title}</div>
+          {p.body && <div className="line-clamp-2 text-[12.5px] leading-snug text-[var(--dim)]">{p.body}</div>}
+          <div className="mt-0.5 text-[12.5px]"><b>Sponsored</b> <span className="text-[var(--dim)]">· {p.sponsor_name}</span></div>
+          {p.discount_code && <div className="mt-1.5"><CodeChip code={p.discount_code} /></div>}
+        </div>
+      </div>
+      {p.url && <div className={edge ? "px-3" : ""}><button onClick={() => open(p)} className="mt-3 w-full rounded-full bg-[var(--paper-dim)] py-2.5 text-[14px] font-semibold active:scale-[0.99]">{p.cta_label}</button></div>}
+    </div>
+  );
+}
+
+/** Slim bar under the video player (like YouTube's "Sponsored · Learn more" strip). */
+export function SponsorBar({ p }: { p: Placement }) {
+  const ref = useViewLog(p.id);
+  return (
+    <div ref={ref} className="flex items-center gap-3 border-b border-[var(--line)] px-3 py-2.5">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--paper-dim)] text-[13px] font-bold text-[var(--dim)]">{p.image_url ? <img src={p.image_url} alt="" className="h-full w-full object-cover" /> : p.sponsor_name.slice(0, 1)}</div>
+      <div className="min-w-0 flex-1"><div className="truncate text-[13.5px] font-semibold">{p.title}</div><div className="truncate text-[11.5px] text-[var(--dim)]"><b className="text-[var(--text)]">Sponsored</b> · {p.sponsor_name}</div></div>
+      {p.url && <button onClick={() => open(p)} className="shrink-0 rounded-full bg-[var(--ink)] px-4 py-2 text-[12.5px] font-semibold text-[var(--paper)] active:scale-95">{p.cta_label}</button>}
+    </div>
+  );
+}
+
 /** Compact tile for the "Near campus" strip. */
 function CampusTile({ p }: { p: Placement }) {
   const ref = useViewLog(p.id);
