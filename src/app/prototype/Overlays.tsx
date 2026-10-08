@@ -1,5 +1,6 @@
 "use client";
 
+import { reportThing } from "./live/socialData";
 import { HoldButton } from "./Pocket";
 import { ProfileBadges } from "./ProfileBadges";
 import type { Skin } from "@/components/brand/Buddy";
@@ -228,7 +229,7 @@ function ProfileScreen({ id, onBack }: { id: string; onBack: () => void }) {
       </div>
       <Sheet open={menu} onClose={() => setMenu(false)} title={`@${p?.handle ?? ""}`}>
         <div className="space-y-2">
-          <Btn variant="ghost" onClick={() => { setMenu(false); flash("Thanks. Our team will review this profile"); }}>Report this account</Btn>
+          <Btn variant="ghost" onClick={async () => { const reason = prompt("What's wrong with this account? (optional)") ?? ""; setMenu(false); const err = await reportThing("account", id, reason); flash(err ?? "Thanks. Our team will review this account."); }}>Report this account</Btn>
           <button onClick={() => { toggleBlock(id); setMenu(false); flash(blocked.includes(id) ? "Unblocked" : "Blocked. You won't see their posts or messages"); if (!blocked.includes(id)) setOverlay(null); }} className="w-full rounded-2xl py-3.5 text-[15px] font-semibold text-[var(--help)] active:scale-[0.97]">{blocked.includes(id) ? "Unblock" : "Block"}</button>
         </div>
       </Sheet>

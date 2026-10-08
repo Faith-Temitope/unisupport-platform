@@ -206,3 +206,9 @@ export async function channelByHandle(handle: string): Promise<Channel | null> {
   const { data } = await createClient().from("channels").select("*").ilike("handle", h).maybeSingle();
   return (data as Channel | null) ?? null;
 }
+
+/** Report an account, post, comment or course to the Birdie team. Returns an error message or null. */
+export async function reportThing(kind: "account" | "post" | "comment" | "course", target: string, reason?: string): Promise<string | null> {
+  const { error } = await createClient().rpc("submit_report", { p_kind: kind, p_target: target, p_reason: reason ?? null });
+  return error ? (/sign_in/.test(error.message) ? "Sign in to report" : /too_many/.test(error.message) ? "You've sent a lot of reports. Try again later." : "Couldn't send the report") : null;
+}
