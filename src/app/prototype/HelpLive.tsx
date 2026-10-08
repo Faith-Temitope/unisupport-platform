@@ -182,7 +182,7 @@ export default function HelpLive({ active }: { active: boolean }) {
         <AnimatePresence mode="wait">
           <motion.div key={wname ?? "desk"} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex min-w-0 flex-1 items-center gap-3">
             {wname ? <Avatar initials={initials(wname)} color={colorOf(wname)} size={38} online /> : <div className="disp relative flex h-[38px] w-[38px] items-center justify-center rounded-full bg-[var(--ink)] text-[16px] font-bold text-[var(--birdie)]">U<span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[var(--paper)] bg-[#3FB56B]" /></div>}
-            <div className="min-w-0"><div className="truncate text-[14.5px] font-bold leading-tight">{wname ?? "Unisupport Help Desk"}</div><div className="truncate text-[11.5px] text-[var(--dim)]">{wname ? writer?.specialization ?? s.title : s.title}</div></div>
+            <div className="min-w-0"><div className="truncate text-[14.5px] font-bold leading-tight">{wname ?? "Unisupport Help"}</div><div className="truncate text-[11.5px] text-[var(--dim)]">{wname ? writer?.specialization ?? "Your writer" : s.phase === "fee" ? "Connecting you to a writer" : "Online · we're here to help"}</div></div>
           </motion.div>
         </AnimatePresence>
         {s.phase === "writer" && <button onClick={() => setMenu(true)} aria-label="Options" className="flex h-9 w-9 items-center justify-center rounded-xl text-[var(--dim)] active:scale-90"><MoreVertical size={18} /></button>}
