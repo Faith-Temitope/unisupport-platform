@@ -7,6 +7,7 @@ import { naira, useApp } from "./store";
 import { Btn, Screen, Sheet, TextField } from "./ui";
 import { BrainPicker } from "./BrainPicker";
 import { PassPacks } from "./PassPacks";
+import { PrintOrders } from "./PrintOrders";
 
 const LEVELS = ["100 Level", "200 Level", "300 Level", "400 Level", "500 Level", "Year 1", "Year 2", "Year 3", "Year 4", "Postgraduate"];
 
@@ -140,6 +141,7 @@ export default function Sheets() {
       </Sheet>
 
       <Sheet open={brainOpen} onClose={() => setBrainOpen(false)} title="Birdie's brain"><BrainPicker /></Sheet>
+      <PrintOrders />
 
       {/* first run: a real profile instead of a made-up one */}
       <Screen open={ready && !profile.onboarded} z={90}>

@@ -3,7 +3,7 @@
 // Help for signed-in students, backed by Supabase: real sessions, messages, fees and files.
 // Desk agents and writers answer from the staff app (/prototype/live/staff). Nothing here is simulated.
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, BookOpenCheck, Check, CheckCheck, Compass, Download, Eye, FileText, Lock, MoreVertical, Paperclip, Send, Star, Wallet, Zap } from "lucide-react";
+import { ArrowLeft, BookOpenCheck, Check, CheckCheck, Compass, Download, Eye, FileText, Lock, MoreVertical, Paperclip, PenLine, Printer, Send, Star, Wallet, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { Learn, JustDoIt } from "./Help";
@@ -24,7 +24,7 @@ const colorOf = (s: string) => PALETTE[[...s].reduce((a, c) => a + c.charCodeAt(
 const first = (n: string) => (n.startsWith("Dr.") ? n.split(" ")[1] : n.split(" ")[0]);
 
 export default function HelpLive({ active }: { active: boolean }) {
-  const { courses, setWalletOpen, balance, flash, helpIntent, clearHelpIntent, refreshWallet } = useApp();
+  const { courses, setWalletOpen, balance, flash, helpIntent, clearHelpIntent, refreshWallet, openPrint } = useApp();
   const internships = usePlacements("internship", undefined, active);
   const [jobsOpen, setJobsOpen] = useState(false);
   const [view, setView] = useState<"hub" | "chat" | "learn" | "jdi">("hub");
@@ -138,6 +138,12 @@ export default function HelpLive({ active }: { active: boolean }) {
           <section className="space-y-2.5"><div className="text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Or work it out with Birdie</div>
             <button onClick={() => setView("learn")} className="flex w-full items-start gap-3.5 rounded-[18px] bg-[var(--study-soft)] p-3.5 text-left active:scale-[0.98]"><BookOpenCheck className="mt-0.5 shrink-0 text-[var(--study)]" size={21} /><div><div className="disp text-[15px] font-bold">Learn (Guide Me)</div><div className="text-[12px] leading-snug text-[var(--dim)]">Birdie asks questions until it clicks. Free.</div></div></button>
             <button onClick={() => setView("jdi")} className="flex w-full items-start gap-3.5 rounded-[18px] bg-[var(--paper-dim)] p-3.5 text-left active:scale-[0.98]"><Zap className="mt-0.5 shrink-0 text-[var(--birdie)]" size={21} /><div><div className="disp text-[15px] font-bold">Just Do It</div><div className="text-[12px] leading-snug text-[var(--dim)]">Birdie drafts an answer from your notes.</div></div></button>
+          </section>
+
+          <section className="space-y-2.5">
+            <div className="flex items-center justify-between"><span className="disp text-[16px] font-bold text-[var(--text)]">Print &amp; deliver</span><button onClick={() => openPrint({ kind: "orders" })} className="text-[12.5px] font-bold text-[var(--uni)]">My orders</button></div>
+            <button onClick={() => openPrint({ kind: "print" })} className="flex w-full items-start gap-3.5 rounded-[18px] border border-[var(--line)] bg-white p-3.5 text-left active:scale-[0.98]"><Printer className="mt-0.5 shrink-0 text-[var(--uni)]" size={21} /><div><div className="disp text-[15px] font-bold">Print my project or assignment</div><div className="text-[12px] leading-snug text-[var(--dim)]">Printed and bound. Pick it up on campus or have it delivered.</div></div></button>
+            <button onClick={() => openPrint({ kind: "handwrite" })} className="flex w-full items-start gap-3.5 rounded-[18px] border border-[var(--line)] bg-white p-3.5 text-left active:scale-[0.98]"><PenLine className="mt-0.5 shrink-0 text-[var(--uni)]" size={21} /><div><div className="disp text-[15px] font-bold">Handwrite my assignment</div><div className="text-[12px] leading-snug text-[var(--dim)]">Send the softcopy. We write it out with your name and matric number.</div></div></button>
           </section>
 
           <section className="space-y-2.5">
