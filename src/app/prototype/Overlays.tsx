@@ -37,14 +37,29 @@ function Header({ title, onBack, right }: { title: React.ReactNode; onBack: () =
 
 // ---------- Chats list + people ----------
 function ChatsScreen({ onClose }: { onClose: () => void }) {
-  const { people, contacts, following, convos, setOverlay, addContact, toggleFollow, flash, profile } = useApp();
+  const { people, contacts, following, convos, setOverlay, addContact, toggleFollow, flash, profile, findPeople } = useApp();
   const [seg, setSeg] = useState<"chats" | "people">("chats");
   const [add, setAdd] = useState(false);
   const [q, setQ] = useState("");
+  const [remote, setRemote] = useState<Person[]>([]);
   const list = contacts.map((id) => people.find((p) => p.id === id)).filter(Boolean) as Person[];
   const sorted = [...list].sort((a, b) => (convos[b.id]?.length ?? 0) - (convos[a.id]?.length ?? 0));
-  const found = people.filter((p) => !q.trim() || `${p.name} ${p.handle} ${p.field}`.toLowerCase().includes(q.trim().toLowerCase()));
-  const link = `https://birdie.app/invite/${profile.handle || "me"}`;
+  const term = q.trim().replace(/^@/, "").toLowerCase();
+  // Anyone on Birdie can be found by their username, not just people already loaded.
+  useEffect(() => {
+    if (term.length < 2) return;
+    const t = setTimeout(() => void findPeople(term).then(setRemote), 300);
+    return () => clearTimeout(t);
+  }, [term, findPeople]);
+  const local = people.filter((p) => !term || `${p.name} ${p.handle} ${p.field}`.toLowerCase().includes(term));
+  const found = term.length >= 2 ? [...local, ...remote.filter((r) => !local.some((l) => l.id === r.id))] : local.slice(0, 12);
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const link = profile.handle ? `${origin}/u/${profile.handle}` : "";
+  async function shareMe() {
+    if (!link) return flash("Your username is being set up. Try again in a moment.");
+    const text = `Chat with me on Birdie: @${profile.handle}`;
+    try { if (navigator.share) await navigator.share({ title: "Birdie", text, url: link }); else { await navigator.clipboard.writeText(`${text} ${link}`); flash("Link copied"); } } catch { /* cancelled */ }
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -72,17 +87,25 @@ function ChatsScreen({ onClose }: { onClose: () => void }) {
       </div>
 
       <Sheet open={add} onClose={() => setAdd(false)} title="Add people">
-        <div className="mb-3 flex items-center gap-2 rounded-2xl bg-[var(--paper-dim)] px-3.5 py-3"><Search size={16} className="text-[var(--dim)]" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, handle or field" className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-[#a99fb8]" /></div>
-        {found.length === 0 ? <p className="mb-3 text-[13px] leading-snug text-[var(--dim)]">{people.length === 0 ? "No one to find yet. Invite a classmate with your link below and they'll appear once they join." : "No one matches that."}</p> : (
-          <div className="mb-4 space-y-2">{found.map((p) => { const has = contacts.includes(p.id); return (
+        <div className="mb-3 rounded-2xl bg-[var(--ink)] p-4 text-white">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-white/60">Your username</div>
+          <div className="disp mt-0.5 text-[24px] font-bold">{profile.handle ? `@${profile.handle}` : "Setting up..."}</div>
+          <p className="mt-1 text-[12px] leading-snug text-white/70">Anyone on Birdie can type this to find and chat with you.</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button onClick={() => { if (profile.handle) { void navigator.clipboard?.writeText(`@${profile.handle}`); flash("Username copied"); } }} className="rounded-xl bg-white/15 py-2.5 text-[13px] font-semibold active:scale-95">Copy username</button>
+            <button onClick={() => void shareMe()} className="rounded-xl bg-white py-2.5 text-[13px] font-semibold text-[#1a1024] active:scale-95">Share my link</button>
+          </div>
+        </div>
+        <div className="mb-3 flex items-center gap-2 rounded-2xl bg-[var(--paper-dim)] px-3.5 py-3"><Search size={16} className="text-[var(--dim)]" /><input value={q} onChange={(e) => setQ(e.target.value)} autoCapitalize="none" placeholder="Type a username, e.g. @ada1234" className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-[#a99fb8]" /></div>
+        {found.length === 0 ? <p className="mb-3 text-[13px] leading-snug text-[var(--dim)]">{term.length >= 2 ? "No one with that username. Check the spelling, or send them your link." : "Ask your friend for their username (it's in their Chats > Add), or share yours."}</p> : (
+          <div className="mb-2 max-h-[40vh] space-y-2 overflow-y-auto">{found.map((p) => { const has = contacts.includes(p.id); return (
             <div key={p.id} className="flex items-center gap-3 rounded-2xl border border-[var(--line)] bg-white p-3">
-              <Avatar initials={initials(p.name)} color={p.color} size={40} />
-              <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-semibold">{p.name}</div><div className="truncate text-[11.5px] text-[var(--dim)]">@{p.handle} · {p.field}</div></div>
-              <button disabled={has} onClick={() => { addContact(p.id); flash(`${p.name.split(" ")[0]} added`); }} className="rounded-xl bg-[var(--uni)] px-3 py-2 text-[12px] font-semibold text-white active:scale-95 disabled:bg-[var(--paper-dim)] disabled:text-[var(--dim)]">{has ? "Added" : "Add"}</button>
+              <button onClick={() => { setAdd(false); setOverlay({ t: "profile", id: p.id }); }}><Avatar initials={initials(p.name)} color={p.color} size={40} /></button>
+              <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-semibold">{p.name}</div><div className="truncate text-[11.5px] text-[var(--dim)]">@{p.handle}{p.field ? ` · ${p.field}` : ""}</div></div>
+              {has ? <button onClick={() => { setAdd(false); setOverlay({ t: "thread", id: p.id }); }} className="rounded-xl bg-[var(--uni)] px-3 py-2 text-[12px] font-semibold text-white active:scale-95">Message</button>
+                : <button onClick={() => { addContact(p.id); flash(`${p.name.split(" ")[0]} added. Say hi!`); setAdd(false); setOverlay({ t: "thread", id: p.id }); }} className="rounded-xl bg-[var(--uni)] px-3 py-2 text-[12px] font-semibold text-white active:scale-95">Add &amp; chat</button>}
               <button onClick={() => toggleFollow(p.id)} className="rounded-xl bg-[var(--paper-dim)] px-3 py-2 text-[12px] font-semibold text-[var(--text)] active:scale-95">{following.includes(p.id) ? "Following" : "Follow"}</button>
             </div>); })}</div>)}
-        <Btn variant="ghost" onClick={() => { navigator.clipboard?.writeText(link).catch(() => undefined); flash("Invite link copied"); }}><span className="inline-flex items-center gap-2"><Link2 size={16} /> Copy my invite link</span></Btn>
-        <p className="mt-2 text-center text-[11.5px] text-[var(--dim)]">{link}</p>
       </Sheet>
     </div>
   );

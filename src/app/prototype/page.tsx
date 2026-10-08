@@ -24,7 +24,7 @@ const NAV: [TabId, string, typeof Compass | null][] = [["study", "Study", BookOp
 const ZOOM = { s: 0.92, m: 1, l: 1.1 } as const;
 
 function Shell() {
-  const { tab, setTab, toast, setPhone, setSlot, settings, resetAll, resetKey, skipHours, recommendation, flash, refreshWallet, setWalletOpen, barsHidden } = useApp();
+  const { tab, setTab, toast, setPhone, setSlot, settings, resetAll, resetKey, skipHours, recommendation, flash, refreshWallet, setWalletOpen, barsHidden, auth, openByHandle, setAuthOpen } = useApp();
   const show = (id: TabId) => ({ display: tab === id ? "flex" : "none" });
   // Internal tools (staff app links, timer skip, reset) stay reachable at ?dev=1 for us; real
   // users, testers and Play Store reviewers never see them.
@@ -43,6 +43,16 @@ function Shell() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Someone's username link (/u/handle -> ?u=handle): open their channel so you can add and chat.
+  useEffect(() => {
+    const u = new URLSearchParams(window.location.search).get("u");
+    if (!u) return;
+    if (auth.status === "guest" || auth.status === "out") { setAuthOpen(true); return; }
+    if (auth.status !== "in") return;
+    window.history.replaceState(null, "", window.location.pathname);
+    void openByHandle(u).then((ok) => { if (!ok) flash(`No one on Birdie is called @${u}`); });
+  }, [auth.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Coming back from the Paystack checkout: confirm the payment and credit the wallet.
   useEffect(() => {
