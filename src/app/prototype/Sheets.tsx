@@ -1,6 +1,7 @@
 "use client";
 
-import { Copy, CreditCard, Heart, MapPin, Share2, Zap } from "lucide-react";
+import { PlusCard, PlusSheet } from "./Plus";
+import { Copy, CreditCard, Heart, MapPin, Share2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { naira, useApp } from "./store";
@@ -42,7 +43,7 @@ const TZ_COUNTRY: Record<string, string> = {
 const detectCountry = () => { try { return TZ_COUNTRY[Intl.DateTimeFormat().resolvedOptions().timeZone] ?? ""; } catch { return ""; } };
 
 export default function Sheets() {
-  const { walletOpen, setWalletOpen, brainOpen, setBrainOpen, balance, txs, topUp, topUpLive, flash, profile, setProfile, ready, walletLive, examPassUntil, buyExamPass, isRep } = useApp();
+  const { walletOpen, setWalletOpen, brainOpen, setBrainOpen, balance, txs, topUp, topUpLive, flash, profile, setProfile, ready, walletLive } = useApp();
   const [amt, setAmt] = useState(20000);
   const [payBusy, setPayBusy] = useState(false);
   async function payWithPaystack() {
@@ -51,15 +52,6 @@ export default function Sheets() {
     setPayBusy(false);
     if (url) window.location.href = url;
   }
-  const [passCfg, setPassCfg] = useState({ price: 1000, days: 14 });
-  const [passBusy, setPassBusy] = useState(false);
-  useEffect(() => {
-    if (!walletOpen || !walletLive) return;
-    void createClient().from("app_config").select("key,value").in("key", ["exam_pass_price_ngn", "exam_pass_days"]).then(({ data }) => {
-      const row = (k: string) => (data ?? []).find((x) => x.key === k)?.value;
-      setPassCfg({ price: Number(row("exam_pass_price_ngn") ?? 1000), days: Number(row("exam_pass_days") ?? 14) });
-    });
-  }, [walletOpen, walletLive]);
   // Parent top-up: a private link a parent can pay into without an account.
   const [payLink, setPayLink] = useState<string | null>(null);
   useEffect(() => {
@@ -75,15 +67,6 @@ export default function Sheets() {
     const { data } = await createClient().rpc("reset_topup_link");
     if (data) { setPayLink(`${window.location.origin}/pay/${data}`); flash("New link made. The old one no longer works."); }
   }
-  const passActive = !!examPassUntil && new Date(examPassUntil) > new Date();
-  const repPerk = isRep && !passActive;
-  async function buyPass() {
-    setPassBusy(true);
-    const r = await buyExamPass();
-    setPassBusy(false);
-    if (!r.ok) { flash(/insufficient_funds/.test(r.error ?? "") ? "Top up first, then get your Exam Pass" : (r.error ?? "Couldn't buy the Exam Pass")); return; }
-    flash(`Exam Pass active for ${passCfg.days} days -- unlimited Birdie AI`);
-  }
   const [f, setF] = useState({ name: "", level: "", program: "", country: "" });
   const [detected, setDetected] = useState("");
   useEffect(() => { const c = detectCountry(); setDetected(c); setF((x) => ({ ...x, country: c })); }, []);
@@ -96,6 +79,7 @@ export default function Sheets() {
 
   return (
     <>
+      <PlusSheet />
       <Sheet open={walletOpen} onClose={() => setWalletOpen(false)} title="Your Birdie balance">
         <div className="rounded-[20px] bg-[var(--ink)] p-4 text-[var(--paper)]"><div className="text-[11px] font-semibold uppercase tracking-wider text-white/50">Available</div><div className="disp text-[30px] font-bold">{naira(balance)}</div></div>
         {walletLive ? (<>
@@ -109,22 +93,7 @@ export default function Sheets() {
           <Btn variant="birdie" onClick={() => { topUp(amt); setWalletOpen(false); flash(`Loaded ${naira(amt)}`); }}><span className="inline-flex items-center gap-2"><CreditCard size={16} /> Add {naira(amt)} (demo)</span></Btn>
           <p className="mt-2 text-center text-[11.5px] text-[var(--dim)]">Guest mode uses demo money. Create an account for a real balance.</p>
         </>)}
-        {walletLive && (
-          <div className={`mt-4 rounded-2xl border-2 p-4 ${passActive || repPerk ?"border-[var(--birdie)] bg-[var(--birdie-soft)]" : "border-[var(--line)]"}`}>
-            <div className="flex items-center gap-2 text-[13.5px] font-bold"><Zap size={16} className="text-[var(--birdie-text)]" /> Exam Pass</div>
-            {repPerk ? (
-              <p className="mt-1 text-[12.5px] text-[var(--birdie-text)]">Included free while you&apos;re a course rep. Unlimited Birdie AI, every brain, no charges.</p>
-            ) : passActive ? (
-              <p className="mt-1 text-[12.5px] text-[var(--birdie-text)]">Active until {new Date(examPassUntil!).toLocaleDateString([], { month: "short", day: "numeric" })}. Unlimited Birdie AI, every brain, no charges.</p>
-            ) : (
-              <>
-                <p className="mt-1 text-[12.5px] leading-snug text-[var(--dim)]">{naira(passCfg.price)} for {passCfg.days} days of unlimited Birdie AI, in test and exam mode too. Pays from your balance above.</p>
-                <Btn variant="birdie" disabled={passBusy} onClick={() => void buyPass()}><span className="inline-flex items-center gap-2"><Zap size={16} /> {passBusy ? "Activating..." : `Get Exam Pass -- ${naira(passCfg.price)}`}</span></Btn>
-              </>
-            )}
-            <PassPacks />
-          </div>
-        )}
+        {walletLive && <div className="mt-4"><PlusCard><PassPacks /></PlusCard></div>}
         {walletLive && (
           <div className="mt-3 rounded-2xl border-2 border-[var(--line)] p-4">
             <div className="flex items-center gap-2 text-[13.5px] font-bold"><Heart size={16} className="text-[var(--birdie-text)]" /> Ask a parent to pay</div>

@@ -25,7 +25,7 @@ const NAV: [TabId, string, typeof Compass | null][] = [["study", "Study", BookOp
 const ZOOM = { s: 0.92, m: 1, l: 1.1 } as const;
 
 function Shell() {
-  const { tab, setTab, toast, setPhone, setSlot, settings, resetAll, resetKey, skipHours, recommendation, flash, refreshWallet, setWalletOpen, barsHidden, auth, openByHandle, setAuthOpen } = useApp();
+  const { tab, setTab, toast, setPhone, setSlot, settings, resetAll, resetKey, skipHours, recommendation, flash, refreshWallet, setWalletOpen, barsHidden, auth, openByHandle, setAuthOpen, plus } = useApp();
   const show = (id: TabId) => ({ display: tab === id ? "flex" : "none" });
   // Internal tools (staff app links, timer skip, reset) stay reachable at ?dev=1 for us; real
   // users, testers and Play Store reviewers never see them.
@@ -73,7 +73,7 @@ function Shell() {
 
   return (
     <MotionConfig reducedMotion={settings.reduceMotion ? "always" : "user"}>
-      <div className={`min-h-[100dvh] w-full ${dark ? "bg-[#0B0810]" : "bg-[#EAE2F2]"} lg:flex lg:items-center lg:justify-center lg:px-4 lg:py-8`} style={accentVars(settings.accent)}>
+      <div className={`min-h-[100dvh] w-full ${dark ? "bg-[#0B0810]" : "bg-[#EAE2F2]"} lg:flex lg:items-center lg:justify-center lg:px-4 lg:py-8`} style={accentVars(plus ? settings.accent : "purple")}>
         <div className="mx-auto flex w-full max-w-[980px] flex-col items-center gap-8 lg:flex-row lg:items-start lg:justify-center">
           <div className="h-[100dvh] w-full overflow-hidden bg-[var(--ink)] lg:h-[844px] lg:w-[390px] lg:max-w-full lg:shrink-0 lg:rounded-[48px] lg:p-[14px] lg:shadow-[0_40px_80px_-20px_rgba(40,10,70,0.55)]">
             <div ref={setPhone} className={`relative h-full w-full overflow-hidden bg-[var(--paper)] text-[var(--text)] lg:rounded-[34px] ${settings.dyslexia ? "dys" : ""} ${dark ? "theme-dark" : ""}`} style={{ zoom: ZOOM[settings.textSize] }}>

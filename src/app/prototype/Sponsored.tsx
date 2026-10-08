@@ -8,15 +8,16 @@ import { fetchPlacements, logPlacement, type Placement, type PlacementKind, type
 import { useApp } from "./store";
 
 export function usePlacements(kind: PlacementKind, surface?: Surface, enabled = true) {
-  const { auth } = useApp();
+  const { auth, plus } = useApp();
   const [items, setItems] = useState<Placement[]>([]);
   useEffect(() => {
-    if (!enabled || auth.status !== "in") return;
+    // Birdie Plus has no ads. Internships, campus listings and deals are content, so they stay.
+    if (!enabled || auth.status !== "in" || (kind === "card" && plus)) return;
     let dead = false;
     void fetchPlacements(kind, surface).then((d) => { if (!dead) setItems(d); });
     return () => { dead = true; };
-  }, [kind, surface, enabled, auth.status]);
-  return items;
+  }, [kind, surface, enabled, auth.status, plus]);
+  return kind === "card" && plus ? [] : items;
 }
 
 /** Counts a view once the placement is actually on screen (at least half visible), not just mounted. */

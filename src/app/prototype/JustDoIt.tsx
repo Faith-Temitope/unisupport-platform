@@ -36,7 +36,7 @@ const SYSTEM = (material: string) => [
  * answers it. Free on Spark (Gemini, daily allowance); Nova and Sage charge your wallet per answer.
  */
 export function JustDoIt({ onBack }: { onBack: () => void }) {
-  const { courses, settings, setSetting, setWalletOpen, refreshWallet, addNote, goBirdie, flash } = useApp();
+  const { courses, settings, setSetting, setWalletOpen, refreshWallet, addNote, goBirdie, flash, openPlus } = useApp();
   const [courseId, setCourseId] = useState<string | null>(null);
   const [docIdx, setDocIdx] = useState<number | null>(null);
   const [task, setTask] = useState("");
@@ -64,6 +64,7 @@ export function JustDoIt({ onBack }: { onBack: () => void }) {
     const r = await askAI({ brain: brain.id, tier: "balanced", system: SYSTEM(material), messages: [{ role: "user", content: question }], feature: "just_do_it", images: photo ? [photo.img] : undefined });
     setBusy(false);
     if (r.ok) { setResult(stripMarkdown(r.text)); if (r.charged_ngn) { flash(`${naira(r.charged_ngn)} used`); void refreshWallet(); } return; }
+    if (r.code === "plus") { openPlus(r.message); return; }
     if (r.code === "insufficient_funds") { flash(`Top up to use ${brain.brand}, or switch to Spark (free)`); setWalletOpen(true); return; }
     if (r.code === "free_allowance_used") { flash(r.message); return; }
     if (r.code === "not_configured") { flash(`${brain.brand} isn't switched on yet. Use Spark.`); setSetting("aiBrain", "spark"); return; }

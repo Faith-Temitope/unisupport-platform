@@ -23,7 +23,7 @@ const SPOKEN_KEY = "birdie-gossip";
  * They show up when the chat opens and whenever a new message lands. Tap to shoo them away.
  */
 export function MascotMeet({ them, themName, themColor, beat }: { them: Skin; themName: string; themColor: string; beat: number }) {
-  const { settings, profile } = useApp();
+  const { settings, profile, plus } = useApp();
   const [shown, setShown] = useState(false);
   const [line, setLine] = useState<{ who: 0 | 1; text: string } | null>(null);
 
@@ -50,7 +50,7 @@ export function MascotMeet({ them, themName, themColor, beat }: { them: Skin; th
           <motion.div initial={{ x: -120 }} animate={{ x: 0 }} exit={{ x: -140 }} transition={{ type: "spring", damping: 16 }} className="relative">
             {line?.who === 0 && <Bubble text={line.text} side="left" />}
             <motion.div animate={line?.who === 0 ? { y: [0, -4, 0] } : {}} transition={{ duration: 0.4, repeat: 2 }}>
-              <Buddy skin={settings.mascotSkin} size={46} talking={line?.who === 0} mood={line ? "happy" : "idle"} initials={initials(profile.name || "Me")} />
+              <Buddy skin={plus ? settings.mascotSkin : "robot"} size={46} talking={line?.who === 0} mood={line ? "happy" : "idle"} initials={initials(profile.name || "Me")} />
             </motion.div>
           </motion.div>
           <motion.div initial={{ x: 120 }} animate={{ x: 0 }} exit={{ x: 140 }} transition={{ type: "spring", damping: 16 }} className="relative">

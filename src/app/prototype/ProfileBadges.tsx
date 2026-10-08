@@ -10,6 +10,7 @@ import { Sheet } from "./ui";
 /** Every badge Birdie can show on a channel, like Discord/Webnovel profile badges. */
 export const BADGE_INFO: Record<string, { label: string; desc: string; Icon: LucideIcon; bg: string }> = {
   founding_creator: { label: "Founding Creator", desc: "One of the first creators on Birdie. This badge is never given again once the programme closes.", Icon: Crown, bg: "linear-gradient(135deg,#F7C948,#E8892B)" },
+  plus: { label: "Birdie Plus", desc: "Supports Birdie with a Plus membership.", Icon: Crown, bg: "linear-gradient(135deg,#F7C948,#C9971F)" },
   team: { label: "Birdie team", desc: "Works on Birdie.", Icon: ShieldCheck, bg: "linear-gradient(135deg,#C05BD6,#7B2A91)" },
   unisupport: { label: "Unisupport", desc: "Unisupport help desk or writer.", Icon: BadgeCheck, bg: "linear-gradient(135deg,#7C4DDB,#4C2FA3)" },
   verified: { label: "Verified", desc: "Checked and verified by the Birdie team.", Icon: BadgeCheck, bg: "linear-gradient(135deg,#3A8DFF,#1F5FD1)" },

@@ -19,7 +19,7 @@ Start with what the topic is and why it matters, build up step by step with an e
 
 /** Birdie writes a lesson and plays it as narrated slides, using the phone's own voice. Free to replay. */
 export function VideoLesson({ course, onClose }: { course: Course | null; onClose: () => void }) {
-  const { settings, addNote, flash, refreshWallet } = useApp();
+  const { settings, addNote, flash, refreshWallet, openPlus } = useApp();
   const [topic, setTopic] = useState("");
   const [slides, setSlides] = useState<Slide[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -35,6 +35,7 @@ export function VideoLesson({ course, onClose }: { course: Course | null; onClos
     const material = course ? contextFor(docsOf(course), t).text : "";
     const r = await askAI({ brain: brain.id, tier: "balanced", system: LESSON_SYSTEM(material, t), messages: [{ role: "user", content: "Make the lesson now." }], feature: "lesson" });
     setBusy(false);
+    if (!r.ok && r.code === "plus") return openPlus(r.message);
     if (!r.ok) return flash(r.code === "insufficient_funds" ? "Top up, or switch Birdie to Spark (free)" : r.message);
     if (r.charged_ngn) void refreshWallet();
     const list = sanitizeDeep(parseJson<Slide[]>(r.text));

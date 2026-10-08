@@ -26,7 +26,7 @@ const S = 64, RIGHT = 10, BOTTOM = 232;
  * out a bed and naps if it's sulking), and covers its eyes while you type, though it might peek.
  */
 export default function Mascot() {
-  const { tab, phone, overlay, setOverlay, setRecorderOpen, mascotEvent, settings, profile, focusEndsAt } = useApp();
+  const { tab, phone, overlay, setOverlay, setRecorderOpen, mascotEvent, settings, profile, focusEndsAt, plus } = useApp();
   const x = useMotionValue(0), y = useMotionValue(0);
   const [mood, setMood] = useState<Mood>("idle");
   const [bubble, setBubble] = useState<{ text: string; id: number } | null>(null);
@@ -57,8 +57,9 @@ export default function Mascot() {
   const typing = useRef(false);
   const st = useRef({ open: false, overlay: false, focus: false, tab: tab as string, chatty: true, name: "" });
   st.current = { open, overlay: !!overlay, focus: !!focusEndsAt, tab, chatty: settings.mascotChatty, name: firstName(profile) };
-  const skin = settings.mascotSkin ?? "robot";
-  const board = !!settings.mascotBoard;
+  // Extra looks and the sign board are Birdie Plus.
+  const skin = plus ? settings.mascotSkin ?? "robot" : "robot";
+  const board = plus && !!settings.mascotBoard;
 
   const later = useCallback((fn: () => void, ms: number) => { timers.current.push(setTimeout(fn, ms)); }, []);
   useEffect(() => () => { timers.current.forEach(clearTimeout); ctl.current?.stop(); }, []);
