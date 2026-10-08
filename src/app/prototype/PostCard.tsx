@@ -44,7 +44,6 @@ export default function PostCard({ post, onProfile, edge }: { post: Post; onProf
   const [open, setOpen] = useState(false);
   const [menu, setMenu] = useState(false);
   const by = useByline(post);
-  const isMe = post.authorId === "me";
   const watch = () => openWatch(post.id);
 
   return (

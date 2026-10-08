@@ -4,7 +4,7 @@ import { ChevronDown, Heart, ListPlus, Share2, Sparkles } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import PostCard, { ago, initials, useByline } from "./PostCard";
 import { PostMenu } from "./PostMenu";
-import { FeedAd, SponsorBar, usePlacements } from "./Sponsored";
+import { FeedAd, SlotAd, SponsorBar, usePlacements } from "./Sponsored";
 import { useApp } from "./store";
 import { CommentsPreview } from "./Comments";
 import { logPostEvent } from "./live/recData";
@@ -78,6 +78,7 @@ export function Watch({ id, onBack }: { id: string; onBack: () => void }) {
 
         <CommentsPreview post={post} onProfile={(pid) => { onBack(); setOverlay({ t: "profile", id: pid }); }} />
 
+        <div className="mx-3 mt-4"><SlotAd surface="watch" /></div>
         <div className="mt-5 px-3 text-[15px] font-bold">Up next</div>
         <div className="mt-3 space-y-5">{upNext.map((p, i) => (
           <Fragment key={p.id}>

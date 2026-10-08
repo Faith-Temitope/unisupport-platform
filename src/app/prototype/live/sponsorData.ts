@@ -5,7 +5,8 @@
 import { createClient } from "@/lib/supabase";
 
 export type PlacementKind = "campus" | "deal" | "internship" | "card";
-export type Surface = "birdie" | "video_end" | "explore";
+export type Surface = "birdie" | "video_end" | "explore" | "study" | "help" | "courses" | "watch";
+export type MediaKind = "none" | "image" | "video" | "pdf";
 export const CAMPUS_CATEGORIES = ["Food", "Printing", "Hostels", "Repairs", "Fashion & laundry", "Transport", "Data & gadgets", "Other"];
 export const DEAL_CATEGORIES = ["Laptops & phones", "Data & airtime", "Food", "Courses & books", "Fashion", "Other"];
 
@@ -13,6 +14,8 @@ export interface Placement {
   id: string; sponsor_name: string; kind: PlacementKind; surface: Surface | null; category: string | null; title: string; body: string;
   cta_label: string; url: string | null; image_url: string | null; discount_code: string | null;
   company: string | null; location: string | null; deadline: string | null;
+  /** A flyer/picture, a video or a PDF the sponsor sent. */
+  media_kind?: MediaKind; media_url?: string | null;
 }
 export interface AdminPlacement extends Placement {
   sponsor_contact: string | null; countries: string[]; regions: string[]; schools: string[];

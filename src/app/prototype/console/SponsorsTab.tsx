@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- previews of uploaded sponsor media */
 
 // Sponsored placements: create/edit what sponsors get, target it, and pull the numbers that sell
 // the renewal. Everything goes through admin_* functions (admins only, checked server-side).
@@ -6,7 +7,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { CertsSection } from "./CertsSection";
 import { cleanUrl } from "../live/socialData";
-import { CAMPUS_CATEGORIES, DEAL_CATEGORIES, adminDeletePlacement, adminListBusinessApps, adminListPlacements, adminSavePlacement, adminSetBusinessApp, type AdminPlacement, type BusinessApp, type PlacementKind, type Surface } from "../live/sponsorData";
+import { CAMPUS_CATEGORIES, DEAL_CATEGORIES, adminDeletePlacement, adminListBusinessApps, adminListPlacements, adminSavePlacement, adminSetBusinessApp, type AdminPlacement, type BusinessApp, type MediaKind, type PlacementKind, type Surface } from "../live/sponsorData";
 import { Btn2, Card, Pill, Switch } from "../staff/kit";
 
 const KINDS: { id: PlacementKind; label: string; where: string }[] = [
@@ -15,20 +16,24 @@ const KINDS: { id: PlacementKind; label: string; where: string }[] = [
   { id: "internship", label: "Internship / SIWES", where: "Help > Internships & SIWES (hidden after the deadline)" },
   { id: "card", label: "Sponsored card", where: "Birdie new chat, end of long videos, or the Explore feed" },
 ];
-const SURFACES: { id: Surface; label: string }[] = [{ id: "birdie", label: "Birdie (new chat)" }, { id: "video_end", label: "End of long videos" }, { id: "explore", label: "Explore feed" }];
+const SURFACES: { id: Surface; label: string }[] = [
+  { id: "explore", label: "Explore feed" }, { id: "watch", label: "Under a video" }, { id: "video_end", label: "End of long videos" }, { id: "courses", label: "Explore > Courses" },
+  { id: "birdie", label: "Birdie (new chat)" }, { id: "study", label: "Study home" }, { id: "help", label: "Help" },
+];
 
 type Draft = {
   id?: string; sponsor_name: string; sponsor_contact: string; kind: PlacementKind; surface: Surface | ""; category: string; title: string; body: string;
   cta_label: string; url: string; image_url: string; discount_code: string; company: string; location: string; deadline: string;
+  media_kind: MediaKind; media_url: string;
   countries: string; regions: string; schools: string; starts_at: string; ends_at: string; active: boolean; priority: string;
 };
-const blank: Draft = { sponsor_name: "", sponsor_contact: "", kind: "campus", surface: "", category: "", title: "", body: "", cta_label: "", url: "", image_url: "", discount_code: "", company: "", location: "", deadline: "", countries: "", regions: "", schools: "", starts_at: "", ends_at: "", active: true, priority: "0" };
+const blank: Draft = { sponsor_name: "", sponsor_contact: "", kind: "campus", surface: "", category: "", title: "", body: "", cta_label: "", url: "", image_url: "", discount_code: "", company: "", location: "", deadline: "", media_kind: "none", media_url: "", countries: "", regions: "", schools: "", starts_at: "", ends_at: "", active: true, priority: "0" };
 const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 const fromRow = (p: AdminPlacement): Draft => ({
   id: p.id, sponsor_name: p.sponsor_name, sponsor_contact: p.sponsor_contact ?? "", kind: p.kind, surface: p.surface ?? "", category: p.category ?? "", title: p.title, body: p.body,
   cta_label: p.cta_label, url: p.url ?? "", image_url: p.image_url ?? "", discount_code: p.discount_code ?? "", company: p.company ?? "", location: p.location ?? "",
-  deadline: p.deadline ?? "", countries: p.countries.join(", "), regions: p.regions.join(", "), schools: p.schools.join(", "),
+  deadline: p.deadline ?? "", media_kind: p.media_kind ?? "none", media_url: p.media_url ?? "", countries: p.countries.join(", "), regions: p.regions.join(", "), schools: p.schools.join(", "),
   starts_at: day(p.starts_at), ends_at: day(p.ends_at), active: p.active, priority: String(p.priority),
 });
 const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 1000) / 10}%` : "-");
@@ -58,6 +63,7 @@ export function SponsorsTab({ show }: { show: (m: string) => void }) {
       id: d.id, sponsor_name: d.sponsor_name.trim(), sponsor_contact: d.sponsor_contact.trim() || null, kind: d.kind, surface: d.kind === "card" ? (d.surface as Surface) : null, category: d.kind === "campus" || d.kind === "deal" ? d.category || null : null,
       title: d.title.trim(), body: d.body.trim(), cta_label: d.cta_label.trim(), url, image_url: d.image_url.trim() || null, discount_code: d.discount_code.trim() || null,
       company: d.company.trim() || null, location: d.location.trim() || null, deadline: d.deadline || null,
+      media_kind: d.media_url ? d.media_kind : "none", media_url: d.media_url || null,
       countries: list(d.countries), regions: list(d.regions), schools: list(d.schools),
       starts_at: d.starts_at ? new Date(d.starts_at).toISOString() : undefined, ends_at: d.ends_at ? new Date(`${d.ends_at}T23:59:59`).toISOString() : null,
       active: d.active, priority: Number(d.priority) || 0,
@@ -108,6 +114,7 @@ export function SponsorsTab({ show }: { show: (m: string) => void }) {
               {d.kind === "internship" && <F label="Company (if different from sponsor)"><input className={field} value={d.company} onChange={(e) => set("company", e.target.value)} /></F>}
               {d.kind === "internship" && <F label="Apply by"><input type="date" className={field} value={d.deadline} onChange={(e) => set("deadline", e.target.value)} /></F>}
             </div>
+            <MediaField kind={d.media_kind} url={d.media_url} onChange={(k, u) => setD((x) => (x ? { ...x, media_kind: k, media_url: u } : x))} show={show} />
             <F label="Details"><textarea className={`${field} min-h-[70px]`} value={d.body} onChange={(e) => set("body", e.target.value)} placeholder={d.kind === "internship" ? "What they'll do, who can apply, stipend, duration" : "One or two lines"} /></F>
             <div className="rounded-xl bg-[#F8F4FB] p-3">
               <div className="mb-2 text-[12.5px] font-bold">Who sees it <span className="font-normal text-[var(--dim)]">(leave blank for everyone; separate several with commas; matched to students&apos; profiles, any capitalisation)</span></div>
@@ -237,5 +244,34 @@ function BusinessApps({ show, onApproved }: { show: (m: string) => void; onAppro
         ))}</div>
       )}
     </Card>
+  );
+}
+
+/** Upload the sponsor's flyer, picture, video or PDF. Stored in Birdie's public "ads" storage. */
+function MediaField({ kind, url, onChange, show }: { kind: MediaKind; url: string; onChange: (k: MediaKind, u: string) => void; show: (m: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  async function upload(f: File) {
+    setBusy(true);
+    const fd = new FormData(); fd.append("file", f);
+    const r = await fetch("/api/admin/ad-media", { method: "POST", body: fd }).then((x) => x.json()).catch(() => ({ error: "upload_failed" }));
+    setBusy(false);
+    if (r.error) return show(r.error === "too_large" ? "That file is over 50 MB" : r.error === "bad_type" ? "Use a picture, MP4/WebM video or PDF" : `Upload failed: ${r.error}`);
+    onChange(r.kind, r.url); show("Uploaded");
+  }
+  return (
+    <div className="rounded-xl bg-[#F8F4FB] p-3">
+      <div className="mb-2 text-[12.5px] font-bold">Flyer, picture, video or PDF <span className="font-normal text-[var(--dim)]">(optional; shown big on the ad)</span></div>
+      {url ? (
+        <div className="flex flex-wrap items-center gap-3">
+          {kind === "image" ? <img src={url} alt="" className="h-20 rounded-lg object-cover" /> : kind === "video" ? <video src={url} muted className="h-20 rounded-lg" /> : <span className="rounded-lg bg-white px-3 py-2 text-[12.5px] font-semibold">PDF attached</span>}
+          <button onClick={() => onChange("none", "")} className="text-[12.5px] font-semibold text-[#c0392b]">Remove</button>
+        </div>
+      ) : (
+        <label className={`inline-flex cursor-pointer items-center gap-2 rounded-xl bg-white px-3 py-2 text-[13px] font-semibold ring-2 ring-[#E6DCF0] ${busy ? "opacity-50" : ""}`}>
+          {busy ? "Uploading..." : "Upload file"}
+          <input type="file" hidden accept="image/*,video/mp4,video/webm,application/pdf" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ""; }} />
+        </label>
+      )}
+    </div>
   );
 }
