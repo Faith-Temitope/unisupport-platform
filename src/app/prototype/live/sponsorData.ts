@@ -50,7 +50,7 @@ export function logPlacement(id: string, kind: "view" | "click") {
 }
 
 export type BusinessApp = {
-  id: string; kind: "business" | "suggestion"; business_name: string; category: string | null; school: string | null; location: string | null; phone: string | null;
+  id: string; kind: "business" | "suggestion" | "internship"; deadline?: string | null; business_name: string; category: string | null; school: string | null; location: string | null; phone: string | null;
   offer: string | null; discount_code: string | null; logo_url: string | null; website: string | null; contact_name: string | null; note: string | null;
   status: "new" | "contacted" | "approved" | "rejected"; placement_id: string | null; created_at: string; submitter: string | null;
 };

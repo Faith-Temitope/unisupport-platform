@@ -1,5 +1,6 @@
 "use client";
 
+import { ProfileBadges } from "./ProfileBadges";
 import type { Skin } from "@/components/brand/Buddy";
 import { MascotMeet } from "./MascotMeet";
 import { ArrowLeft, BookOpen, CheckCheck, Flag, Link2, MessageCircle, Plus, Search, Send, Settings as Cog, UserPlus, Video } from "lucide-react";
@@ -194,6 +195,7 @@ function ProfileScreen({ id, onBack }: { id: string; onBack: () => void }) {
             <div className="text-[12.5px] text-[var(--dim)]">{[handle && `@${handle}`, place].filter(Boolean).join(" · ") || (isMe ? "Add your handle and school in Settings" : "")}</div>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px]"><span><b>{followers}</b> follower{followers === 1 ? "" : "s"}</span><span><b>{likes}</b> like{likes === 1 ? "" : "s"}</span><span><b>{mine.length}</b> post{mine.length === 1 ? "" : "s"}</span><span><b>{courses.length}</b> course{courses.length === 1 ? "" : "s"}</span></div>
           </div>
+          <ProfileBadges userId={realId} isMe={isMe} />
           {bio && <p className="whitespace-pre-line text-[13.5px] leading-snug text-[var(--text)]">{bio}</p>}
           {links.length > 0 && (
             <div className="flex flex-wrap gap-2">{links.map((l) => (
