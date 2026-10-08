@@ -342,7 +342,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const prior = prev.find((p) => p.id === sc.id);
       return {
         id: sc.id, ownerId: sc.owner_id === myId ? "me" : sc.owner_id, ownerName: prior?.ownerName,
-        code: sc.courses?.code ?? "?", name: sc.courses?.name ?? "Untitled course", school: sc.school ?? undefined,
+        code: sc.course_code || sc.courses?.code || "?", name: sc.course_name || sc.courses?.name || "Untitled course", school: sc.school ?? undefined,
         field: sc.field, description: sc.description, files: fileNamesByCourseId[sc.source_course_id] ?? [],
         members, messages: prior?.messages ?? [], sourceCourseId: sc.source_course_id,
         priceNgn: Number(sc.price_ngn ?? 0), itemCounts: itemCountsBySharedId[sc.id] ?? { notes: 0, files: 0, recs: 0 },
@@ -680,7 +680,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const c = coursesRef.current.find((x) => x.id === courseId);
       if (!c || !userId) return "Sign in to share a course";
       const maps = await syncCourseForSharing(c, userId);
-      const sharedId = await publishSharedCourse(c.id, userId, info.school, info.field, info.description, info.priceNgn, info.audience, info.audienceValue);
+      const sharedId = await publishSharedCourse(c.id, userId, info.school, info.field, info.description, info.priceNgn, info.audience, info.audienceValue, c.code, c.name);
       if (!sharedId) return "Couldn't publish the course";
       const err = await setSharedItems(sharedId, toShareItems(c, picked, maps));
       if (err) return err;
@@ -706,7 +706,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const c = coursesRef.current.find((x) => x.id === courseId);
       if (!c?.sharedId || !userId) return "This course isn't shared";
       const maps = await syncCourseForSharing(c, userId);
-      const err = (await updateSharedSettings(c.sharedId, priceNgn, audience, audienceValue)) ?? (await setSharedItems(c.sharedId, toShareItems(c, picked, maps)));
+      const err = (await updateSharedSettings(c.sharedId, priceNgn, audience, audienceValue, c.code, c.name)) ?? (await setSharedItems(c.sharedId, toShareItems(c, picked, maps)));
       if (err) return err;
       setShared((ss) => ss.map((x) => (x.id === c.sharedId ? { ...x, priceNgn, itemCounts: { notes: picked.notes.length, files: picked.files.length, recs: picked.recs.length } } : x)));
       return null;

@@ -9,7 +9,7 @@ import { openUrl, safeName, signedUrl, uploadTo } from "./live/helpData";
 import { folderPath, uid, useApp, type Course, type FileItem, type Folder, type Rec } from "./store";
 import { Btn, Empty, IconBtn, Label, Sheet, TextField, TopBar } from "./ui";
 import { DeadlinesCard, ExtraSheets, TodayCard, type ExtraSheet } from "./StudyExtras";
-import { CategoryFilter, CategoryPicker, CategoryPill } from "./Categories";
+import { CategoryPicker, CategoryPill, CategoryTabs } from "./Categories";
 import { ShareCourseForm } from "./ShareCourseForm";
 
 type CTab = "materials" | "notes" | "recordings" | "progress";
@@ -199,8 +199,10 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
   const [tab, setTab_] = useState<CTab>(startTab);
   const [sheet, setSheet] = useState<null | "note" | "share">(null);
   const [nTitle, setNTitle] = useState(""); const [nBody, setNBody] = useState(""); const [nCat, setNCat] = useState("Notes");
-  const [fCat, setFCat] = useState("Materials");
   const [noteFilter, setNoteFilter] = useState("All"); const [fileFilter, setFileFilter] = useState("All");
+  // The selected tab is also where new items go ("All" files under the default).
+  const fileCat = fileFilter === "All" || fileFilter === "Materials" ? undefined : fileFilter;
+  const openNewNote = () => { setNCat(noteFilter === "All" ? "Notes" : noteFilter); setSheet("note"); };
   const input = useRef<HTMLInputElement>(null);
   const overall = course.topics.length ? Math.round(course.topics.reduce((a, t) => a + t.mastery, 0) / course.topics.length) : null;
   const isShared = !!course.sharedId;
@@ -239,7 +241,7 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
         const err = await uploadTo("study-files", path, f);
         if (!err) storagePath = path; else console.error("study file upload failed", err);
       }
-      addFile(course.id, { name: f.name, kind: kindOf(f), size: f.size, text, url: URL.createObjectURL(f), storagePath, category: fCat === "Materials" ? undefined : fCat });
+      addFile(course.id, { name: f.name, kind: kindOf(f), size: f.size, text, url: URL.createObjectURL(f), storagePath, category: fileCat });
     }
     flash(`${list.length} file${list.length === 1 ? "" : "s"} added`);
     if (input.current) input.current.value = "";
@@ -277,9 +279,8 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
         <div className="space-y-2.5">
           {tab === "materials" && (<>
             {!readOnly && <input ref={input} type="file" multiple hidden onChange={(e) => pick(e.target.files)} />}
-            {!readOnly && <div><div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">New files go under</div><CategoryPicker value={fCat} onChange={setFCat} base="Materials" /></div>}
-            <CategoryFilter items={allFiles} base="Materials" value={fileFilter} onChange={setFileFilter} />
-            {allFiles.length === 0 ? <Empty icon={<Upload size={20} />} title="No materials yet" text={readOnly ? "This classmate hasn't added any materials yet." : "Add slides, PDFs, past questions, photos of the whiteboard, or .txt / .md notes. Text files can be read by Birdie right away."} action={readOnly ? undefined : <Btn variant="study" onClick={() => input.current?.click()}>Choose files</Btn>} /> : (<>
+            <CategoryTabs items={allFiles} base="Materials" value={fileFilter} onChange={setFileFilter} allowCustom={!readOnly} />
+            {shownFiles.length === 0 ? <Empty icon={<Upload size={20} />} title={fileFilter === "All" ? "No materials yet" : `No ${fileFilter.toLowerCase()} yet`} text={readOnly ? "This classmate hasn't added anything here yet." : fileFilter === "All" ? "Add slides, PDFs, photos of the whiteboard, or .txt / .md notes. Pick a tab above first to file them as past questions, assignments or tests." : `Anything you add here is filed under ${fileFilter}.`} action={readOnly ? undefined : <Btn variant="study" onClick={() => input.current?.click()}>{fileFilter === "All" ? "Choose files" : `Add ${fileFilter.toLowerCase()}`}</Btn>} /> : (<>
               {shownFiles.map((f) => { const Icon = KIND_ICON[f.kind] ?? KIND_ICON.pdf; return (
                 <div key={f.id} className="flex items-center gap-3 rounded-2xl border border-[var(--line)] bg-white p-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--study-soft)] text-[var(--study)]"><Icon size={18} /></div>
@@ -287,14 +288,14 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
                   {(f.url || f.storagePath) && <button onClick={() => void openFile(f)} className="rounded-lg bg-[var(--paper-dim)] px-2.5 py-1.5 text-[11.5px] font-bold text-[var(--dim)]">Open</button>}
                   {!readOnly && <button onClick={() => deleteFile(course.id, f.id)} aria-label="Delete file" className="text-[var(--dim)] active:scale-90"><Trash2 size={15} /></button>}
                 </div>); })}
-              {!readOnly && <Btn variant="ghost" onClick={() => input.current?.click()}>+ Add more files</Btn>}
+              {!readOnly && <Btn variant="ghost" onClick={() => input.current?.click()}>{fileFilter === "All" ? "+ Add more files" : `+ Add to ${fileFilter}`}</Btn>}
             </>)}
           </>)}
 
-          {tab === "notes" && (allNotes.length === 0 ? <Empty icon={<StickyNote size={20} />} title="No notes yet" text={readOnly ? "This classmate hasn't added any notes yet." : "Write what you want to remember. Birdie builds quizzes and answers from your notes."} action={readOnly ? undefined : <Btn variant="study" onClick={() => setSheet("note")}>Write a note</Btn>} /> : (<>
-            <CategoryFilter items={allNotes} base="Notes" value={noteFilter} onChange={setNoteFilter} />
+          {tab === "notes" && <CategoryTabs items={allNotes} base="Notes" value={noteFilter} onChange={setNoteFilter} allowCustom={!readOnly} />}
+          {tab === "notes" && (shownNotes.length === 0 ? <Empty icon={<StickyNote size={20} />} title={noteFilter === "All" ? "No notes yet" : `No ${noteFilter.toLowerCase()} yet`} text={readOnly ? "This classmate hasn't added anything here yet." : "Write what you want to remember. Birdie builds quizzes and answers from your notes."} action={readOnly ? undefined : <Btn variant="study" onClick={openNewNote}>{noteFilter === "All" ? "Write a note" : `Add to ${noteFilter}`}</Btn>} /> : (<>
             {shownNotes.map((n) => (<div key={n.id} className="rounded-2xl border border-[var(--line)] bg-white p-3.5"><div className="flex items-start justify-between gap-2"><div className="text-[14px] font-semibold text-[var(--text)]">{n.title} <CategoryPill category={n.category} /></div>{!readOnly && <button onClick={() => deleteNote(course.id, n.id)} aria-label="Delete note" className="text-[var(--dim)] active:scale-90"><Trash2 size={14} /></button>}</div><div className="mt-1 whitespace-pre-line text-[13px] leading-snug text-[var(--dim)]">{n.body}</div><div className="mt-1.5 text-[11px] text-[#a99fb8]">{n.date}</div></div>))}
-            {!readOnly && <Btn variant="ghost" onClick={() => setSheet("note")}>+ New note</Btn>}</>))}
+            {!readOnly && <Btn variant="ghost" onClick={openNewNote}>{noteFilter === "All" ? "+ New note" : `+ Add to ${noteFilter}`}</Btn>}</>))}
 
           {tab === "recordings" && (shownRecs.length === 0 ? <Empty icon={<BookOpen size={20} />} title="No recordings yet" text={readOnly ? "This classmate hasn't recorded anything yet." : "Tap the mascot, choose Record, and capture a lecture. You choose the course after you stop."} action={readOnly ? undefined : <Btn variant="study" onClick={() => setRecorderOpen(true)}>Record a lecture</Btn>} /> : (<>
             {shownRecs.map((r) => (<RecordingRow key={r.id} r={r} onDelete={() => deleteRec(course.id, r.id)} readOnly={readOnly} />))}
