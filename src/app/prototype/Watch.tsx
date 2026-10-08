@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronDown, Heart, ListPlus, Share2, Sparkles } from "lucide-react";
+import { removeOffline, saveOffline, useOfflineIndex } from "./offline";
+import { CheckCircle2, ChevronDown, Download, Heart, ListPlus, Share2, Sparkles } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import PostCard, { ago, initials, useByline } from "./PostCard";
 import { PostMenu } from "./PostMenu";
@@ -14,6 +15,7 @@ import { Avatar } from "./ui";
 export function Watch({ id, onBack }: { id: string; onBack: () => void }) {
   const { posts, toggleLike, following, toggleFollow, setOverlay, searchFeed, goBirdie, flash } = useApp();
   const post = posts.find((p) => p.id === id) ?? null;
+  const offlineIndex = useOfflineIndex();
   const by = useByline(post ?? { sourceName: "", authorId: "", grad: "" } as never);
   const [more, setMore] = useState(false);
   const [save, setSave] = useState(false);
@@ -32,9 +34,17 @@ export function Watch({ id, onBack }: { id: string; onBack: () => void }) {
   }, [posts, post]);
 
   if (!post) return <div className="flex flex-1 items-center justify-center text-[13px] text-[var(--dim)]"><button onClick={onBack}>This video isn&apos;t available. Go back</button></div>;
+  const saved = offlineIndex;
   const authorFollowable = !post.sourceName && post.authorId !== "me";
   const isFollowing = following.includes(post.authorId);
 
+  async function download() {
+    const key = `video:${post!.id}`;
+    if (saved[key]) { await removeOffline(key); flash("Removed from this phone"); return; }
+    flash("Downloading...");
+    const err = await saveOffline(key, post!.videoUrl!, post!.title, "video");
+    flash(err ?? "Downloaded. It plays without internet now.");
+  }
   async function share() {
     void logPostEvent(post!.id, "share");
     const url = post!.youtubeId ? `https://www.youtube.com/watch?v=${post!.youtubeId}` : window.location.origin;
@@ -72,6 +82,7 @@ export function Watch({ id, onBack }: { id: string; onBack: () => void }) {
         <div className="no-scrollbar flex gap-2 overflow-x-auto px-3 pt-3">
           <button onClick={() => toggleLike(post.id)} className="flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--paper-dim)] px-3.5 py-2 text-[13px] font-semibold"><Heart size={16} className={post.liked ? "fill-[var(--birdie)] text-[var(--birdie)]" : ""} />{post.likes || "Like"}</button>
           <button onClick={() => void share()} className="flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--paper-dim)] px-3.5 py-2 text-[13px] font-semibold"><Share2 size={16} /> Share</button>
+          {post.videoUrl && !post.youtubeId && <button onClick={() => void download()} className="flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--paper-dim)] px-3.5 py-2 text-[13px] font-semibold">{saved[`video:${post.id}`] ? <><CheckCircle2 size={16} className="text-[var(--study)]" /> Downloaded</> : <><Download size={16} /> Download</>}</button>}
           <button onClick={() => setSave(true)} className="flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--paper-dim)] px-3.5 py-2 text-[13px] font-semibold"><ListPlus size={16} /> Save</button>
           <button onClick={() => { onBack(); goBirdie({ courseId: "general", prompt: `Teach me the key ideas from the video "${post.title}"${post.field ? ` (${post.field})` : ""}, then quiz me on them.` }); }} className="flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--birdie-soft)] px-3.5 py-2 text-[13px] font-semibold text-[var(--birdie-text)]"><Sparkles size={16} /> Ask Birdie</button>
         </div>

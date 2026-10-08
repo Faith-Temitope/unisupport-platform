@@ -38,7 +38,7 @@ export interface Notice { id: string; title: string; body?: string; t: string; r
 export interface BAction { label: string; run: "note" | "file" | "test" | "writer" | "study" | "topup" | "spark" | "brain"; payload?: string }
 export interface BMsg { id: string; from: "me" | "bird"; text: string; cite?: string; cards?: { q: string; a: string }[]; actions?: BAction[]; done?: boolean; t: string; at: number; meta?: string }
 
-export interface Person { id: string; name: string; handle: string; field: string; bio: string; color: string; demo?: boolean; links?: Link[]; school?: string; country?: string }
+export interface Person { id: string; name: string; handle: string; field: string; bio: string; color: string; demo?: boolean; links?: Link[]; school?: string; country?: string; mascot?: string }
 export type Audience = "everyone" | "country" | "region" | "school";
 export interface CMsg { id: string; from: "me" | "them"; text: string; t: string; author?: string }
 export interface Post { id: string; authorId: string; kind: "video" | "text"; title: string; body?: string; videoUrl?: string; videoPath?: string; youtubeId?: string; sourceName?: string; pinnedAt?: number; field: string; tags: string[]; dur?: string; grad: string; createdAt: number; likes: number; liked: boolean; comments?: number; demo?: boolean; remote?: boolean }
@@ -56,6 +56,8 @@ export interface Settings {
   profileVisibility: "everyone" | "followers" | "private"; whoCanChat: "everyone" | "contacts"; recordReminder: boolean; twoFactor: boolean;
   aiBrain: "spark" | "nova" | "sage"; aiTier: "quick" | "balanced" | "deep";
   mascotOn: boolean; mascotChatty: boolean; dailyGoal: number;
+  /** Which study buddy you have, and whether it talks in bubbles or holds up a sign. */
+  mascotSkin: "robot" | "bird" | "spider" | "me"; mascotBoard: boolean;
 }
 export type Overlay = null | { t: "chats" } | { t: "thread"; id: string } | { t: "settings" } | { t: "profile"; id: string } | { t: "source"; name: string } | { t: "post" };
 export interface MascotEvent { id: string; kind: Emote; text?: string }
@@ -74,12 +76,12 @@ const defaultSettings: Settings = {
   calendar: false, schoolApps: false, offline: false, dataSaver: false,
   profileVisibility: "everyone", whoCanChat: "everyone", recordReminder: true, twoFactor: false,
   aiBrain: "spark", aiTier: "balanced",
-  mascotOn: true, mascotChatty: true, dailyGoal: 3,
+  mascotOn: true, mascotChatty: true, dailyGoal: 3, mascotSkin: "robot", mascotBoard: false,
 };
 const emptyProfile: Profile = { name: "", handle: "", level: "", program: "", institution: "", country: "", region: "", links: [], bio: "", onboarded: false };
 const GRAD = "from-[#7C4DDB] to-[#3b1f7a]";
 const fmtDur = (s?: number | null) => (s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : undefined);
-const channelToPerson = (c: Channel): Person => ({ id: c.id, name: c.display_name || c.handle || "Student", handle: c.handle ?? "", field: c.program ?? "", bio: c.bio, color: c.color, links: c.links ?? [], school: c.school ?? undefined, country: c.country ?? undefined });
+const channelToPerson = (c: Channel): Person => ({ id: c.id, name: c.display_name || c.handle || "Student", handle: c.handle ?? "", field: c.program ?? "", bio: c.bio, color: c.color, links: c.links ?? [], school: c.school ?? undefined, country: c.country ?? undefined, mascot: c.mascot ?? undefined });
 
 type BirdieIntent = { courseId: string; mode?: "chat" | "test" | "exam" | "practical"; prompt?: string };
 interface AppCtx {
@@ -488,6 +490,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }, 1500);
     return () => clearTimeout(t);
   }, [auth.status, auth.userId, profile]);
+
+  // Share your buddy's look so it shows up when you chat with people (ignored until the column exists).
+  useEffect(() => {
+    if (auth.status !== "in" || !auth.userId) return;
+    const t = setTimeout(() => { void createClient().from("channels").update({ mascot: settings.mascotSkin }).eq("id", auth.userId!).then(() => undefined); }, 2500);
+    return () => clearTimeout(t);
+  }, [auth.status, auth.userId, settings.mascotSkin]);
 
   /** Called when the Explore detail sheet opens for a shared course: fetches its real message
    * thread (not loaded in the list view, to keep that one cheap). */

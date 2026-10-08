@@ -1,6 +1,8 @@
 "use client";
 
-import { ArrowLeft, Bell, BookOpen, Bot as BotIcon, Cpu, Compass, CreditCard, Eye, FileText, Lock, LogOut, Palette, PlugZap, ShieldCheck, Sparkles, Trash2, Type, UserRound, X } from "lucide-react";
+import Buddy, { SKINS } from "@/components/brand/Buddy";
+import { Downloads } from "./Downloads";
+import { ArrowLeft, Bell, BookOpen, Bot as BotIcon, Cpu, Compass, CreditCard, Eye, FileText, Download, Lock, LogOut, Palette, PlugZap, ShieldCheck, Sparkles, Trash2, Type, UserRound, X } from "lucide-react";
 import { cleanUrl } from "./live/socialData";
 import { RepPanel } from "./RepPanel";
 import { useState, type ReactNode } from "react";
@@ -79,6 +81,14 @@ export default function Settings() {
             <Group icon={BotIcon} title="Birdie the mascot">
               <Toggle on={settings.mascotOn} onChange={(v) => setSetting("mascotOn", v)} label="Show the mascot" sub="Wanders, chats, and reacts to what you do" />
               <Toggle on={settings.mascotChatty} onChange={(v) => setSetting("mascotChatty", v)} label="Let it talk" sub="Tips and cheering in speech bubbles" />
+              <Choice label="Your study buddy">
+                <div className="grid grid-cols-4 gap-2">{SKINS.map((k) => (
+                  <button key={k.id} onClick={() => setSetting("mascotSkin", k.id)} aria-pressed={settings.mascotSkin === k.id} className={`flex flex-col items-center gap-1 rounded-2xl p-2 ${settings.mascotSkin === k.id ? "bg-[var(--birdie-soft)] ring-2 ring-[var(--birdie)]" : "bg-[var(--paper-dim)]"}`}>
+                    <Buddy skin={k.id} size={44} initials={initials(profile.name || "Me")} /><span className="text-[11px] font-semibold">{k.label}</span>
+                  </button>
+                ))}</div>
+              </Choice>
+              <Toggle on={settings.mascotBoard} onChange={(v) => setSetting("mascotBoard", v)} label="Hold up a sign" sub="It talks with a little hanging board instead of speech bubbles" />
               <p className="pb-3 text-[12px] leading-snug text-[var(--dim)]">Tap it for shortcuts. Poke it too much and it gets grumpy. Press and hold to pet it.</p>
             </Group>
 
@@ -94,6 +104,10 @@ export default function Settings() {
               <Toggle on={settings.notifSession} onChange={(v) => setSetting("notifSession", v)} label="Writer sessions and payments" />
               <Toggle on={settings.notifRec} onChange={(v) => setSetting("notifRec", v)} label="Study recommendations" />
               <Toggle on={settings.notifExplore} onChange={(v) => setSetting("notifExplore", v)} label="New posts from people I follow" />
+            </Group>
+
+            <Group icon={Download} title="Downloads (offline)">
+              <Downloads />
             </Group>
 
             <Group icon={Palette} title="Appearance">

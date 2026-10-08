@@ -1,5 +1,6 @@
 "use client";
 
+import { useOnline } from "./offline";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { Check, Compass, FastForward, Headset, LayoutDashboard, LifeBuoy, PenLine, RotateCcw, BookOpen } from "lucide-react";
 import Link from "next/link";
@@ -32,6 +33,7 @@ function Shell() {
   useEffect(() => { setDev(new URLSearchParams(window.location.search).has("dev")); }, []);
   useEffect(() => { void logEvent("page_view", tab); }, [tab]);
   const dark = useDark(settings.theme);
+  const online = useOnline();
   // Bottom nav slides away while scrolling down the Explore feed (same signal as its header).
   const hideNav = barsHidden && (tab === "explore" || tab === "birdie");
   const [navH, setNavH] = useState(0);
@@ -77,6 +79,7 @@ function Shell() {
             <div ref={setPhone} className={`relative h-full w-full overflow-hidden bg-[var(--paper)] text-[var(--text)] lg:rounded-[34px] ${settings.dyslexia ? "dys" : ""} ${dark ? "theme-dark" : ""}`} style={{ zoom: ZOOM[settings.textSize] }}>
               <div className="absolute left-1/2 top-0 z-50 hidden h-[26px] w-[110px] -translate-x-1/2 rounded-b-[18px] bg-[var(--ink)] lg:block" />
               <div className="flex h-full flex-col">
+                {!online && <div className="z-20 shrink-0 bg-[#3a2a12] px-4 py-1.5 text-center text-[12px] font-semibold text-[#FFE3A3]">You&apos;re offline. Your courses, notes and downloads still work.</div>}
                 <div className="hidden h-12 shrink-0 items-center justify-between px-7 text-[13px] font-semibold text-[var(--text)] lg:flex"><span>9:41</span><span className="tracking-widest">●●●</span></div>
                 <div className="relative min-h-0 flex-1">
                   <div key={`s${resetKey}`} className="absolute inset-0 flex-col" style={show("study")}><Study /></div>

@@ -1,10 +1,11 @@
 "use client";
 
+import { offlineUrl, removeOffline, saveOffline, useOfflineIndex } from "./offline";
 import { useViewState } from "./persist";
 import { SlotAd } from "./Sponsored";
 import { CourseShares } from "./CourseShare";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Bell, BookOpen, ChevronRight, FileText, FolderInput, FolderPlus, Folder as FolderIcon, Image as ImageIcon, MoreHorizontal, Plus, Presentation, Printer, Search, Share2, Sparkles, StickyNote, Trash2, Upload, X } from "lucide-react";
+import { ArrowLeft, Bell, BookOpen, CheckCircle2, ChevronRight, Download, FileText, FolderInput, FolderPlus, Folder as FolderIcon, Image as ImageIcon, MoreHorizontal, Plus, Presentation, Printer, Search, Share2, Sparkles, StickyNote, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { extractText } from "./extract";
@@ -251,8 +252,20 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
     if (input.current) input.current.value = "";
   }
 
+  const saved = useOfflineIndex();
+  async function toggleOffline(f: FileItem) {
+    const key = `file:${f.storagePath}`;
+    if (saved[key]) { await removeOffline(key); flash("Removed from this phone"); return; }
+    const url = await signedUrl("study-files", f.storagePath!);
+    if (!url) return flash("Couldn't reach the file. Check your connection.");
+    flash("Saving to this phone...");
+    const err = await saveOffline(key, url, f.name, "file");
+    flash(err ?? "Saved. It opens without internet now.");
+  }
   async function openFile(f: FileItem) {
     if (f.storagePath) {
+      const local = await offlineUrl(`file:${f.storagePath}`);
+      if (local) return openUrl(local);
       // No `download` filename here -- that forces a Content-Disposition: attachment, so every
       // "Open" tap re-downloaded a fresh copy even when one was already saved on the phone. Leave
       // it off so the browser just displays the file (PDFs/images render inline) instead of
@@ -290,6 +303,7 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--study-soft)] text-[var(--study)]"><Icon size={18} /></div>
                   <div className="min-w-0 flex-1"><div className="truncate text-[13.5px] font-semibold text-[var(--text)]">{f.name}</div><div className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-[var(--dim)]"><CategoryPill category={f.category} />{f.added}{f.size ? ` · ${fmtSize(f.size)}` : ""} · {f.text ? "Birdie can read this" : "Birdie reads this once AI is connected"}</div></div>
                   {(f.url || f.storagePath) && <button onClick={() => void openFile(f)} className="rounded-lg bg-[var(--paper-dim)] px-2.5 py-1.5 text-[11.5px] font-bold text-[var(--dim)]">Open</button>}
+                  {f.storagePath && <button onClick={() => void toggleOffline(f)} aria-label={saved[`file:${f.storagePath}`] ? "Remove offline copy" : "Save offline"} className={`active:scale-90 ${saved[`file:${f.storagePath}`] ? "text-[var(--study)]" : "text-[var(--dim)]"}`}>{saved[`file:${f.storagePath}`] ? <CheckCircle2 size={15} /> : <Download size={15} />}</button>}
                   {!readOnly && f.storagePath && <button onClick={() => openPrint({ kind: "print", file: { name: f.name, path: f.storagePath! } })} aria-label="Print this" className="text-[var(--dim)] active:scale-90"><Printer size={15} /></button>}
                   {!readOnly && <button onClick={() => deleteFile(course.id, f.id)} aria-label="Delete file" className="text-[var(--dim)] active:scale-90"><Trash2 size={15} /></button>}
                 </div>); })}
