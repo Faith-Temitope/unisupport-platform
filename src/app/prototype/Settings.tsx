@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Bell, BookOpen, Bot as BotIcon, Cpu, Compass, CreditCard, Eye, FileText, Lock, LogOut, PlugZap, ShieldCheck, Sparkles, Trash2, Type, UserRound, X } from "lucide-react";
+import { ArrowLeft, Bell, BookOpen, Bot as BotIcon, Cpu, Compass, CreditCard, Eye, FileText, Lock, LogOut, Palette, PlugZap, ShieldCheck, Sparkles, Trash2, Type, UserRound, X } from "lucide-react";
 import { cleanUrl } from "./live/socialData";
 import { RepPanel } from "./RepPanel";
 import { useState, type ReactNode } from "react";
@@ -9,6 +9,7 @@ import { initials } from "./PostCard";
 import { naira, useApp } from "./store";
 import { Avatar, Btn, IconBtn, Screen, Segmented, Sheet, TextField, Toggle } from "./ui";
 import { BrainPicker } from "./BrainPicker";
+import { ACCENTS } from "./theme";
 
 function Group({ icon: Icon, title, children }: { icon: typeof Bell; title: string; children: ReactNode }) {
   return (
@@ -93,6 +94,15 @@ export default function Settings() {
               <Toggle on={settings.notifSession} onChange={(v) => setSetting("notifSession", v)} label="Writer sessions and payments" />
               <Toggle on={settings.notifRec} onChange={(v) => setSetting("notifRec", v)} label="Study recommendations" />
               <Toggle on={settings.notifExplore} onChange={(v) => setSetting("notifExplore", v)} label="New posts from people I follow" />
+            </Group>
+
+            <Group icon={Palette} title="Appearance">
+              <Choice label="Theme"><Segmented value={settings.theme} onChange={(v) => setSetting("theme", v)} options={[{ id: "system", label: "System" }, { id: "light", label: "Light" }, { id: "dark", label: "Dark" }]} /></Choice>
+              <Choice label="Accent colour">
+                <div className="flex gap-2.5">{ACCENTS.map(([id, label, hex]) => (
+                  <button key={id} onClick={() => setSetting("accent", id)} aria-label={label} aria-pressed={settings.accent === id} className={`h-9 w-9 rounded-full ring-offset-2 ring-offset-[var(--paper)] transition ${settings.accent === id ? "ring-2 ring-[var(--text)]" : ""}`} style={{ background: hex }} />
+                ))}</div>
+              </Choice>
             </Group>
 
             <Group icon={Type} title="Accessibility">

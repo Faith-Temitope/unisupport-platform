@@ -65,3 +65,26 @@ html:has(.proto-root) { font-size: 16px; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
 .dys, .dys * { font-family: Verdana, "Trebuchet MS", sans-serif !important; letter-spacing: 0.03em; line-height: 1.7 !important; }
+
+/* Dark theme for the Birdie app. Applied to the phone frame; accent colours come from inline vars on its parent. */
+.proto-root .theme-dark {
+  --ink: #2A1F36; --ink-soft: #33273F; --paper: #110C17; --paper-dim: #1D1626; --line: #2F2639; --card: #19131F;
+  --text: #F1EBF7; --dim: #A79BB6;
+  --birdie-soft: color-mix(in srgb, var(--birdie) 22%, #110C17);
+  --uni-soft: color-mix(in srgb, var(--uni) 22%, #110C17);
+  --study-soft: color-mix(in srgb, var(--study) 22%, #110C17);
+  --birdie-text: color-mix(in srgb, var(--birdie) 45%, #fff);
+  --uni-deep: color-mix(in srgb, var(--uni) 45%, #fff);
+  --help-soft: color-mix(in srgb, var(--help) 22%, #110C17);
+  color-scheme: dark;
+}
+.theme-dark .bg-white { background-color: var(--card); }
+.theme-dark .bg-white\/90, .theme-dark .bg-white\/95 { background-color: color-mix(in srgb, var(--card) 92%, transparent); }
+.theme-dark :is(.bg-\[\#F4EFF8\], .bg-\[\#F0E9F6\], .bg-\[\#F8F4FB\], .bg-\[\#FBF6FE\], .bg-\[\#F6EAFB\], .bg-\[\#EFE6F6\], .bg-\[\#F1DDF8\], .bg-\[\#EBD3F5\], .bg-\[\#ddd2e8\]) { background-color: var(--paper-dim); }
+.theme-dark :is(.bg-\[\#DDF5EC\], .bg-\[\#FFF0D2\]) { background-color: var(--paper-dim); }
+.theme-dark :is(.text-\[var\(--paper\)\]) { color: #fff; }
+.theme-dark :is(.text-\[var\(--ink\)\], .text-\[\#1a1024\], .text-black) { color: var(--text); }
+.theme-dark :is(input, textarea, select) { color: var(--text); }
+.theme-dark :is(input, textarea)::placeholder { color: var(--dim); }
+/* Selected chips and primary dark buttons flip to light-on-dark, like YouTube's dark mode. */
+.theme-dark .bg-\[var\(--ink\)\].text-\[var\(--paper\)\] { background-color: var(--text); color: var(--paper); }
