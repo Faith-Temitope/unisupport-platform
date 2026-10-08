@@ -1,5 +1,6 @@
 "use client";
 
+import { whileVisible } from "./perf";
 import { HoldButton } from "./Pocket";
 import { PushNudge } from "./PushToggle";
 import { offlineUrl, removeOffline, saveOffline, useOfflineIndex } from "./offline";
@@ -223,7 +224,7 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
   useEffect(() => {
     if (!readOnly || !course.sourceCourseId) return;
     loadRemoteCourseContent(course.sourceCourseId);
-    const i = setInterval(() => loadRemoteCourseContent(course.sourceCourseId!), 5000);
+    const i = setInterval(whileVisible(() => loadRemoteCourseContent(course.sourceCourseId!)), 8000);
     return () => clearInterval(i);
   }, [readOnly, course.sourceCourseId, loadRemoteCourseContent]);
   const allFiles = readOnly ? sharedRemoteContent?.files ?? [] : course.files;

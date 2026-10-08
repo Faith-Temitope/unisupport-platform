@@ -1,5 +1,6 @@
 "use client";
 
+import { whileVisible } from "./perf";
 import { useViewState } from "./persist";
 import { BadgeCheck, BookmarkPlus, Search, Send, Users } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
@@ -40,12 +41,20 @@ export default function Explore({ active }: { active: boolean }) {
   useEffect(() => {
     if (!detail) return;
     loadSharedDetail(detail);
-    const i = setInterval(() => loadSharedDetail(detail), 4000);
+    const i = setInterval(whileVisible(() => loadSharedDetail(detail)), 5000);
     return () => clearInterval(i);
   }, [detail, loadSharedDetail]);
 
   // Fresh posts each time Explore is opened; a course tapped on someone's channel opens here.
-  useEffect(() => { if (active) { void refreshFeed(); void loadForYou(true); void refreshTopics(); } }, [active, refreshFeed, loadForYou, refreshTopics]);
+  // Fresh posts when Explore opens, but not on every tab switch (saves data on slow networks).
+  const lastLoad = useRef(0);
+  useEffect(() => {
+    if (!active) return;
+    const now = performance.now();
+    if (lastLoad.current && now - lastLoad.current < 90_000) return;
+    lastLoad.current = now;
+    void refreshFeed(); void loadForYou(true); void refreshTopics();
+  }, [active, refreshFeed, loadForYou, refreshTopics]);
   // Search and subject tags ask the server too, so they find posts beyond the pages loaded so far.
   useEffect(() => {
     const term = q.trim() || (tag !== "For you" && tag !== "Following" ? tag : "");
@@ -69,18 +78,8 @@ export default function Explore({ active }: { active: boolean }) {
   const sentinel = useRef<HTMLDivElement>(null);
   const [feedEnd, setFeedEnd] = useState(false);
   const loadingMore = useRef(false);
-  useEffect(() => {
-    const el = sentinel.current;
-    if (!el || seg !== "feed" || feedEnd) return;
-    const io = new IntersectionObserver((es) => {
-      if (!es.some((e) => e.isIntersecting) || loadingMore.current) return;
-      loadingMore.current = true;
-      const ranked = tag === "For you" && !q.trim() && forYou.length > 0;
-      void (ranked ? loadForYou(false).then((n) => (n ? n : loadMoreFeed())) : loadMoreFeed()).then((n) => { loadingMore.current = false; if (n === 0) setFeedEnd(true); });
-    }, { rootMargin: "600px" });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [seg, feedEnd, loadMoreFeed, loadForYou, forYou.length, tag, q, posts.length]);
+  // Draw 16 videos at a time; more are drawn (then fetched) as you scroll.
+  const [shown, setShown] = useState(16);
   useEffect(() => {
     if (!sharedIntent) return;
     setSeg("courses"); setDetail(sharedIntent); clearSharedIntent(); // eslint-disable-line react-hooks/set-state-in-effect
@@ -121,6 +120,21 @@ export default function Explore({ active }: { active: boolean }) {
     else list = [...list].sort((a, b) => b.createdAt - a.createdAt);
     return list;
   }, [posts, q, tag, following, blocked, interests, settings.personalTags, forYou, topics]);
+  const moreLocal = shown < feed.length;
+  // Draw 16 videos at a time; more are drawn (then fetched) as you scroll.
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || seg !== "feed" || (feedEnd && !moreLocal)) return;
+    const io = new IntersectionObserver((es) => {
+      if (!es.some((e) => e.isIntersecting) || loadingMore.current) return;
+      if (moreLocal) { setShown((n) => n + 16); return; }
+      loadingMore.current = true;
+      const ranked = tag === "For you" && !q.trim() && forYou.length > 0;
+      void (ranked ? loadForYou(false).then((n) => (n ? n : loadMoreFeed())) : loadMoreFeed()).then((n) => { loadingMore.current = false; if (n === 0) setFeedEnd(true); });
+    }, { rootMargin: "600px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [seg, feedEnd, loadMoreFeed, loadForYou, forYou.length, tag, q, posts.length, shown, moreLocal]);
 
   const filteredShared = shared.filter((s) => !q.trim() || `${s.code} ${s.name} ${s.field}`.toLowerCase().includes(q.trim().toLowerCase()));
   const sel = shared.find((s) => s.id === detail) ?? null;
@@ -150,7 +164,7 @@ export default function Explore({ active }: { active: boolean }) {
           feed.length === 0 ? (
             <Empty icon={<Search size={20} />} title={posts.length === 0 ? "Nothing here yet" : "No matches"} text={posts.length === 0 ? "Follow creators and watch what other students post, or share something yourself. Tap the mascot and choose Post." : tag === "Following" ? "Follow a creator to see their posts here." : "Try another tag or search term."} action={<Btn variant="study" onClick={() => setOverlay({ t: "post" })}>Post something</Btn>} />
           ) : (
-            <div className="-mx-5 space-y-5">{feed.map((p, i) => (<Fragment key={p.id}>
+            <div className="-mx-5 space-y-5">{feed.slice(0, shown).map((p, i) => (<Fragment key={p.id}>
               <PostCard post={p} edge onProfile={(id) => setOverlay({ t: "profile", id })} />
               {feedCards.length > 0 && (i === 3 || (i > 3 && (i - 3) % 8 === 0)) && <FeedAd p={feedCards[Math.floor((i - 3) / 8) % feedCards.length]} edge />}
             </Fragment>))}

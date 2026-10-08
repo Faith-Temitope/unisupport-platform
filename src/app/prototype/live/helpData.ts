@@ -49,7 +49,7 @@ export function useHelpData(activeId: string | null, enabled = true) {
     let t: ReturnType<typeof setTimeout> | undefined;
     const later = () => { clearTimeout(t); t = setTimeout(() => { void reload(); }, 150); };
     const ch = sb.channel("help-live-" + Math.random().toString(36).slice(2)).on("postgres_changes", { event: "*", schema: "public", table: "help_messages" }, later).on("postgres_changes", { event: "*", schema: "public", table: "help_sessions" }, later).on("postgres_changes", { event: "*", schema: "public", table: "jobs" }, later).subscribe();
-    const poll = setInterval(() => { void reload(); }, 4000); // realtime is the fast path; polling covers dropped sockets
+    const poll = setInterval(() => { if (!document.hidden) void reload(); }, 5000); // realtime is the fast path; polling covers dropped sockets
     return () => { clearTimeout(t); clearInterval(poll); void sb.removeChannel(ch); };
   }, [enabled, reload]);
   return { sessions, messages, jobs, loading, reload };

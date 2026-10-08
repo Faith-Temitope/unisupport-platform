@@ -1,21 +1,15 @@
 "use client";
 
-import { Tour } from "./Tour";
-import { PocketDock, PocketSheet } from "./Pocket";
+import { isLowEndDevice } from "./perf";
+import dynamic from "next/dynamic";
+import { PocketDock } from "./Pocket";
 import { useOnline } from "./offline";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { Check, Compass, FastForward, Headset, LayoutDashboard, LifeBuoy, PenLine, RotateCcw, BookOpen } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import Birdie from "./Birdie";
 import Entry from "./Entry";
-import Explore from "./Explore";
-import Help from "./Help";
 import Mascot from "./Mascot";
-import Overlays from "./Overlays";
-import Player from "./Player";
-import Recorder from "./Recorder";
-import Settings from "./Settings";
 import Sheets from "./Sheets";
 import Study from "./Study";
 import { AppProvider, useApp, type TabId } from "./store";
@@ -23,11 +17,30 @@ import { Btn } from "./ui";
 import { logEvent } from "./live/analyticsData";
 import { accentVars, useDark } from "./theme";
 
+// Screens load only when first opened, so a cheap phone downloads and runs less at startup.
+const Explore = dynamic(() => import("./Explore"), { ssr: false });
+const Birdie = dynamic(() => import("./Birdie"), { ssr: false });
+const Help = dynamic(() => import("./Help"), { ssr: false });
+const Overlays = dynamic(() => import("./Overlays"), { ssr: false });
+const Player = dynamic(() => import("./Player"), { ssr: false });
+const Recorder = dynamic(() => import("./Recorder"), { ssr: false });
+const Settings = dynamic(() => import("./Settings"), { ssr: false });
+const Tour = dynamic(() => import("./Tour").then((m) => m.Tour), { ssr: false });
+const PocketSheet = dynamic(() => import("./Pocket").then((m) => m.PocketSheet), { ssr: false });
+
+/** True from the first time `on` is true, and stays true (so a screen keeps its state once opened). */
+function useEver(on: boolean) {
+  const [ever, setEver] = useState(on);
+  if (on && !ever) setEver(true);
+  return ever || on;
+}
+
 const NAV: [TabId, string, typeof Compass | null][] = [["study", "Study", BookOpen], ["explore", "Explore", Compass], ["birdie", "Birdie", null], ["help", "Help", LifeBuoy]];
 const ZOOM = { s: 0.92, m: 1, l: 1.1 } as const;
 
 function Shell() {
-  const { tab, setTab, toast, setPhone, setSlot, settings, resetAll, resetKey, skipHours, recommendation, flash, refreshWallet, setWalletOpen, barsHidden, auth, openByHandle, setAuthOpen, plus, setOverlay, profile, boot, setTourOpen } = useApp();
+  const { tab, setTab, toast, setPhone, setSlot, settings, resetAll, resetKey, skipHours, recommendation, flash, refreshWallet, setWalletOpen, barsHidden, auth, openByHandle, setAuthOpen, plus, setOverlay, profile, boot, setTourOpen, overlay, watching, tourOpen, recorderOpen, pocketOpen } = useApp();
+  const seen = { explore: useEver(tab === "explore"), birdie: useEver(tab === "birdie"), help: useEver(tab === "help"), settings: useEver(overlay?.t === "settings"), overlays: useEver((!!overlay && overlay.t !== "settings") || !!watching), player: useEver(!!watching), tour: useEver(tourOpen), recorder: useEver(recorderOpen), pocket: useEver(pocketOpen) };
   const show = (id: TabId) => ({ display: tab === id ? "flex" : "none" });
   // Internal tools (staff app links, timer skip, reset) stay reachable at ?dev=1 for us; real
   // users, testers and Play Store reviewers never see them.
@@ -35,6 +48,8 @@ function Shell() {
   useEffect(() => { setDev(new URLSearchParams(window.location.search).has("dev")); }, []);
   useEffect(() => { void logEvent("page_view", tab); }, [tab]);
   const dark = useDark(settings.theme);
+  // Weak phones get calmer motion (fades instead of moving things), which keeps scrolling smooth.
+  const [lowEnd] = useState(() => isLowEndDevice());
   const online = useOnline();
   // Bottom nav slides away while scrolling down the Explore feed (same signal as its header).
   const hideNav = barsHidden && (tab === "explore" || tab === "birdie");
@@ -47,6 +62,16 @@ function Shell() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Once the app is up and idle, fetch the other tabs' code quietly so switching to them is instant,
+  // without making the first screen wait for it.
+  useEffect(() => {
+    if (boot !== "done") return;
+    const warm = () => { void import("./Explore"); void import("./Birdie"); void import("./Help"); void import("./Settings"); void import("./Overlays"); };
+    const w = window as Window & { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number };
+    const t = setTimeout(() => (w.requestIdleCallback ? w.requestIdleCallback(warm, { timeout: 4000 }) : warm()), 1500);
+    return () => clearTimeout(t);
+  }, [boot]);
 
   // New students get the tour once, right after they set up their profile.
   useEffect(() => {
@@ -97,7 +122,7 @@ function Shell() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <MotionConfig reducedMotion={settings.reduceMotion ? "always" : "user"}>
+    <MotionConfig reducedMotion={settings.reduceMotion || lowEnd ? "always" : "user"}>
       <div className={`min-h-[100dvh] w-full ${dark ? "bg-[#0B0810]" : "bg-[#EAE2F2]"} lg:flex lg:items-center lg:justify-center lg:px-4 lg:py-8`} style={accentVars(plus ? settings.accent : "purple")}>
         <div className="mx-auto flex w-full max-w-[980px] flex-col items-center gap-8 lg:flex-row lg:items-start lg:justify-center">
           <div className="h-[100dvh] w-full overflow-hidden bg-[var(--ink)] lg:h-[844px] lg:w-[390px] lg:max-w-full lg:shrink-0 lg:rounded-[48px] lg:p-[14px] lg:shadow-[0_40px_80px_-20px_rgba(40,10,70,0.55)]">
@@ -108,9 +133,9 @@ function Shell() {
                 <div className="hidden h-12 shrink-0 items-center justify-between px-7 text-[13px] font-semibold text-[var(--text)] lg:flex"><span>9:41</span><span className="tracking-widest">●●●</span></div>
                 <div className="relative min-h-0 flex-1">
                   <div key={`s${resetKey}`} className="absolute inset-0 flex-col" style={show("study")}><Study /></div>
-                  <div key={`e${resetKey}`} className="absolute inset-0 flex-col" style={show("explore")}><Explore active={tab === "explore"} /></div>
-                  <div key={`b${resetKey}`} className="absolute inset-0 flex-col" style={show("birdie")}><Birdie active={tab === "birdie"} /></div>
-                  <div key={`h${resetKey}`} className="absolute inset-0 flex-col" style={show("help")}><Help active={tab === "help"} /></div>
+                  <div key={`e${resetKey}`} className="absolute inset-0 flex-col" style={show("explore")}>{seen.explore && <Explore active={tab === "explore"} />}</div>
+                  <div key={`b${resetKey}`} className="absolute inset-0 flex-col" style={show("birdie")}>{seen.birdie && <Birdie active={tab === "birdie"} />}</div>
+                  <div key={`h${resetKey}`} className="absolute inset-0 flex-col" style={show("help")}>{seen.help && <Help active={tab === "help"} />}</div>
                 </div>
                 <div ref={navRef} className="relative z-10 flex shrink-0 items-end justify-around bg-[var(--ink)] px-2.5 pb-5 pt-2.5 transition-[margin,transform] duration-200" style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))", marginBottom: hideNav ? -navH : 0, transform: hideNav ? "translateY(calc(100% + 24px))" : undefined }}>
                   {NAV.map(([id, label, Icon]) => {
@@ -126,15 +151,15 @@ function Shell() {
               </div>
 
               <Mascot />
-              <Recorder />
+              {seen.recorder && <Recorder />}
               <Sheets />
-              <Overlays />
+              {seen.overlays && <Overlays />}
               <PocketDock />
-              <PocketSheet />
-              <Player bottom={hideNav ? 8 : navH + 22} />
-              <Settings />
+              {seen.pocket && <PocketSheet />}
+              {seen.player && <Player bottom={hideNav ? 8 : navH + 22} />}
+              {seen.settings && <Settings />}
               <Entry />
-              <Tour />
+              {seen.tour && <Tour />}
               <AnimatePresence>
                 {toast && (<motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute bottom-24 left-1/2 z-[95] flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-xl bg-[var(--ink)] px-4 py-3 text-[13px] font-semibold text-[var(--paper)] shadow-xl"><Check size={15} className="text-[#D68BE8]" strokeWidth={3} /> {toast}</motion.div>)}
               </AnimatePresence>
