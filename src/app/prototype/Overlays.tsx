@@ -10,7 +10,7 @@ import { cleanUrl, fetchChannelStats } from "./live/socialData";
 import { Avatar, Btn, Empty, IconBtn, Screen, Segmented, Sheet, TextField } from "./ui";
 
 export default function Overlays() {
-  const { overlay, setOverlay } = useApp();
+  const { overlay, setOverlay, watching, minimizeWatch } = useApp();
   const close = () => setOverlay(null);
   return (
     <>
@@ -18,7 +18,7 @@ export default function Overlays() {
       <Screen open={overlay?.t === "thread"} z={62}>{overlay?.t === "thread" && <Thread id={overlay.id} onBack={() => setOverlay({ t: "chats" })} />}</Screen>
       <Screen open={overlay?.t === "profile"} z={62}>{overlay?.t === "profile" && <ProfileScreen id={overlay.id} onBack={close} />}</Screen>
       <Screen open={overlay?.t === "post"} z={62}><Composer onClose={close} /></Screen>
-      <Screen open={overlay?.t === "watch"} z={64}>{overlay?.t === "watch" && <Watch key={overlay.id} id={overlay.id} onBack={close} />}</Screen>
+      <Screen open={!!watching && !watching.mini} z={64} fade>{watching && <Watch key={watching.id} id={watching.id} onBack={minimizeWatch} />}</Screen>
     </>
   );
 }

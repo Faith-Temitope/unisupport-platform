@@ -3,13 +3,14 @@
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { Check, Compass, FastForward, Headset, LayoutDashboard, LifeBuoy, PenLine, RotateCcw, BookOpen } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Birdie from "./Birdie";
 import Entry from "./Entry";
 import Explore from "./Explore";
 import Help from "./Help";
 import Mascot from "./Mascot";
 import Overlays from "./Overlays";
+import Player from "./Player";
 import Recorder from "./Recorder";
 import Settings from "./Settings";
 import Sheets from "./Sheets";
@@ -22,13 +23,24 @@ const NAV: [TabId, string, typeof Compass | null][] = [["study", "Study", BookOp
 const ZOOM = { s: 0.92, m: 1, l: 1.1 } as const;
 
 function Shell() {
-  const { tab, setTab, toast, setPhone, setSlot, settings, resetAll, resetKey, skipHours, recommendation, flash, refreshWallet, setWalletOpen } = useApp();
+  const { tab, setTab, toast, setPhone, setSlot, settings, resetAll, resetKey, skipHours, recommendation, flash, refreshWallet, setWalletOpen, barsHidden } = useApp();
   const show = (id: TabId) => ({ display: tab === id ? "flex" : "none" });
   // Internal tools (staff app links, timer skip, reset) stay reachable at ?dev=1 for us; real
   // users, testers and Play Store reviewers never see them.
   const [dev, setDev] = useState(false);
   useEffect(() => { setDev(new URLSearchParams(window.location.search).has("dev")); }, []);
   useEffect(() => { void logEvent("page_view", tab); }, [tab]);
+  // Bottom nav slides away while scrolling down the Explore feed (same signal as its header).
+  const hideNav = barsHidden && tab === "explore";
+  const [navH, setNavH] = useState(0);
+  const navRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setNavH(e.borderBoxSize?.[0]?.blockSize ?? e.contentRect.height));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Coming back from the Paystack checkout: confirm the payment and credit the wallet.
   useEffect(() => {
@@ -60,7 +72,7 @@ function Shell() {
                   <div key={`b${resetKey}`} className="absolute inset-0 flex-col" style={show("birdie")}><Birdie active={tab === "birdie"} /></div>
                   <div key={`h${resetKey}`} className="absolute inset-0 flex-col" style={show("help")}><Help active={tab === "help"} /></div>
                 </div>
-                <div className="flex shrink-0 items-end justify-around bg-[var(--ink)] px-2.5 pb-5 pt-2.5" style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}>
+                <div ref={navRef} className="relative z-10 flex shrink-0 items-end justify-around bg-[var(--ink)] px-2.5 pb-5 pt-2.5 transition-[margin,transform] duration-200" style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))", marginBottom: hideNav ? -navH : 0, transform: hideNav ? "translateY(calc(100% + 24px))" : undefined }}>
                   {NAV.map(([id, label, Icon]) => {
                     const on = tab === id;
                     if (!Icon) return (
@@ -77,6 +89,7 @@ function Shell() {
               <Recorder />
               <Sheets />
               <Overlays />
+              <Player bottom={hideNav ? 8 : navH + 22} />
               <Settings />
               <Entry />
               <AnimatePresence>

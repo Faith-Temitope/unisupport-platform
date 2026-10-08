@@ -51,9 +51,9 @@ export default function Explore({ active }: { active: boolean }) {
     const t = setTimeout(() => void searchFeed(term), 350);
     return () => clearTimeout(t);
   }, [active, q, tag, searchFeed]);
-  // Header hides on scroll down, returns on scroll up.
+  // Header and bottom nav hide on scroll down, return on scroll up.
   const scroller = useRef<HTMLDivElement>(null);
-  const [hideHead, setHideHead] = useState(false);
+  const { barsHidden: hideHead, setBarsHidden: setHideHead } = useApp();
   const [searchOpen, setSearchOpen] = useState(false);
   const lastY = useRef(0);
   const onScroll = (e: React.UIEvent<HTMLDivElement>) => {

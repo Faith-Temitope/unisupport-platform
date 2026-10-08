@@ -140,13 +140,13 @@ export function TextField({ value, onChange, placeholder, multiline, type = "tex
 }
 
 /** Full-screen layer inside the phone (chats, settings, profiles, post composer). */
-export function Screen({ open, children, z = 60 }: { open: boolean; children: ReactNode; z?: number }) {
+export function Screen({ open, children, z = 60, fade }: { open: boolean; children: ReactNode; z?: number; fade?: boolean }) {
   const { phone } = useApp();
   if (!phone) return null;
   return createPortal(
     <AnimatePresence>
       {open && (
-        <motion.div className="absolute inset-0 flex flex-col bg-[var(--paper)]" style={{ zIndex: z }} initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 34, stiffness: 340 }}>
+        <motion.div className="absolute inset-0 flex flex-col bg-[var(--paper)]" style={{ zIndex: z }} initial={fade ? { opacity: 0 } : { x: "100%" }} animate={fade ? { opacity: 1 } : { x: 0 }} exit={fade ? { opacity: 0 } : { x: "100%" }} transition={fade ? { duration: 0.15 } : { type: "spring", damping: 34, stiffness: 340 }}>
           <div className="h-12 shrink-0" />
           {children}
         </motion.div>

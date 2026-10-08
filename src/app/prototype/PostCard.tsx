@@ -40,12 +40,12 @@ export function Thumb({ post, rounded }: { post: Post; rounded?: boolean }) {
 
 /** One post per row, YouTube-style: picture, then avatar · title · byline · ⋮. Videos open the watch page. */
 export default function PostCard({ post, onProfile, edge }: { post: Post; onProfile: (id: string) => void; edge?: boolean }) {
-  const { setOverlay } = useApp();
+  const { watch: openWatch } = useApp();
   const [open, setOpen] = useState(false);
   const [menu, setMenu] = useState(false);
   const by = useByline(post);
   const isMe = post.authorId === "me";
-  const watch = () => setOverlay({ t: "watch", id: post.id });
+  const watch = () => openWatch(post.id);
 
   return (
     <article>
