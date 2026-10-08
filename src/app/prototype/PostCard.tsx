@@ -3,6 +3,7 @@
 import { Heart, Play, Volume2, VolumeX } from "lucide-react";
 import { useRef, useState } from "react";
 import { useApp, type Post } from "./store";
+import { SponsoredCard, usePlacements } from "./Sponsored";
 import { Avatar } from "./ui";
 
 export const ago = (t: number) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? "just now" : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`; };
@@ -16,6 +17,12 @@ export default function PostCard({ post, onProfile }: { post: Post; onProfile: (
   const [muted, setMuted] = useState(true);
   const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState(false);
+  const [ended, setEnded] = useState(false);
+  const endCards = usePlacements("card", "video_end", post.kind === "video");
+  const endCard = endCards.length ? endCards[post.id.charCodeAt(0) % endCards.length] : null;
+  // One sponsor card after a long video the student actually watched (sound on), never mid-video,
+  // never on short clips or the muted hover preview.
+  const onEnded = () => { const el = v.current; if (el && !el.muted && el.duration >= 60 && endCard) { setEnded(true); setPlaying(false); } };
   const isMe = post.authorId === "me";
   const a = isMe ? { name: profile.name || "You", color: "#A63FBD" } : personById(post.authorId) ?? { name: "Unknown", color: "#7C4DDB" };
 
@@ -31,8 +38,14 @@ export default function PostCard({ post, onProfile }: { post: Post; onProfile: (
           onMouseLeave={() => settings.autoplay && !settings.dataSaver && stop()}
           onClick={() => (playing ? (setMuted(false), v.current && (v.current.muted = false)) : play())}
         >
-          {!failed && post.videoUrl && <video ref={v} src={post.videoUrl} muted={muted} loop playsInline preload={settings.dataSaver ? "none" : "metadata"} onError={() => setFailed(true)} className="absolute inset-0 h-full w-full object-cover" />}
-          {!playing && (<div className="absolute inset-0 flex items-center justify-center bg-black/10"><span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-[var(--ink)]"><Play size={20} className="ml-0.5 fill-[var(--ink)]" /></span></div>)}
+          {!failed && post.videoUrl && <video ref={v} src={post.videoUrl} muted={muted} loop={muted} playsInline preload={settings.dataSaver ? "none" : "metadata"} onEnded={onEnded} onError={() => setFailed(true)} className="absolute inset-0 h-full w-full object-cover" />}
+          {ended && endCard && (
+            <div onClick={(e) => e.stopPropagation()} className="absolute inset-0 z-10 flex flex-col justify-center gap-2 bg-black/70 p-3">
+              <SponsoredCard p={endCard} dark />
+              <button onClick={() => { setEnded(false); const el = v.current; if (el) { el.currentTime = 0; void el.play().then(() => setPlaying(true)); } }} className="self-center rounded-full bg-white/20 px-3.5 py-1.5 text-[12px] font-semibold text-white">Replay</button>
+            </div>
+          )}
+          {!playing && !ended && (<div className="absolute inset-0 flex items-center justify-center bg-black/10"><span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-[var(--ink)]"><Play size={20} className="ml-0.5 fill-[var(--ink)]" /></span></div>)}
           {post.dur && <span className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-bold text-white">{post.dur}</span>}
           {playing && <button onClick={(e) => { e.stopPropagation(); setMuted((m) => { if (v.current) v.current.muted = !m; return !m; }); }} aria-label={muted ? "Unmute" : "Mute"} className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white">{muted ? <VolumeX size={15} /> : <Volume2 size={15} />}</button>}
         </div>

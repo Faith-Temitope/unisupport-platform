@@ -8,6 +8,7 @@ import { answer, docsOf, flashcards, general, makeFree, makeQuiz, summarize, typ
 import { firstName, nowTime, uid, useApp, type BAction, type BMsg, type Course } from "./store";
 import { Btn, DemoControls, Empty, Sheet } from "./ui";
 import { brainName } from "./BrainPicker";
+import { SponsoredCard, usePlacements } from "./Sponsored";
 import { brainById } from "@/lib/ai/registry";
 import { CARDS_SYSTEM, GRADE_SYSTEM, QUIZ_SYSTEM, askAI, chatSystem, contextFor, parseJson, sanitizeDeep, stripMarkdown, type AiFail } from "./aiClient";
 
@@ -201,7 +202,9 @@ export default function Birdie({ active }: { active: boolean }) {
   }
 
   const chips = course ? ["Summarize my notes", "Make flashcards", "Study guide", "Quiz me"] : ["I'm feeling stressed", "Help me plan my week"];
+  const birdieCards = usePlacements("card", "birdie", active);
   const chatting = mode === "chat";
+  const sponsor = birdieCards.length ? birdieCards[(ctx.length + thread.length) % birdieCards.length] : null;
 
   return (
     <div className="flex h-full flex-col">
@@ -237,6 +240,7 @@ export default function Birdie({ active }: { active: boolean }) {
                 </div>
               </motion.div>
             ))}
+            {sponsor && thread.length <= 1 && !typing && <SponsoredCard p={sponsor} />}
             {typing && (<div className="flex"><div className="flex gap-1 rounded-2xl rounded-bl-md border border-[var(--line)] bg-white px-4 py-3">{[0, 1, 2].map((i) => (<motion.span key={i} className="h-1.5 w-1.5 rounded-full bg-[#a99fb8]" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15 }} />))}</div></div>)}
             <div ref={endRef} />
           </div>
