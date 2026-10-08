@@ -1,5 +1,6 @@
 "use client";
 
+import { HoldButton } from "./Pocket";
 import { ProfileBadges } from "./ProfileBadges";
 import type { Skin } from "@/components/brand/Buddy";
 import { MascotMeet } from "./MascotMeet";
@@ -127,7 +128,7 @@ function Thread({ id, onBack }: { id: string; onBack: () => void }) {
   const send = () => { if (draft.trim()) { sendChat(id, draft.trim()); setDraft(""); } };
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <Header onBack={onBack} title={<button onClick={() => setOverlay({ t: "profile", id })} className="flex items-center gap-3 text-left"><Avatar initials={initials(p.name)} color={p.color} size={36} /><div><div className="text-[14.5px] font-bold leading-tight">{p.name}</div><div className="text-[11.5px] text-[var(--dim)]">@{p.handle}</div></div></button>} />
+      <Header onBack={onBack} title={<button onClick={() => setOverlay({ t: "profile", id })} className="flex items-center gap-3 text-left"><Avatar initials={initials(p.name)} color={p.color} size={36} /><div><div className="text-[14.5px] font-bold leading-tight">{p.name}</div><div className="text-[11.5px] text-[var(--dim)]">@{p.handle}</div></div></button>} right={<HoldButton item={{ kind: "chat", title: `Chat with ${p.name}`, personId: id }} className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--paper-dim)] text-[var(--dim)] active:scale-90" />} />
       <div className="no-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto bg-[#F0E9F6] px-4 py-3">
         {!p.demo && <MascotMeet them={(["robot", "bird", "spider", "me"].includes(p.mascot ?? "") ? p.mascot : "robot") as Skin} themName={p.name} themColor={p.color} beat={msgs.length} />}
         {msgs.length === 0 && <div className="pt-10 text-center text-[13px] text-[var(--dim)]">Say hi to {p.name.split(" ")[0]}.</div>}

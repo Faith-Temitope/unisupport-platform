@@ -4,7 +4,7 @@ import { localNotify } from "./push";
 import { useViewState } from "./persist";
 import { VideoLesson } from "./VideoLesson";
 import { AnimatePresence, motion } from "framer-motion";
-import { BookOpenCheck, Check, Clapperboard, ClipboardCheck, FileQuestion, FlaskConical, Menu, Mic, Paperclip, Plus, Send, SquarePen, Volume2, X } from "lucide-react";
+import { Backpack, BookOpenCheck, Check, Clapperboard, ClipboardCheck, FileQuestion, FlaskConical, Menu, Mic, Paperclip, Plus, Send, SquarePen, Volume2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { answer, docsOf, flashcards, general, makeFree, makeQuiz, summarize, type FreeQ, type MCQ } from "./engine";
@@ -47,7 +47,7 @@ function respond(text: string, c: Course | null, length: "short" | "normal" | "d
 }
 
 export default function Birdie({ active }: { active: boolean }) {
-  const { courses, folders, profile, settings, chats, setChats, birdieIntent, clearBirdieIntent, applyQuiz, addNote, addFile, flash, setTab, goStudy, goHelp, phone, setOverlay, logChat, setBrainOpen, auth, setWalletOpen, setSetting, refreshWallet, loadRemoteCourseContent, sharedRemoteContent, setBarsHidden } = useApp();
+  const { courses, folders, profile, settings, chats, setChats, birdieIntent, clearBirdieIntent, applyQuiz, addNote, addFile, flash, setTab, goStudy, goHelp, phone, setOverlay, logChat, setBrainOpen, auth, setWalletOpen, setSetting, refreshWallet, loadRemoteCourseContent, sharedRemoteContent, setBarsHidden, pocketAdd } = useApp();
   const [ctx, setCtx] = useViewState<string>("birdie.ctx", "general");
   const [typing, setTyping] = useState(false);
   const [mode, setMode] = useViewState<Mode>("birdie.mode", "chat");
@@ -55,6 +55,7 @@ export default function Birdie({ active }: { active: boolean }) {
   const [drawer, setDrawer] = useState(false);
   const [attach, setAttach] = useState(false);
   const [lesson, setLesson] = useState(false);
+  const [holdPick, setHoldPick] = useState(false);
   const [listening, setListening] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -309,9 +310,18 @@ export default function Birdie({ active }: { active: boolean }) {
           <Tool label="Exam practice" sub="Theory questions, marked" Icon={FileQuestion} onClick={() => toolMode("exam")} />
           <Tool label="Practical" sub="Applied questions, marked" Icon={FlaskConical} onClick={() => toolMode("practical")} />
           <Tool label="Add a file" sub={course ? `Saved to ${course.code}` : "Pick a course first"} Icon={Paperclip} onClick={toolFile} />
+          <Tool label="Hold a file for me" sub="Your buddy keeps it handy while you learn" Icon={Backpack} onClick={() => { setAttach(false); if (!course) { flash("Pick a course first"); return; } setHoldPick(true); }} />
         </div>
       </Sheet>
 
+      <Sheet open={holdPick} onClose={() => setHoldPick(false)} title={course ? `Hold a file from ${course.code}` : "Hold a file"}>
+        {course && (course.files.length + course.notes.length === 0 ? <p className="text-[13px] text-[var(--dim)]">No files or notes in {course.code} yet.</p> : (
+          <div className="max-h-[50vh] space-y-1.5 overflow-y-auto">
+            {course.files.map((f) => (<button key={f.id} onClick={() => { pocketAdd({ kind: "file", title: f.name, courseId: course.id, fileId: f.id }); setHoldPick(false); }} className="flex w-full items-center gap-2.5 rounded-xl bg-[var(--paper-dim)] px-3 py-2.5 text-left text-[13.5px] font-semibold"><Paperclip size={15} className="shrink-0 text-[var(--birdie)]" /><span className="truncate">{f.name}</span></button>))}
+            {course.notes.map((n) => (<button key={n.id} onClick={() => { pocketAdd({ kind: "note", title: n.title, courseId: course.id, noteId: n.id }); setHoldPick(false); }} className="flex w-full items-center gap-2.5 rounded-xl bg-[var(--paper-dim)] px-3 py-2.5 text-left text-[13.5px] font-semibold"><BookOpenCheck size={15} className="shrink-0 text-[var(--study)]" /><span className="truncate">{n.title}</span></button>))}
+          </div>
+        ))}
+      </Sheet>
       {lesson && <VideoLesson course={course ?? null} onClose={() => setLesson(false)} />}
 
       <DemoControls active={active} title="Birdie: how it works right now">

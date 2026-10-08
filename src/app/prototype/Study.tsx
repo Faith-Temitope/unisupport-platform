@@ -1,5 +1,6 @@
 "use client";
 
+import { HoldButton } from "./Pocket";
 import { PushNudge } from "./PushToggle";
 import { offlineUrl, removeOffline, saveOffline, useOfflineIndex } from "./offline";
 import { useViewState } from "./persist";
@@ -305,6 +306,7 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--study-soft)] text-[var(--study)]"><Icon size={18} /></div>
                   <div className="min-w-0 flex-1"><div className="truncate text-[13.5px] font-semibold text-[var(--text)]">{f.name}</div><div className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-[var(--dim)]"><CategoryPill category={f.category} />{f.added}{f.size ? ` · ${fmtSize(f.size)}` : ""} · {f.text ? "Birdie can read this" : "Birdie reads this once AI is connected"}</div></div>
                   {(f.url || f.storagePath) && <button onClick={() => void openFile(f)} className="rounded-lg bg-[var(--paper-dim)] px-2.5 py-1.5 text-[11.5px] font-bold text-[var(--dim)]">Open</button>}
+                  <HoldButton item={{ kind: "file", title: f.name, courseId: course.id, fileId: f.id }} className="text-[var(--dim)] active:scale-90" />
                   {f.storagePath && <button onClick={() => void toggleOffline(f)} aria-label={saved[`file:${f.storagePath}`] ? "Remove offline copy" : "Save offline"} className={`active:scale-90 ${saved[`file:${f.storagePath}`] ? "text-[var(--study)]" : "text-[var(--dim)]"}`}>{saved[`file:${f.storagePath}`] ? <CheckCircle2 size={15} /> : <Download size={15} />}</button>}
                   {!readOnly && f.storagePath && <button onClick={() => openPrint({ kind: "print", file: { name: f.name, path: f.storagePath! } })} aria-label="Print this" className="text-[var(--dim)] active:scale-90"><Printer size={15} /></button>}
                   {!readOnly && <button onClick={() => deleteFile(course.id, f.id)} aria-label="Delete file" className="text-[var(--dim)] active:scale-90"><Trash2 size={15} /></button>}

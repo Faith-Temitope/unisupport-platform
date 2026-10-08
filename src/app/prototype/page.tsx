@@ -1,5 +1,6 @@
 "use client";
 
+import { PocketDock, PocketSheet } from "./Pocket";
 import { useOnline } from "./offline";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { Check, Compass, FastForward, Headset, LayoutDashboard, LifeBuoy, PenLine, RotateCcw, BookOpen } from "lucide-react";
@@ -119,6 +120,8 @@ function Shell() {
               <Recorder />
               <Sheets />
               <Overlays />
+              <PocketDock />
+              <PocketSheet />
               <Player bottom={hideNav ? 8 : navH + 22} />
               <Settings />
               <Entry />

@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, animate, motion, useMotionValue } from "framer-motion";
-import { MessageCircle, Mic, PlusSquare } from "lucide-react";
+import { Backpack, MessageCircle, Mic, PlusSquare } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type Mood } from "@/components/brand/Bot";
 import Buddy, { Bed, type Cover } from "@/components/brand/Buddy";
@@ -26,7 +26,7 @@ const S = 64, RIGHT = 10, BOTTOM = 232;
  * out a bed and naps if it's sulking), and covers its eyes while you type, though it might peek.
  */
 export default function Mascot() {
-  const { tab, phone, overlay, setOverlay, setRecorderOpen, mascotEvent, settings, profile, focusEndsAt, plus } = useApp();
+  const { tab, phone, overlay, setOverlay, setRecorderOpen, mascotEvent, settings, profile, focusEndsAt, plus, pocket, setPocketOpen } = useApp();
   const x = useMotionValue(0), y = useMotionValue(0);
   const [mood, setMood] = useState<Mood>("idle");
   const [bubble, setBubble] = useState<{ text: string; id: number } | null>(null);
@@ -188,9 +188,10 @@ export default function Mascot() {
   const startPress = () => { if (pressT.current) clearTimeout(pressT.current); pressT.current = setTimeout(() => { petted.current = Date.now(); if (!dragging.current) { setOpen(false); grudge.current = Math.max(0, grudge.current - 2); feel("love", 3000); say(grudge.current ? "Okay... I forgive you a little." : "Hehe, that tickles!", 3000); } }, 650); };
   const endPress = () => { if (pressT.current) { clearTimeout(pressT.current); pressT.current = null; } };
 
+  const pocketItem = { label: pocket.length ? `Holding (${pocket.length})` : "Hold this for me", sub: pocket.length ? "Open what I'm keeping for you" : "Tap the backpack on a file, video or chat", icon: Backpack, run: () => setPocketOpen(true) };
   const items = tab === "explore"
-    ? [{ label: "Chat", sub: "Talk to people you know", icon: MessageCircle, run: () => setOverlay({ t: "chats" }) }, { label: "Post", sub: "Upload or write for Explore", icon: PlusSquare, run: () => setOverlay({ t: "post" }) }]
-    : [{ label: "Record", sub: "Capture a lecture", icon: Mic, run: () => setRecorderOpen(true) }, { label: "Chat", sub: "Talk to people you know", icon: MessageCircle, run: () => setOverlay({ t: "chats" }) }];
+    ? [pocketItem, { label: "Chat", sub: "Talk to people you know", icon: MessageCircle, run: () => setOverlay({ t: "chats" }) }, { label: "Post", sub: "Upload or write for Explore", icon: PlusSquare, run: () => setOverlay({ t: "post" }) }]
+    : [pocketItem, { label: "Record", sub: "Capture a lecture", icon: Mic, run: () => setRecorderOpen(true) }, { label: "Chat", sub: "Talk to people you know", icon: MessageCircle, run: () => setOverlay({ t: "chats" }) }];
 
   if (overlay || !settings.mascotOn) return null;
   const sleeping = activity === "bed";
@@ -214,6 +215,8 @@ export default function Mascot() {
         <Buddy skin={skin} size={S} mood={mood} talking={talking} feet={feet} showFeet={walking} cover={sleeping ? "none" : cover} reading={activity === "read"} color="#A63FBD" initials={initials(profile.name || "Me")} />
       </motion.div>
       {sleeping && <div className="pointer-events-none absolute h-4 rounded-sm bg-[#7C4DDB]" style={{ left: 10, top: 44, width: 64 }} />}
+      {/* Carrying things for you: a little backpack with a count. */}
+      {pocket.length > 0 && !sleeping && <span className="pointer-events-none absolute -left-1 bottom-1 flex h-6 items-center gap-0.5 rounded-full bg-[#8a5a3c] px-1.5 text-[10px] font-bold text-white shadow"><Backpack size={11} />{pocket.length}</span>}
 
       <AnimatePresence>
         {mood === "love" && [0, 1, 2].map((i) => (<motion.span key={`h${i}`} initial={{ opacity: 0, y: 10, scale: 0.6 }} animate={{ opacity: [0, 1, 0], y: -34 - i * 8, scale: 1 }} transition={{ duration: 1.4, delay: i * 0.25, repeat: 2 }} className="pointer-events-none absolute text-[15px]" style={{ left: 14 + i * 14, top: -6 }}>❤️</motion.span>))}
