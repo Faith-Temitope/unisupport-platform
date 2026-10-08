@@ -1,5 +1,6 @@
 "use client";
 
+import { useViewState } from "./persist";
 import { BadgeCheck, BookmarkPlus, Search, Send, Users } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { FeedAd, usePlacements } from "./Sponsored";
@@ -25,12 +26,12 @@ export default function Explore({ active }: { active: boolean }) {
     if (r.error === "not_available_to_you") return flash("This course is only open to students from a certain country, region or school");
     flash("Couldn't add that course. Try again.");
   }
-  const [seg, setSeg] = useState<"feed" | "courses" | "deals">("feed");
+  const [seg, setSeg] = useViewState<"feed" | "courses" | "deals">("explore.seg", "feed");
   const campus = usePlacements("campus", undefined, seg === "deals");
   const deals = usePlacements("deal", undefined, seg === "deals");
   const feedCards = usePlacements("card", "explore", active);
   const [q, setQ] = useState("");
-  const [tag, setTag] = useState("For you");
+  const [tag, setTag] = useViewState("explore.tag", "For you");
   const [detail, setDetail] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
 

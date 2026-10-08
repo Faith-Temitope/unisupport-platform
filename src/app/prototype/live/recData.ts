@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase";
 
 /** What a student did with a post. These feed the For you ranking (see for_you in the database). */
-export type PostEventKind = "view" | "watch" | "like" | "unlike" | "save" | "share" | "search" | "skip";
+export type PostEventKind = "view" | "watch" | "like" | "unlike" | "save" | "share" | "search" | "skip" | "comment";
 
 export async function logPostEvent(postId: string | null, kind: PostEventKind, opts: { seconds?: number; term?: string } = {}) {
   try {
