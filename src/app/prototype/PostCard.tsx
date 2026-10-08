@@ -18,7 +18,8 @@ export default function PostCard({ post, onProfile }: { post: Post; onProfile: (
   const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState(false);
   const [ended, setEnded] = useState(false);
-  const endCards = usePlacements("card", "video_end", post.kind === "video");
+  const [ytOn, setYtOn] = useState(false);
+  const endCards = usePlacements("card", "video_end", post.kind === "video" && !post.youtubeId);
   const endCard = endCards.length ? endCards[post.id.charCodeAt(0) % endCards.length] : null;
   // One sponsor card after a long video the student actually watched (sound on), never mid-video,
   // never on short clips or the muted hover preview.
@@ -31,7 +32,20 @@ export default function PostCard({ post, onProfile }: { post: Post; onProfile: (
 
   return (
     <article className="overflow-hidden rounded-2xl border border-[var(--line)] bg-white">
-      {post.kind === "video" ? (
+      {post.youtubeId ? (
+        // Embedded through YouTube's own player (thumbnail until tapped, so the feed stays light).
+        <div className="relative aspect-video w-full overflow-hidden bg-black">
+          {ytOn ? (
+            <iframe src={`https://www.youtube-nocookie.com/embed/${post.youtubeId}?autoplay=1&rel=0&playsinline=1`} title={post.title} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen className="absolute inset-0 h-full w-full border-0" />
+          ) : (
+            <button onClick={() => setYtOn(true)} aria-label={`Play ${post.title}`} className="absolute inset-0">
+              {/* eslint-disable-next-line @next/next/no-img-element -- YouTube's own thumbnail */}
+              <img src={`https://i.ytimg.com/vi/${post.youtubeId}/hqdefault.jpg`} alt="" loading="lazy" className="h-full w-full object-cover" />
+              <span className="absolute inset-0 flex items-center justify-center"><span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-[var(--ink)]"><Play size={20} className="ml-0.5 fill-[var(--ink)]" /></span></span>
+            </button>
+          )}
+        </div>
+      ) : post.kind === "video" ? (
         <div
           className={`relative aspect-video w-full cursor-pointer overflow-hidden bg-gradient-to-br ${post.grad}`}
           onMouseEnter={() => settings.autoplay && !settings.dataSaver && !failed && play()}
@@ -59,7 +73,7 @@ export default function PostCard({ post, onProfile }: { post: Post; onProfile: (
         <button onClick={() => !isMe && onProfile(post.authorId)} aria-label="Open profile"><Avatar initials={initials(a.name)} color={a.color} size={36} /></button>
         <div className="min-w-0 flex-1">
           {post.kind === "video" && <div className="line-clamp-2 text-[14px] font-semibold leading-snug text-[var(--text)]">{post.title}</div>}
-          <div className="mt-0.5 text-[12px] text-[var(--dim)]">{a.name} · {post.field} · {ago(post.createdAt)}</div>
+          <div className="mt-0.5 text-[12px] text-[var(--dim)]">{post.sourceName ? <>From YouTube · <b className="font-semibold text-[var(--text)]">{post.sourceName}</b></> : a.name} · {post.field} · {ago(post.createdAt)}</div>
           {post.tags.length > 0 && <div className="mt-1.5 flex flex-wrap gap-1.5">{post.tags.map((t) => (<span key={t} className="rounded-full bg-[var(--paper-dim)] px-2 py-0.5 text-[11px] font-semibold text-[var(--dim)]">#{t}</span>))}</div>}
         </div>
         <div className="flex flex-col items-center gap-1">

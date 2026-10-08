@@ -39,7 +39,7 @@ export interface BMsg { id: string; from: "me" | "bird"; text: string; cite?: st
 export interface Person { id: string; name: string; handle: string; field: string; bio: string; color: string; demo?: boolean; links?: Link[]; school?: string; country?: string }
 export type Audience = "everyone" | "country" | "region" | "school";
 export interface CMsg { id: string; from: "me" | "them"; text: string; t: string; author?: string }
-export interface Post { id: string; authorId: string; kind: "video" | "text"; title: string; body?: string; videoUrl?: string; videoPath?: string; field: string; tags: string[]; dur?: string; grad: string; createdAt: number; likes: number; liked: boolean; demo?: boolean; remote?: boolean }
+export interface Post { id: string; authorId: string; kind: "video" | "text"; title: string; body?: string; videoUrl?: string; videoPath?: string; youtubeId?: string; sourceName?: string; field: string; tags: string[]; dur?: string; grad: string; createdAt: number; likes: number; liked: boolean; demo?: boolean; remote?: boolean }
 export type PrintIntent = { kind: "print" | "handwrite" | "orders"; file?: { name: string; path: string } };
 export type NewPost ={ kind: "video" | "text"; title: string; body?: string; field: string; tags: string[]; durationSeconds?: number; file?: File };
 export interface SharedCourse { id: string; ownerId: string; ownerName?: string; code: string; name: string; school?: string; field: string; description: string; files: string[]; members: string[]; messages: { id: string; authorId: string; text: string; t: string }[]; demo?: boolean; sourceCourseId?: string; priceNgn?: number; itemCounts?: { notes: number; files: number; recs: number } }
@@ -110,7 +110,7 @@ interface AppCtx {
   people: Person[]; contacts: string[]; following: string[]; convos: Record<string, CMsg[]>; blocked: string[];
   addContact: (id: string) => void; removeContact: (id: string) => void; toggleFollow: (id: string) => void; sendChat: (id: string, text: string) => void; toggleBlock: (id: string) => void;
   posts: Post[]; addPost: (p: NewPost) => Promise<string | null>; toggleLike: (id: string) => void; deletePost: (id: string) => void;
-  refreshFeed: () => Promise<void>; loadChannel: (id: string) => Promise<void>;
+  refreshFeed: () => Promise<void>; loadMoreFeed: () => Promise<number>; searchFeed: (term: string) => Promise<void>; loadChannel: (id: string) => Promise<void>;
   saveProfile: (p: Profile) => Promise<string | null>;
   shared: SharedCourse[];
   shareCourse: (courseId: string, info: { description: string; field: string; ownerName: string; school: string; priceNgn: number; audience: Audience; audienceValue: string | null }, picked: Picked) => Promise<string | null>;
@@ -364,7 +364,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [auth.userId]);
   const toPost = useCallback((r: FeedPost): Post => ({
     id: r.id, authorId: r.author_id === auth.userId ? "me" : r.author_id, kind: r.kind, title: r.title, body: r.body ?? undefined,
-    videoUrl: r.videoUrl, videoPath: r.video_path ?? undefined, field: r.field ?? "", tags: r.tags, dur: fmtDur(r.duration_seconds), grad: GRAD,
+    videoUrl: r.videoUrl, videoPath: r.video_path ?? undefined, youtubeId: r.youtube_id ?? undefined, sourceName: r.source_name ?? undefined, field: r.field ?? "", tags: r.tags, dur: fmtDur(r.duration_seconds), grad: GRAD,
     createdAt: Date.parse(r.created_at), likes: r.likes, liked: r.liked, remote: true,
   }), [auth.userId]);
   const ingestPosts = useCallback(async (rows: FeedPost[], replaceAll: boolean) => {
@@ -377,6 +377,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const refreshFeed = useCallback(async () => {
     if (auth.status !== "in") return;
     try { await ingestPosts(await fetchFeed(auth.userId), true); } catch { /* keep what we have */ }
+  }, [auth.status, auth.userId, ingestPosts]);
+  const postsRef = useRef<Post[]>([]);
+  useEffect(() => { postsRef.current = posts; }, [posts]);
+  // Next page, older than the oldest real post loaded so far. Returns how many came back (0 = end).
+  const loadMoreFeed = useCallback(async () => {
+    if (auth.status !== "in") return 0;
+    const oldest = postsRef.current.filter((p) => p.remote).reduce((m, p) => Math.min(m, p.createdAt), Infinity);
+    if (!Number.isFinite(oldest)) return 0;
+    const rows = await fetchFeed(auth.userId, { before: new Date(oldest).toISOString() });
+    await ingestPosts(rows, false);
+    return rows.length;
+  }, [auth.status, auth.userId, ingestPosts]);
+  // Pulls matches for a search/tag from the server, so results aren't limited to what's loaded.
+  const searchFeed = useCallback(async (term: string) => {
+    if (auth.status !== "in" || term.trim().length < 2) return;
+    try { await ingestPosts(await fetchFeed(auth.userId, { term, limit: 60 }), false); } catch { /* keep what we have */ }
   }, [auth.status, auth.userId, ingestPosts]);
   const loadChannel = useCallback(async (id: string) => {
     if (auth.status !== "in" || id === "me" || people.find((p) => p.id === id)?.demo) return;
@@ -658,7 +674,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setPosts((ps) => ps.filter((p) => p.id !== id));
       if (target?.remote) void deletePostRemote(id, target.videoPath);
     },
-    refreshFeed, loadChannel,
+    refreshFeed, loadMoreFeed, searchFeed, loadChannel,
     saveProfile: async (p) => {
       if (userId) {
         const err = await upsertMyChannel(userId, channelFields(p));
@@ -768,7 +784,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     resetKey, ready,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, refreshExamPass, isRep, refreshRep, sharedIntent, printIntent, refreshFeed, loadChannel, toPost]);
+  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, refreshExamPass, isRep, refreshRep, sharedIntent, printIntent, refreshFeed, loadMoreFeed, searchFeed, loadChannel, toPost]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

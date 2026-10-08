@@ -11,7 +11,7 @@ import { Avatar, Btn, DemoControls, Empty, Label, Segmented, Sheet, TopBar } fro
 import { ShareCourseForm } from "./ShareCourseForm";
 
 export default function Explore({ active }: { active: boolean }) {
-  const { posts, courses, chats, settings, following, blocked, shared, setOverlay, setTab, goStudy, joinShared, leaveShared, sendShared, loadSharedDetail, personById, profile, flash, setWalletOpen, refreshFeed, sharedIntent, clearSharedIntent } = useApp();
+  const { posts, courses, chats, settings, following, blocked, shared, setOverlay, setTab, goStudy, joinShared, leaveShared, sendShared, loadSharedDetail, personById, profile, flash, setWalletOpen, refreshFeed, loadMoreFeed, searchFeed, sharedIntent, clearSharedIntent } = useApp();
   const [buying, setBuying] = useState(false);
   async function join(s: SharedCourse) {
     setBuying(true);
@@ -43,6 +43,28 @@ export default function Explore({ active }: { active: boolean }) {
 
   // Fresh posts each time Explore is opened; a course tapped on someone's channel opens here.
   useEffect(() => { if (active) void refreshFeed(); }, [active, refreshFeed]);
+  // Search and subject tags ask the server too, so they find posts beyond the pages loaded so far.
+  useEffect(() => {
+    const term = q.trim() || (tag !== "For you" && tag !== "Following" ? tag : "");
+    if (!active || term.length < 2) return;
+    const t = setTimeout(() => void searchFeed(term), 350);
+    return () => clearTimeout(t);
+  }, [active, q, tag, searchFeed]);
+  // Endless feed: the next page loads when the bottom of the list scrolls into view.
+  const sentinel = useRef<HTMLDivElement>(null);
+  const [feedEnd, setFeedEnd] = useState(false);
+  const loadingMore = useRef(false);
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || seg !== "feed" || feedEnd) return;
+    const io = new IntersectionObserver((es) => {
+      if (!es.some((e) => e.isIntersecting) || loadingMore.current) return;
+      loadingMore.current = true;
+      void loadMoreFeed().then((n) => { loadingMore.current = false; if (n === 0) setFeedEnd(true); });
+    }, { rootMargin: "600px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [seg, feedEnd, loadMoreFeed, posts.length]);
   useEffect(() => {
     if (!sharedIntent) return;
     setSeg("courses"); setDetail(sharedIntent); clearSharedIntent(); // eslint-disable-line react-hooks/set-state-in-effect
@@ -85,7 +107,9 @@ export default function Explore({ active }: { active: boolean }) {
             <div className="space-y-4">{feed.map((p, i) => (<Fragment key={p.id}>
               <PostCard post={p} onProfile={(id) => setOverlay({ t: "profile", id })} />
               {feedCards.length > 0 && (i === 3 || (i > 3 && (i - 3) % 8 === 0)) && <SponsoredCard p={feedCards[Math.floor((i - 3) / 8) % feedCards.length]} />}
-            </Fragment>))}</div>
+            </Fragment>))}
+              <div ref={sentinel} className="py-4 text-center text-[12px] text-[var(--dim)]">{feedEnd ? "You're all caught up" : "Loading more..."}</div>
+            </div>
           )
         ) : seg === "deals" ? (
           <div className="space-y-5">

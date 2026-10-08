@@ -13,6 +13,7 @@ export interface Channel {
 export interface RemotePost {
   id: string; author_id: string; kind: "video" | "text"; title: string; body: string | null; video_path: string | null;
   field: string | null; tags: string[]; duration_seconds: number | null; created_at: string;
+  youtube_id: string | null; source_name: string | null;
 }
 export interface FeedPost extends RemotePost { videoUrl?: string; likes: number; liked: boolean }
 
@@ -64,8 +65,14 @@ async function withLikes(rows: RemotePost[], me?: string): Promise<FeedPost[]> {
   return rows.map((r) => ({ ...r, tags: r.tags ?? [], videoUrl: r.video_path ? videoUrl(r.video_path) : undefined, likes: count[r.id] ?? 0, liked: mine.has(r.id) }));
 }
 
-export async function fetchFeed(me?: string, limit = 100): Promise<FeedPost[]> {
-  const { data } = await createClient().from("posts").select("*").order("created_at", { ascending: false }).limit(limit);
+/** Newest first, a page at a time (`before` = createdAt of the last post already shown). `term`
+ * searches title, subject and tags server-side, so it finds posts that aren't loaded yet. */
+export async function fetchFeed(me?: string, opts: { limit?: number; before?: string; term?: string } = {}): Promise<FeedPost[]> {
+  let q = createClient().from("posts").select("*").order("created_at", { ascending: false }).limit(opts.limit ?? 40);
+  if (opts.before) q = q.lt("created_at", opts.before);
+  const t = opts.term?.trim().replace(/[,()*%]/g, " ").trim();
+  if (t) q = q.or(`title.ilike.*${t}*,field.ilike.*${t}*,source_name.ilike.*${t}*,tags.cs.{${t.toLowerCase()}}`);
+  const { data } = await q;
   return withLikes((data ?? []) as RemotePost[], me);
 }
 export async function fetchPostsBy(authorId: string, me?: string): Promise<FeedPost[]> {
