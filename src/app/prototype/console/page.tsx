@@ -5,7 +5,8 @@
 // security boundary). Four tabs: Users (role changes), Schools (per-institution policy toggles),
 // Pricing (the quiz/writing x standard/full rate card, deadline multipliers, app config), AI
 // (provider/model enable + margin).
-import { BarChart3, Building2, Cpu, LogOut, Sliders, Users as UsersIcon } from "lucide-react";
+import { BadgeCheck, BarChart3, Building2, Cpu, LogOut, Sliders, Users as UsersIcon } from "lucide-react";
+import { adminListReps, adminSetRep, type AdminRep } from "../live/repData";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { fetchActivityOverview, fetchDailySum, fetchOverview, fetchSchoolBreakdown, fetchTopWriters, type ActivityOverview, type DaySeries, type Overview, type SchoolBreakdown, type TopWriter } from "../live/analyticsData";
@@ -67,11 +68,12 @@ function SignIn({ onDone }: { onDone: () => void }) {
 }
 
 function Workspace({ me, onOut }: { me: { id: string; name: string }; onOut: () => void }) {
-  const [tab, setTab] = useState<"activity" | "users" | "schools" | "pricing" | "ai">("activity");
+  const [tab, setTab] = useState<"activity" | "users" | "reps" | "schools" | "pricing" | "ai">("activity");
   const { show, node } = useToast();
   const nav = [
     { id: "activity", label: "Activity", icon: <BarChart3 size={17} /> },
     { id: "users", label: "Users", icon: <UsersIcon size={17} /> },
+    { id: "reps", label: "Reps", icon: <BadgeCheck size={17} /> },
     { id: "schools", label: "Schools", icon: <Building2 size={17} /> },
     { id: "pricing", label: "Pricing", icon: <Sliders size={17} /> },
     { id: "ai", label: "AI models", icon: <Cpu size={17} /> },
@@ -84,6 +86,7 @@ function Workspace({ me, onOut }: { me: { id: string; name: string }; onOut: () 
       </div>
       {tab === "activity" && <ActivityTab />}
       {tab === "users" && <UsersTab show={show} />}
+      {tab === "reps" && <RepsTab show={show} />}
       {tab === "schools" && <SchoolsTab show={show} />}
       {tab === "pricing" && <PricingTab show={show} />}
       {tab === "ai" && <AiTab show={show} />}
@@ -175,6 +178,58 @@ function MiniBars({ data, fmt, tone = "#8b3fa6" }: { data: DaySeries[]; fmt: (n:
           <div className="pointer-events-none absolute bottom-full left-1/2 mb-1 -translate-x-1/2 whitespace-nowrap rounded-lg bg-[#1a1024] px-2 py-1 text-[11px] font-semibold text-white opacity-0 transition group-hover:opacity-100">{fmt(d.value)} · {d.date.slice(5)}</div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ---------------- Course reps ----------------
+// Applications come in from Settings > Course rep in the app. Approving issues the rep's code;
+// removing stops their commission and unlimited AI immediately (AI commission owed is paid first).
+function RepsTab({ show }: { show: (m: string) => void }) {
+  const [rows, setRows] = useState<AdminRep[] | null>(null);
+  const reload = useCallback(async () => setRows(await adminListReps()), []);
+  useEffect(() => { void adminListReps().then(setRows); }, []);
+  async function set(r: AdminRep, status: "active" | "rejected" | "removed") {
+    if (status === "removed" && !confirm(`Remove ${r.name} as a course rep? Their commission and free AI stop now.`)) return;
+    const err = await adminSetRep(r.user_id, status);
+    if (err) return show(err);
+    show(status === "active" ? "Approved. Their code is ready in the app." : status === "removed" ? "Rep removed" : "Application rejected");
+    void reload();
+  }
+  if (!rows) return <div className="p-10 text-center text-sm text-[var(--dim)]">Loading...</div>;
+  const pending = rows.filter((r) => r.status === "pending"), active = rows.filter((r) => r.status === "active"), past = rows.filter((r) => r.status === "rejected" || r.status === "removed");
+  const totalEarned = rows.reduce((a, r) => a + Number(r.earned), 0), totalStudents = active.reduce((a, r) => a + r.students, 0);
+  const Item = ({ r, actions }: { r: AdminRep; actions: React.ReactNode }) => (
+    <div className="flex flex-wrap items-start gap-3 px-5 py-3.5">
+      <div className="min-w-0 flex-1">
+        <div className="text-[14px] font-semibold">{r.name} {r.code && <span className="ml-1 rounded-md bg-[#F4EFF8] px-1.5 py-0.5 font-mono text-[12px]">{r.code}</span>}</div>
+        <div className="text-[12px] text-[var(--dim)]">{[r.email, r.school, r.program].filter(Boolean).join(" · ")}</div>
+        {r.note && <div className="mt-1 text-[12.5px] text-[#4a3a5e]">&ldquo;{r.note}&rdquo;</div>}
+        {r.status !== "pending" && <div className="mt-1 text-[12px] text-[var(--dim)]">{r.students} linked student{r.students === 1 ? "" : "s"} · earned {nairaS(Number(r.earned))}</div>}
+      </div>
+      <div className="flex gap-2">{actions}</div>
+    </div>
+  );
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <Card pad><div className="text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Active reps</div><div className="disp mt-1 text-[24px] font-bold">{active.length}</div></Card>
+        <Card pad><div className="text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Students linked</div><div className="disp mt-1 text-[24px] font-bold">{totalStudents}</div></Card>
+        <Card pad><div className="text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Commission paid</div><div className="disp mt-1 text-[24px] font-bold">{nairaS(totalEarned)}</div></Card>
+      </div>
+      <Card title="Applications" sub={`${pending.length} waiting`} pad={false}>
+        {pending.length === 0 ? <div className="p-6 text-center text-sm text-[var(--dim)]">No applications waiting.</div> : <div className="divide-y divide-[#F0EAF7]">{pending.map((r) => (
+          <Item key={r.user_id} r={r} actions={<><Btn2 small onClick={() => void set(r, "active")}>Approve</Btn2><button onClick={() => void set(r, "rejected")} className={`${btn} bg-white text-[#C2412D]`}>Reject</button></>} />
+        ))}</div>}
+      </Card>
+      <Card title="Active reps" sub="Earn commission and get unlimited Birdie AI" pad={false}>
+        {active.length === 0 ? <div className="p-6 text-center text-sm text-[var(--dim)]">No active reps yet.</div> : <div className="divide-y divide-[#F0EAF7]">{active.map((r) => (
+          <Item key={r.user_id} r={r} actions={<button onClick={() => void set(r, "removed")} className={`${btn} bg-white text-[#C2412D]`}>Remove</button>} />
+        ))}</div>}
+      </Card>
+      {past.length > 0 && <Card title="Removed or rejected" pad={false}><div className="divide-y divide-[#F0EAF7]">{past.map((r) => (
+        <Item key={r.user_id} r={r} actions={<><Pill tone={r.status === "removed" ? "amber" : "gray"}>{r.status}</Pill><Btn2 small onClick={() => void set(r, "active")}>Reinstate</Btn2></>} />
+      ))}</div></Card>}
     </div>
   );
 }
