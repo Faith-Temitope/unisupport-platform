@@ -1,7 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- sponsor logos are arbitrary https URLs, not local assets */
-import { Briefcase, Calendar, Copy, ExternalLink, MapPin } from "lucide-react";
+import { Briefcase, Calendar, Copy, ExternalLink, FileText, MapPin, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cleanUrl } from "./live/socialData";
 import { fetchPlacements, logPlacement, type Placement, type PlacementKind, type Surface } from "./live/sponsorData";
@@ -47,6 +47,28 @@ function CodeChip({ code }: { code: string }) {
   );
 }
 
+/** The sponsor's own creative: a flyer/picture shown whole, a video that plays muted while on screen, or a PDF. */
+export function AdMedia({ p, edge, small }: { p: Placement; edge?: boolean; small?: boolean }) {
+  const vid = useRef<HTMLVideoElement>(null);
+  const [muted, setMuted] = useState(true);
+  useEffect(() => {
+    const el = vid.current; if (!el) return;
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) void el.play().catch(() => undefined); else el.pause(); }, { threshold: 0.6 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [p.media_url]);
+  if (!p.media_url || !p.media_kind || p.media_kind === "none") return null;
+  const round = edge ? "" : "rounded-xl";
+  if (p.media_kind === "image") return <button onClick={() => open(p)} className="block w-full"><img src={p.media_url} alt={p.title} loading="lazy" className={`w-full bg-[var(--paper-dim)] object-contain ${small ? "max-h-40" : "max-h-[70vh]"} ${round}`} /></button>;
+  if (p.media_kind === "video") return (
+    <div className={`relative w-full overflow-hidden bg-black ${round}`}>
+      <video ref={vid} src={p.media_url} muted={muted} loop playsInline preload="metadata" onClick={() => open(p)} className={`w-full ${small ? "max-h-40" : "max-h-[70vh]"}`} />
+      <button onClick={() => setMuted((m) => !m)} aria-label={muted ? "Unmute" : "Mute"} className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white">{muted ? <VolumeX size={15} /> : <Volume2 size={15} />}</button>
+    </div>
+  );
+  return <a href={p.media_url} target="_blank" rel="noopener noreferrer" onClick={() => logPlacement(p.id, "click")} className={`flex items-center gap-2.5 bg-[var(--paper-dim)] p-3 text-[13px] font-semibold ${round}`}><FileText size={18} className="text-[var(--uni)]" /> Open the flyer (PDF)</a>;
+}
+
 export const SponsoredLabel = ({ name }: { name: string }) => <div className="text-[10.5px] font-semibold uppercase tracking-wider text-[var(--dim)]">Sponsored · {name}</div>;
 
 /** Generic card: deals, sponsored cards in Birdie/Explore/end of video. */
@@ -55,6 +77,7 @@ export function SponsoredCard({ p, dark }: { p: Placement; dark?: boolean }) {
   return (
     <div ref={ref} className={`rounded-2xl p-3.5 ${dark ? "bg-white/95 text-[var(--text)]" : "border border-[var(--line)] bg-white"}`}>
       <SponsoredLabel name={p.sponsor_name} />
+      {p.media_url && <div className="mt-2"><AdMedia p={p} /></div>}
       <div className="mt-2 flex gap-3">
         {p.image_url && <img src={p.image_url} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" />}
         <div className="min-w-0 flex-1">
@@ -75,7 +98,7 @@ export function FeedAd({ p, edge }: { p: Placement; edge?: boolean }) {
   const ref = useViewLog(p.id);
   return (
     <div ref={ref}>
-      {p.image_url && <button onClick={() => open(p)} className="block w-full"><img src={p.image_url} alt="" className={`aspect-video w-full object-cover ${edge ? "" : "rounded-xl"}`} /></button>}
+      {p.media_url ? <AdMedia p={p} edge={edge} /> : p.image_url && <button onClick={() => open(p)} className="block w-full"><img src={p.image_url} alt="" className={`aspect-video w-full object-cover ${edge ? "" : "rounded-xl"}`} /></button>}
       <div className={`flex gap-3 pt-3 ${edge ? "px-3" : ""}`}>
         <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--paper-dim)] text-[13px] font-bold text-[var(--dim)]">{p.image_url ? <img src={p.image_url} alt="" className="h-full w-full object-cover" /> : p.sponsor_name.slice(0, 1)}</div>
         <div className="min-w-0 flex-1">
@@ -111,6 +134,7 @@ function CampusTile({ p }: { p: Placement }) {
         {p.image_url ? <img src={p.image_url} alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover" /> : <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--study-soft)] text-[var(--study)]"><MapPin size={17} /></div>}
         <div className="min-w-0"><div className="truncate text-[13.5px] font-bold">{p.sponsor_name}</div><div className="truncate text-[11.5px] text-[var(--dim)]">{p.location || "Near campus"}</div></div>
       </div>
+      {p.media_url && <div className="mt-2"><AdMedia p={p} small /></div>}
       <div className="mt-2 line-clamp-2 text-[12.5px] leading-snug text-[var(--text)]">{p.title}</div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {p.discount_code && <CodeChip code={p.discount_code} />}
@@ -141,8 +165,16 @@ export function InternshipCard({ p }: { p: Placement }) {
           </div>
         </div>
       </div>
+      {p.media_url && <div className="mt-2.5"><AdMedia p={p} /></div>}
       {p.body && <p className="mt-2 whitespace-pre-line text-[12.5px] leading-snug text-[var(--text)]">{p.body}</p>}
       {p.url && <button onClick={() => open(p)} className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl bg-[var(--uni)] px-3.5 py-2 text-[12.5px] font-bold text-white active:scale-95">{p.cta_label === "Learn more" ? "Apply" : p.cta_label} <ExternalLink size={12} /></button>}
     </div>
   );
+}
+
+/** One sponsored card for a page (Study home, Help, Courses, under a video). Nothing shows if none is live. */
+export function SlotAd({ surface, active = true }: { surface: Surface; active?: boolean }) {
+  const items = usePlacements("card", surface, active);
+  if (!items.length) return null;
+  return <SponsoredCard p={items[0]} />;
 }

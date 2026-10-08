@@ -1,6 +1,7 @@
 "use client";
 
 import { useViewState } from "./persist";
+import { SlotAd } from "./Sponsored";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Bell, BookOpen, ChevronRight, FileText, FolderInput, FolderPlus, Folder as FolderIcon, Image as ImageIcon, MoreHorizontal, Plus, Presentation, Printer, Search, Share2, Sparkles, StickyNote, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -119,6 +120,7 @@ export default function Study() {
             </div>
           </>
         )}
+        {folderId === null && <SlotAd surface="study" />}
       </div>
 
       <ExtraSheets sheet={extra} setSheet={setExtra} />

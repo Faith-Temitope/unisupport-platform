@@ -3,7 +3,7 @@
 import { useViewState } from "./persist";
 import { BadgeCheck, BookmarkPlus, Search, Send, Users } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { FeedAd, usePlacements } from "./Sponsored";
+import { FeedAd, SlotAd, usePlacements } from "./Sponsored";
 import { CampusDeals } from "./CampusDeals";
 import { CertStrip } from "./Certificates";
 import { topInterests } from "./engine";
@@ -149,6 +149,7 @@ export default function Explore({ active }: { active: boolean }) {
         ) : (
           <div className="space-y-3">
             <CertStrip active={active && seg === "courses"} />
+            <SlotAd surface="courses" active={active && seg === "courses"} />
             <Btn variant="ghost" onClick={() => (courses.length ? setShareOpen(true) : flash("Create a course in Study first"))}>Share one of my courses</Btn>
             {filteredShared.length === 0 ? <Empty icon={<Users size={20} />} title="No shared courses yet" text="Students share their course libraries here. Add one to your Study and chat with everyone in it." /> : filteredShared.map((s) => {
               const joined = s.members.includes("me") || s.ownerId === "me";
