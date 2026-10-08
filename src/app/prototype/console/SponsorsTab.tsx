@@ -4,6 +4,7 @@
 // the renewal. Everything goes through admin_* functions (admins only, checked server-side).
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
+import { CertsSection } from "./CertsSection";
 import { cleanUrl } from "../live/socialData";
 import { adminDeletePlacement, adminListPlacements, adminSavePlacement, type AdminPlacement, type PlacementKind, type Surface } from "../live/sponsorData";
 import { Btn2, Card, Pill, Switch } from "../staff/kit";
@@ -148,6 +149,7 @@ export function SponsorsTab({ show }: { show: (m: string) => void }) {
         )}
       </Card>
       <SponsoredPasses show={show} />
+      <CertsSection show={show} />
     </div>
   );
 }
