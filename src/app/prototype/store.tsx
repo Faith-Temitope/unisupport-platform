@@ -54,7 +54,7 @@ export interface Settings {
   aiBrain: "spark" | "nova" | "sage"; aiTier: "quick" | "balanced" | "deep";
   mascotOn: boolean; mascotChatty: boolean; dailyGoal: number;
 }
-export type Overlay = null | { t: "chats" } | { t: "thread"; id: string } | { t: "settings" } | { t: "profile"; id: string } | { t: "post" } | { t: "watch"; id: string };
+export type Overlay = null | { t: "chats" } | { t: "thread"; id: string } | { t: "settings" } | { t: "profile"; id: string } | { t: "post" };
 export interface MascotEvent { id: string; kind: Emote; text?: string }
 
 export const COLORS = ["#7C4DDB", "#A63FBD", "#4C6EF5", "#1B8A85", "#D9467E", "#E2553F"];
@@ -119,6 +119,9 @@ interface AppCtx {
   updateSharing: (courseId: string, priceNgn: number, picked: Picked, audience: Audience, audienceValue: string | null) => Promise<string | null>;
   sharedIntent: string | null; openShared: (id: string) => void; clearSharedIntent: () => void;
   printIntent: PrintIntent | null; openPrint: (i: PrintIntent) => void; closePrint: () => void;
+  barsHidden: boolean; setBarsHidden: (b: boolean) => void;
+  /** The video playing now: full watch page, or minimized to a bar that keeps playing. */
+  watching: { id: string; mini: boolean } | null; watch: (id: string) => void; minimizeWatch: () => void; closeWatch: () => void;
   joinShared: (id: string) => Promise<{ courseId?: string; error?: string }>; sendShared: (id: string, text: string) => void; leaveShared: (id: string) => void;
   loadSharedDetail: (id: string) => void; sharedRemoteContent: { notes: Note[]; files: FileItem[]; recs: Rec[] } | null; loadRemoteCourseContent: (sourceCourseId: string) => void;
   personById: (id: string) => Person | null;
@@ -189,6 +192,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [helpIntent, setHelpIntent] = useState<AppCtx["helpIntent"]>(null);
   const [sharedIntent, setSharedIntent] = useState<string | null>(null);
   const [printIntent, setPrintIntent] = useState<PrintIntent | null>(null);
+  const [barsHidden, setBarsHidden] = useState(false);
+  const [watching, setWatching] = useState<{ id: string; mini: boolean } | null>(null);
   const [phone, setPhone] = useState<HTMLElement | null>(null);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const [resetKey, setResetKey] = useState(0);
@@ -702,6 +707,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     sharedIntent, openShared: (id) => { setSharedIntent(id); setTab("explore"); }, clearSharedIntent: () => setSharedIntent(null),
     printIntent, openPrint: (i) => setPrintIntent(i), closePrint: () => setPrintIntent(null),
+    barsHidden, setBarsHidden,
+    watching, watch: (id) => setWatching({ id, mini: false }), minimizeWatch: () => setWatching((w) => (w ? { ...w, mini: true } : w)), closeWatch: () => setWatching(null),
     shared,
     loadSharedDetail,
     sharedRemoteContent,
@@ -797,11 +804,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setProfileState(emptyProfile); setSettings(defaultSettings); setCourses([]); setFolders([]); setChatsState({}); setRecommendation(null); setLastRecAt(0); setSkew(0);
       setDeadlines([]); setActivity({}); setCounters({ quizzes: 0, chats: 0, posts: 0 }); setUnlocked([]); setNotices([]); setFocusEndsAt(null);
       setBalance(0); setTxs([]); setPeople([]); setContacts([]); setFollowing([]); setBlocked([]); setConvos({}); setPosts([]); setShared([]); setDemoOn(false);
-      setOverlay(null); setTab("study"); setResetKey((k) => k + 1);
+      setOverlay(null); setWatching(null); setTab("study"); setResetKey((k) => k + 1);
     },
     resetKey, ready,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, refreshExamPass, isRep, refreshRep, sharedIntent, printIntent, refreshFeed, loadMoreFeed, searchFeed, loadChannel, loadPostsByIds, loadLiked, setPinned, toPost]);
+  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, refreshExamPass, isRep, refreshRep, sharedIntent, printIntent, barsHidden, watching, refreshFeed, loadMoreFeed, searchFeed, loadChannel, loadPostsByIds, loadLiked, setPinned, toPost]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
