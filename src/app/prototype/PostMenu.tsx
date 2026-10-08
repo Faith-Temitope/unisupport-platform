@@ -3,6 +3,7 @@
 import { Check, Lock, Pin, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { myPlaylistsFor, playlistToggle, savePlaylist } from "./live/socialData";
+import { logPostEvent } from "./live/recData";
 import { useApp, type Post } from "./store";
 import { Btn, Sheet } from "./ui";
 
@@ -21,11 +22,12 @@ export function PostMenu({ post, open, onClose }: { post: Post; open: boolean; o
     if (err) return flash("Couldn't update the playlist");
     setMine((m) => m?.map((x) => (x.id === id ? { ...x, has: on } : x)) ?? null);
     flash(on ? "Saved to playlist" : "Removed from playlist");
+    if (on) void logPostEvent(post.id, "save");
   }
   async function create() {
     setBusy(true);
     const r = await savePlaylist(null, newTitle.trim(), "", true);
-    if (r.id) await playlistToggle(r.id, post.id, true);
+    if (r.id) { await playlistToggle(r.id, post.id, true); void logPostEvent(post.id, "save"); }
     setBusy(false);
     if (!r.id) return flash("Couldn't create the playlist");
     setNewTitle(""); flash(`Saved to "${newTitle.trim()}"`); setMine(await myPlaylistsFor(post.id));

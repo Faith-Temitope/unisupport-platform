@@ -2,7 +2,8 @@
 
 import { motion } from "framer-motion";
 import { ChevronDown, Pause, Play, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { logPostEvent } from "./live/recData";
 import { useByline } from "./PostCard";
 import { SponsoredCard, usePlacements } from "./Sponsored";
 import { useApp } from "./store";
@@ -23,12 +24,28 @@ export default function Player({ bottom }: { bottom: number }) {
   const [ended, setEnded] = useState<string | null>(null);
   const bar = usePlacements("card", "video_end", !!post);
   const sponsor = bar.length && post ? bar[post.id.charCodeAt(0) % bar.length] : null;
+  // Watch time teaches For you what you like: a quick back-out counts against the video.
+  const pausedMs = useRef(0);
+  const pausedAt = useRef<number | null>(null);
+  const id = watching?.id;
+  useEffect(() => {
+    if (!id) return;
+    void logPostEvent(id, "view");
+    const start = Date.now();
+    pausedMs.current = 0; pausedAt.current = null;
+    return () => {
+      const now = Date.now();
+      const sec = (now - start - pausedMs.current - (pausedAt.current ? now - pausedAt.current : 0)) / 1000;
+      void logPostEvent(id, sec < 8 ? "skip" : "watch", { seconds: sec });
+    };
+  }, [id]);
   if (!watching || !post) return null;
   const isPaused = paused === post.id;
 
   function togglePlay() {
     const next = !isPaused;
     setPaused(next ? post!.id : null);
+    if (next) pausedAt.current = Date.now(); else if (pausedAt.current) { pausedMs.current += Date.now() - pausedAt.current; pausedAt.current = null; }
     if (vid.current) { if (next) vid.current.pause(); else void vid.current.play(); return; }
     // YouTube's embed takes play/pause commands over postMessage when enablejsapi=1.
     frame.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func: next ? "pauseVideo" : "playVideo", args: [] }), "*");

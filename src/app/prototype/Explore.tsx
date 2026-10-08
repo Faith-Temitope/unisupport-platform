@@ -6,13 +6,14 @@ import { FeedAd, usePlacements } from "./Sponsored";
 import { CampusDeals } from "./CampusDeals";
 import { CertStrip } from "./Certificates";
 import { topInterests } from "./engine";
+import { logPostEvent } from "./live/recData";
 import PostCard, { initials } from "./PostCard";
 import { firstName, naira, nowTime, useApp, type SharedCourse } from "./store";
 import { Avatar, Btn, DemoControls, Empty, Label, Segmented, Sheet } from "./ui";
 import { ShareCourseForm } from "./ShareCourseForm";
 
 export default function Explore({ active }: { active: boolean }) {
-  const { posts, courses, chats, settings, following, blocked, shared, setOverlay, setTab, goStudy, joinShared, leaveShared, sendShared, loadSharedDetail, personById, profile, flash, setWalletOpen, refreshFeed, loadMoreFeed, searchFeed, sharedIntent, clearSharedIntent } = useApp();
+  const { posts, courses, chats, settings, following, blocked, shared, setOverlay, setTab, goStudy, joinShared, leaveShared, sendShared, loadSharedDetail, personById, profile, flash, setWalletOpen, refreshFeed, loadMoreFeed, searchFeed, sharedIntent, clearSharedIntent, forYou, loadForYou, topics, refreshTopics } = useApp();
   const [buying, setBuying] = useState(false);
   async function join(s: SharedCourse) {
     setBuying(true);
@@ -43,12 +44,13 @@ export default function Explore({ active }: { active: boolean }) {
   }, [detail, loadSharedDetail]);
 
   // Fresh posts each time Explore is opened; a course tapped on someone's channel opens here.
-  useEffect(() => { if (active) void refreshFeed(); }, [active, refreshFeed]);
+  useEffect(() => { if (active) { void refreshFeed(); void loadForYou(true); void refreshTopics(); } }, [active, refreshFeed, loadForYou, refreshTopics]);
   // Search and subject tags ask the server too, so they find posts beyond the pages loaded so far.
   useEffect(() => {
     const term = q.trim() || (tag !== "For you" && tag !== "Following" ? tag : "");
     if (!active || term.length < 2) return;
-    const t = setTimeout(() => void searchFeed(term), 350);
+    // Searches and topic taps also teach the For you ranking what you're into.
+    const t = setTimeout(() => { void searchFeed(term); void logPostEvent(null, "search", { term }); }, 700);
     return () => clearTimeout(t);
   }, [active, q, tag, searchFeed]);
   // Header and bottom nav hide on scroll down, return on scroll up.
@@ -72,32 +74,39 @@ export default function Explore({ active }: { active: boolean }) {
     const io = new IntersectionObserver((es) => {
       if (!es.some((e) => e.isIntersecting) || loadingMore.current) return;
       loadingMore.current = true;
-      void loadMoreFeed().then((n) => { loadingMore.current = false; if (n === 0) setFeedEnd(true); });
+      const ranked = tag === "For you" && !q.trim() && forYou.length > 0;
+      void (ranked ? loadForYou(false).then((n) => (n ? n : loadMoreFeed())) : loadMoreFeed()).then((n) => { loadingMore.current = false; if (n === 0) setFeedEnd(true); });
     }, { rootMargin: "600px" });
     io.observe(el);
     return () => io.disconnect();
-  }, [seg, feedEnd, loadMoreFeed, posts.length]);
+  }, [seg, feedEnd, loadMoreFeed, loadForYou, forYou.length, tag, q, posts.length]);
   useEffect(() => {
     if (!sharedIntent) return;
     setSeg("courses"); setDetail(sharedIntent); clearSharedIntent(); // eslint-disable-line react-hooks/set-state-in-effect
   }, [sharedIntent, clearSharedIntent]);
 
-  // Tags come from what you actually study and chat about with Birdie (like YouTube's recommendations).
+  // Topic chips: what you watch, like and search most, then the biggest topics on Birdie.
+  // Until the server has topics, fall back to what you study and chat about with Birdie.
   const interests = useMemo(() => topInterests(chats, courses), [chats, courses]);
   const tags = useMemo(() => {
     const t = ["For you", "Following"];
-    if (settings.personalTags) t.push(...interests); else t.push(...Array.from(new Set(posts.map((p) => p.field))).slice(0, 6));
+    if (topics.length) t.push(...topics.filter((x) => settings.personalTags || !x.mine).map((x) => x.topic));
+    else if (settings.personalTags) t.push(...interests); else t.push(...Array.from(new Set(posts.map((p) => p.field))).slice(0, 6));
     return t;
-  }, [interests, posts, settings.personalTags]);
+  }, [topics, interests, posts, settings.personalTags]);
 
   const feed = useMemo(() => {
     const term = q.trim().toLowerCase();
     const has = (p: (typeof posts)[number], s: string) => `${p.title} ${p.field} ${p.tags.join(" ")} ${p.body ?? ""}`.toLowerCase().includes(s);
     let list = posts.filter((p) => !blocked.includes(p.authorId) && (!term || has(p, term)) && (tag === "For you" || (tag === "Following" ? following.includes(p.authorId) : has(p, tag.toLowerCase()))));
-    if (tag === "For you" && settings.personalTags && interests.length) list = [...list].sort((a, b) => Number(interests.some((i) => has(b, i))) - Number(interests.some((i) => has(a, i))) || b.createdAt - a.createdAt);
+    if (tag === "For you" && !term && forYou.length) {
+      // Birdie's ranking first, then anything newer that hasn't been ranked yet.
+      const rank = new Map(forYou.map((r, i) => [r.id, i]));
+      list = [...list].sort((a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity) || b.createdAt - a.createdAt);
+    } else if (tag === "For you" && settings.personalTags && interests.length) list = [...list].sort((a, b) => Number(interests.some((i) => has(b, i))) - Number(interests.some((i) => has(a, i))) || b.createdAt - a.createdAt);
     else list = [...list].sort((a, b) => b.createdAt - a.createdAt);
     return list;
-  }, [posts, q, tag, following, blocked, interests, settings.personalTags]);
+  }, [posts, q, tag, following, blocked, interests, settings.personalTags, forYou]);
 
   const filteredShared = shared.filter((s) => !q.trim() || `${s.code} ${s.name} ${s.field}`.toLowerCase().includes(q.trim().toLowerCase()));
   const sel = shared.find((s) => s.id === detail) ?? null;
@@ -118,7 +127,7 @@ export default function Explore({ active }: { active: boolean }) {
           <div className="no-scrollbar mt-2 flex gap-2 overflow-x-auto px-4">
             {([["feed", "Videos"], ["courses", "Courses"], ["deals", "Campus & deals"]] as const).map(([id, label]) => (<button key={id} onClick={() => setSeg(id)} className={chip(seg === id)}>{label}</button>))}
             {seg === "feed" && <span className="my-1 w-px shrink-0 bg-[var(--line)]" />}
-            {seg === "feed" && tags.map((t) => (<button key={t} onClick={() => setTag(t)} className={`${chip(tag === t && t !== "For you")} capitalize`}>{t === "For you" ? "All" : t}</button>))}
+            {seg === "feed" && tags.map((t) => (<button key={t} onClick={() => setTag(t)} className={`${chip(tag === t)} capitalize`}>{t}</button>))}
           </div>
         </div>
 
