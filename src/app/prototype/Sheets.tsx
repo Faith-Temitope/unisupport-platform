@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase";
 import { naira, useApp } from "./store";
 import { Btn, Screen, Sheet, TextField } from "./ui";
 import { BrainPicker } from "./BrainPicker";
+import { PassPacks } from "./PassPacks";
 
 const LEVELS = ["100 Level", "200 Level", "300 Level", "400 Level", "500 Level", "Year 1", "Year 2", "Year 3", "Year 4", "Postgraduate"];
 
@@ -120,6 +121,7 @@ export default function Sheets() {
                 <Btn variant="birdie" disabled={passBusy} onClick={() => void buyPass()}><span className="inline-flex items-center gap-2"><Zap size={16} /> {passBusy ? "Activating..." : `Get Exam Pass -- ${naira(passCfg.price)}`}</span></Btn>
               </>
             )}
+            <PassPacks />
           </div>
         )}
         {walletLive && (
