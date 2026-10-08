@@ -3,7 +3,7 @@
 import { Check } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { CategoryPill } from "./Categories";
-import { naira, useApp, type Course, type Picked } from "./store";
+import { naira, useApp, type Audience, type Course, type Picked } from "./store";
 import { Btn, TextField } from "./ui";
 
 const PRICES = [0, 200, 500, 1000];
@@ -29,13 +29,14 @@ export function ShareCourseForm({ course, mode, onDone }: { course: Course; mode
   const [name, setName] = useState(profile.name); const [school, setSchool] = useState(profile.institution);
   const [field, setField] = useState(profile.program); const [desc, setDesc] = useState("");
   const [price, setPrice] = useState("0");
+  const [audience, setAudience] = useState<Audience>("everyone");
   const [picked, setPicked] = useState<Picked>({ notes: [], files: [], recs: [] });
   const [loading, setLoading] = useState(mode === "manage");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (mode !== "manage") return;
-    void getSharing(course.id).then((s) => { if (s) { setPrice(String(s.priceNgn)); setPicked(s.picked); } setLoading(false); });
+    void getSharing(course.id).then((s) => { if (s) { setPrice(String(s.priceNgn)); setPicked(s.picked); setAudience(s.audience); } setLoading(false); });
   }, [mode, course.id, getSharing]);
 
   if (auth.status !== "in") return <p className="text-[13.5px] text-[var(--dim)]">Sign in to share a course. Shared courses live on your account so classmates can open them.</p>;
@@ -48,13 +49,16 @@ export function ShareCourseForm({ course, mode, onDone }: { course: Course; mode
   const allCount = course.notes.length + files.length + recs.length;
   const toggle = (k: keyof Picked, id: string) => setPicked((p) => ({ ...p, [k]: p[k].includes(id) ? p[k].filter((x) => x !== id) : [...p[k], id] }));
   const selectAll = () => setPicked(total === allCount ? { notes: [], files: [], recs: [] } : { notes: course.notes.map((n) => n.id), files: files.map((f) => f.id), recs: recs.map((r) => r.id) });
-  const ready = total > 0 && (mode === "manage" || (name.trim() && field.trim() && desc.trim()));
+  // Audience is limited to the owner's OWN country/region/school, read from their profile at save time.
+  const mine: Record<Exclude<Audience, "everyone">, string> = { country: profile.country.trim(), region: (profile.region ?? "").trim(), school: profile.institution.trim() };
+  const audienceValue = audience === "everyone" ? null : mine[audience] || null;
+  const ready = total > 0 && (audience === "everyone" || !!audienceValue) && (mode === "manage" || (name.trim() && field.trim() && desc.trim()));
 
   async function submit() {
     setBusy(true);
     const err = mode === "new"
-      ? await shareCourse(course.id, { description: desc.trim(), field: field.trim(), ownerName: name.trim(), school: school.trim(), priceNgn: priceNum }, picked)
-      : await updateSharing(course.id, priceNum, picked);
+      ? await shareCourse(course.id, { description: desc.trim(), field: field.trim(), ownerName: name.trim(), school: school.trim(), priceNgn: priceNum, audience, audienceValue }, picked)
+      : await updateSharing(course.id, priceNum, picked, audience, audienceValue);
     setBusy(false);
     if (err) return flash(err);
     flash(mode === "new" ? "Shared to Explore" : "Sharing updated");
@@ -76,6 +80,17 @@ export function ShareCourseForm({ course, mode, onDone }: { course: Course; mode
         <div className="mb-2 flex gap-2">{PRICES.map((p) => (<button key={p} type="button" onClick={() => setPrice(String(p))} className={`flex-1 rounded-xl border-2 py-2 text-[12.5px] font-bold transition active:scale-95 ${priceNum === p ? "border-[var(--study)] bg-[var(--study-soft)] text-[var(--study)]" : "border-[var(--line)] text-[var(--dim)]"}`}>{p === 0 ? "Free" : naira(p)}</button>))}</div>
         <TextField value={price} onChange={(v) => setPrice(v.replace(/[^\d]/g, ""))} placeholder="Or type a price in Naira" />
         <p className="mt-1.5 text-[11.5px] leading-snug text-[var(--dim)]">{priceNum === 0 ? "Free: anyone can add it to their Study." : `Classmates pay ${naira(priceNum)} once. You get ${naira(Math.round(priceNum * OWNER_SHARE))} per sale, straight into your Birdie balance.`}</p>
+      </div>
+
+      <div>
+        <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Who can see it</div>
+        <div className="flex flex-wrap gap-2">
+          {([["everyone", "Everyone"], ["country", mine.country ? `My country (${mine.country})` : "My country"], ["region", mine.region ? `My region (${mine.region})` : "My region"], ["school", mine.school ? `My school (${mine.school})` : "My school"]] as [Audience, string][]).map(([id, label]) => {
+            const off = id !== "everyone" && !mine[id];
+            return (<button key={id} type="button" disabled={off} onClick={() => setAudience(id)} className={`rounded-full px-3 py-1.5 text-[12px] font-semibold transition active:scale-95 disabled:opacity-40 ${audience === id ? "bg-[var(--ink)] text-[var(--paper)]" : "bg-[var(--paper-dim)] text-[var(--dim)]"}`}>{label}</button>);
+          })}
+        </div>
+        <p className="mt-1.5 text-[11.5px] leading-snug text-[var(--dim)]">{audience === "everyone" ? "Shows in Explore for every student." : `Only students whose profile says ${audienceValue} can find or join it.`}{!mine.country || !mine.region || !mine.school ? " Add your country, region and school in Settings > Edit profile to unlock the other options." : ""}</p>
       </div>
 
       <div>

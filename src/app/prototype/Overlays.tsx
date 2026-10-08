@@ -3,7 +3,8 @@
 import { ArrowLeft, CheckCheck, Flag, Link2, MessageCircle, Plus, Search, Send, Settings as Cog, UserPlus, Video } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import PostCard, { initials } from "./PostCard";
-import { useApp, type Person } from "./store";
+import { naira, useApp, type Person } from "./store";
+import { cleanUrl, fetchChannelStats } from "./live/socialData";
 import { Avatar, Btn, Empty, IconBtn, Screen, Segmented, Sheet, TextField } from "./ui";
 
 export default function Overlays() {
@@ -107,31 +108,75 @@ function Thread({ id, onBack }: { id: string; onBack: () => void }) {
   );
 }
 
-// ---------- Profile (creator or me) ----------
+// ---------- Channel (a creator's, or mine): videos, posts and shared courses, YouTube-style ----------
 function ProfileScreen({ id, onBack }: { id: string; onBack: () => void }) {
-  const { personById, posts, following, contacts, blocked, toggleBlock, toggleFollow, addContact, setOverlay, profile, flash } = useApp();
+  const { personById, posts, shared, following, contacts, blocked, toggleBlock, toggleFollow, addContact, setOverlay, profile, flash, auth, loadChannel, openShared } = useApp();
   const [menu, setMenu] = useState(false);
+  const [tab, setTab] = useState<"videos" | "posts" | "courses">("videos");
+  const [stats, setStats] = useState<{ followers: number; likes: number } | null>(null);
   const isMe = id === "me";
   const p = isMe ? null : personById(id);
-  const mine = posts.filter((x) => x.authorId === id);
+  const realId = isMe ? auth.userId : p?.demo ? undefined : id;
+
+  useEffect(() => {
+    if (!realId) return;
+    void loadChannel(realId);
+    void fetchChannelStats(realId, auth.userId).then((s) => setStats({ followers: s.followers, likes: s.likes }));
+  }, [realId, auth.userId, loadChannel]);
+
   if (!isMe && !p) return null;
+  const mine = posts.filter((x) => x.authorId === id);
+  const videos = mine.filter((x) => x.kind === "video"), texts = mine.filter((x) => x.kind === "text");
+  const courses = shared.filter((s) => s.ownerId === id);
   const name = isMe ? profile.name || "You" : p!.name;
+  const handle = isMe ? profile.handle : p!.handle;
+  const bio = isMe ? profile.bio : p!.bio;
+  const links = ((isMe ? profile.links : p!.links) ?? []).filter((l) => cleanUrl(l.url));
+  const place = (isMe ? [profile.institution, profile.country] : [p!.school, p!.country]).filter(Boolean).join(" · ");
   const isFollowing = following.includes(id), isContact = contacts.includes(id);
+  const followers = stats ? stats.followers : isFollowing ? 1 : 0;
+  const likes = stats ? stats.likes : mine.reduce((a, x) => a + x.likes, 0);
+
+  function follow() {
+    toggleFollow(id);
+    setStats((s) => (s ? { ...s, followers: s.followers + (isFollowing ? -1 : 1) } : s));
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <Header onBack={onBack} title={<div className="text-[14.5px] font-bold">{isMe ? "Your profile" : `@${p!.handle}`}</div>} right={isMe ? <IconBtn label="Settings" onClick={() => setOverlay({ t: "settings" })}><Cog size={16} /></IconBtn> : <IconBtn label="More" onClick={() => setMenu(true)}><Flag size={16} /></IconBtn>} />
-      <div className="no-scrollbar flex-1 space-y-4 overflow-y-auto px-4 py-4">
-        <div className="flex items-center gap-4"><Avatar initials={initials(name)} color={isMe ? "#A63FBD" : p!.color} size={72} /><div className="min-w-0"><div className="disp text-[20px] font-bold leading-tight">{name}</div><div className="text-[12.5px] text-[var(--dim)]">{isMe ? [profile.program, profile.level].filter(Boolean).join(" · ") : p!.field}</div><div className="mt-1 flex gap-4 text-[12.5px]"><span><b>{mine.length}</b> posts</span>{!isMe && <span><b>{isFollowing ? 1 : 0}</b> {isFollowing ? "follower (you)" : "followers"}</span>}</div></div></div>
-        {(isMe ? profile.bio : p!.bio) && <p className="text-[13.5px] leading-snug text-[var(--text)]">{isMe ? profile.bio : p!.bio}</p>}
-        {!isMe && (
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => toggleFollow(id)} className={`rounded-2xl py-3 text-[14px] font-semibold active:scale-95 ${isFollowing ? "bg-[var(--paper-dim)] text-[var(--text)]" : "bg-[var(--uni)] text-white"}`}>{isFollowing ? "Following" : "Follow"}</button>
-            <button onClick={() => { if (!isContact) addContact(id); setOverlay({ t: "thread", id }); }} className="rounded-2xl bg-[var(--ink)] py-3 text-[14px] font-semibold text-[var(--paper)] active:scale-95">{isContact ? "Message" : "Add and message"}</button>
+      <Header onBack={onBack} title={<div className="truncate text-[14.5px] font-bold">{isMe ? "Your channel" : handle ? `@${handle}` : name}</div>} right={isMe ? <IconBtn label="Settings" onClick={() => setOverlay({ t: "settings" })}><Cog size={16} /></IconBtn> : <IconBtn label="More" onClick={() => setMenu(true)}><Flag size={16} /></IconBtn>} />
+      <div className="no-scrollbar flex-1 overflow-y-auto pb-8">
+        <div className="h-20 bg-gradient-to-br from-[#7C4DDB] to-[#3b1f7a]" />
+        <div className="-mt-9 space-y-3 px-4">
+          <div className="flex items-end gap-3"><div className="rounded-full ring-4 ring-[var(--paper)]"><Avatar initials={initials(name)} color={isMe ? "#A63FBD" : p!.color} size={72} /></div></div>
+          <div>
+            <div className="disp text-[21px] font-bold leading-tight">{name}</div>
+            <div className="text-[12.5px] text-[var(--dim)]">{[handle && `@${handle}`, place].filter(Boolean).join(" · ") || (isMe ? "Add your handle and school in Settings" : "")}</div>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px]"><span><b>{followers}</b> follower{followers === 1 ? "" : "s"}</span><span><b>{likes}</b> like{likes === 1 ? "" : "s"}</span><span><b>{mine.length}</b> post{mine.length === 1 ? "" : "s"}</span><span><b>{courses.length}</b> course{courses.length === 1 ? "" : "s"}</span></div>
           </div>
-        )}
-        {isMe && <Btn variant="ghost" onClick={() => setOverlay({ t: "settings" })}>Edit profile in Settings</Btn>}
-        <div><div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Posts</div>
-          {mine.length === 0 ? <Empty title="No posts yet" text={isMe ? "Tap the mascot in Explore and choose Post." : `${name.split(" ")[0]} hasn't posted anything yet.`} /> : <div className="space-y-4">{mine.map((x) => (<PostCard key={x.id} post={x} onProfile={() => undefined} />))}</div>}
+          {bio && <p className="whitespace-pre-line text-[13.5px] leading-snug text-[var(--text)]">{bio}</p>}
+          {links.length > 0 && (
+            <div className="flex flex-wrap gap-2">{links.map((l) => (
+              <a key={l.url} href={cleanUrl(l.url)!} target="_blank" rel="noopener noreferrer nofollow" className="flex max-w-full items-center gap-1.5 rounded-full bg-[var(--paper-dim)] px-3 py-1.5 text-[12px] font-semibold text-[var(--text)]"><Link2 size={13} className="shrink-0" /><span className="truncate">{l.label || new URL(cleanUrl(l.url)!).hostname}</span></a>
+            ))}</div>
+          )}
+          {isMe ? <Btn variant="ghost" onClick={() => setOverlay({ t: "settings" })}>Edit channel in Settings</Btn> : (
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={follow} className={`rounded-2xl py-3 text-[14px] font-semibold active:scale-95 ${isFollowing ? "bg-[var(--paper-dim)] text-[var(--text)]" : "bg-[var(--uni)] text-white"}`}>{isFollowing ? "Following" : "Follow"}</button>
+              <button onClick={() => { if (!isContact) addContact(id); setOverlay({ t: "thread", id }); }} className="rounded-2xl bg-[var(--ink)] py-3 text-[14px] font-semibold text-[var(--paper)] active:scale-95">{isContact ? "Message" : "Add and message"}</button>
+            </div>
+          )}
+          <Segmented value={tab} onChange={setTab} options={[{ id: "videos", label: `Videos (${videos.length})` }, { id: "posts", label: `Posts (${texts.length})` }, { id: "courses", label: `Courses (${courses.length})` }]} />
+          {tab === "videos" && (videos.length === 0 ? <Empty title="No videos yet" text={isMe ? "Tap the mascot in Explore and choose Post to upload one." : `${name.split(" ")[0]} hasn't uploaded a video yet.`} /> : <div className="space-y-4">{videos.map((x) => (<PostCard key={x.id} post={x} onProfile={() => undefined} />))}</div>)}
+          {tab === "posts" && (texts.length === 0 ? <Empty title="No posts yet" text={isMe ? "Tap the mascot in Explore and choose Post." : `${name.split(" ")[0]} hasn't written a post yet.`} /> : <div className="space-y-4">{texts.map((x) => (<PostCard key={x.id} post={x} onProfile={() => undefined} />))}</div>)}
+          {tab === "courses" && (courses.length === 0 ? <Empty title="No shared courses" text={isMe ? "Share a course from Study and it shows up here." : `${name.split(" ")[0]} hasn't shared a course you can see.`} /> : (
+            <div className="space-y-2.5">{courses.map((s) => (
+              <button key={s.id} onClick={() => { setOverlay(null); openShared(s.id); }} className="w-full rounded-2xl border border-[var(--line)] bg-white p-3.5 text-left active:scale-[0.98]">
+                <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="truncate text-[14px] font-bold text-[var(--text)]">{s.code} · {s.name}</div><div className="mt-0.5 line-clamp-2 text-[12px] text-[var(--dim)]">{s.description}</div></div><span className={`shrink-0 rounded-full px-2.5 py-1 text-[11.5px] font-bold ${s.priceNgn ? "bg-[var(--ink)] text-[var(--paper)]" : "bg-[var(--study-soft)] text-[var(--study)]"}`}>{s.priceNgn ? naira(s.priceNgn) : "Free"}</span></div>
+                <div className="mt-2 text-[12px] font-semibold text-[var(--dim)]">{s.members.length} member{s.members.length === 1 ? "" : "s"}</div>
+              </button>
+            ))}</div>
+          ))}
         </div>
       </div>
       <Sheet open={menu} onClose={() => setMenu(false)} title={`@${p?.handle ?? ""}`}>
@@ -150,18 +195,25 @@ function Composer({ onClose }: { onClose: () => void }) {
   const [kind, setKind] = useState<"video" | "text">("video");
   const [title, setTitle] = useState(""); const [body, setBody] = useState(""); const [field, setField] = useState(""); const [tags, setTags] = useState("");
   const [file, setFile] = useState<File | null>(null); const [url, setUrl] = useState<string>();
-  const [dur, setDur] = useState<string>();
+  const [secs, setSecs] = useState<number>();
+  const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const ok = title.trim() && field.trim() && (kind === "video" ? !!file : body.trim());
 
   function pick(f: File | null) {
-    if (!f) return; setFile(f); const u = URL.createObjectURL(f); setUrl(u);
+    if (!f) return;
+    if (f.size > 500 * 1024 * 1024) { flash("That video is over 500 MB. Trim it or pick a shorter one."); return; }
+    setFile(f); const u = URL.createObjectURL(f); setUrl(u);
     const v = document.createElement("video"); v.preload = "metadata"; v.src = u;
-    v.onloadedmetadata = () => { const s = Math.round(v.duration); setDur(`${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`); };
+    v.onloadedmetadata = () => setSecs(Math.round(v.duration));
   }
-  function publish() {
-    addPost({ kind, title: title.trim(), body: kind === "text" ? body.trim() : undefined, videoUrl: kind === "video" ? url : undefined, field: field.trim(), tags: tags.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean), dur, grad: "from-[#7C4DDB] to-[#3b1f7a]" });
-    flash("Posted to Explore"); setTitle(""); setBody(""); setField(""); setTags(""); setFile(null); setUrl(undefined); setDur(undefined); setTab("explore"); onClose();
+  async function publish() {
+    setBusy(true);
+    if (kind === "video") flash("Uploading your video...");
+    const err = await addPost({ kind, title: title.trim(), body: kind === "text" ? body.trim() : undefined, file: kind === "video" ? file ?? undefined : undefined, field: field.trim(), tags: tags.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean), durationSeconds: secs });
+    setBusy(false);
+    if (err) { flash(err); return; }
+    flash("Posted to Explore"); setTitle(""); setBody(""); setField(""); setTags(""); setFile(null); setUrl(undefined); setSecs(undefined); setTab("explore"); onClose();
   }
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -177,7 +229,7 @@ function Composer({ onClose }: { onClose: () => void }) {
         {kind === "text" && <TextField multiline value={body} onChange={setBody} placeholder="Share a tip, a summary, a worked example..." />}
         <TextField value={field} onChange={setField} placeholder="Field, e.g. Computer Science" />
         <TextField value={tags} onChange={setTags} placeholder="Tags, separated by commas" />
-        <Btn variant="study" disabled={!ok} onClick={publish}><span className="inline-flex items-center gap-2"><Plus size={16} /> Publish</span></Btn>
+        <Btn variant="study" disabled={!ok || busy} onClick={() => void publish()}><span className="inline-flex items-center gap-2"><Plus size={16} /> {busy ? (kind === "video" ? "Uploading..." : "Posting...") : "Publish"}</span></Btn>
       </div>
     </div>
   );

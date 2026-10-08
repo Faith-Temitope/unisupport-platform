@@ -8,9 +8,10 @@ import {
   deleteRemoteFile, deleteRemoteNote, deleteRemoteRecording,
   leaveSharedCourse, listMessages, postMessage, publishSharedCourse,
   fetchRemoteCourseContent, listPublishedSharedWithCounts,
-  syncCourseForSharing, setSharedItems, getSharedItems, updateSharedPrice, buySharedCourse, type ShareItem,
+  syncCourseForSharing, setSharedItems, getSharedItems, updateSharedSettings, buySharedCourse, type ShareItem,
 } from "./live/sharedData";
 import { logEvent } from "./live/analyticsData";
+import { createPost, deletePostRemote, fetchChannels, fetchFeed, fetchMyFollowing, fetchPostsBy, setFollow, setLike, upsertMyChannel, type Channel, type FeedPost, type Link } from "./live/socialData";
 import { DEMO_PEOPLE, DEMO_POSTS, DEMO_SHARED, DEMO_REPLIES } from "./demo";
 import { BADGES, dayKey, streakOf, type Stats } from "./badges";
 
@@ -34,12 +35,14 @@ export interface Notice { id: string; title: string; body?: string; t: string; r
 export interface BAction { label: string; run: "note" | "file" | "test" | "writer" | "study" | "topup" | "spark" | "brain"; payload?: string }
 export interface BMsg { id: string; from: "me" | "bird"; text: string; cite?: string; cards?: { q: string; a: string }[]; actions?: BAction[]; done?: boolean; t: string; at: number; meta?: string }
 
-export interface Person { id: string; name: string; handle: string; field: string; bio: string; color: string; demo?: boolean }
+export interface Person { id: string; name: string; handle: string; field: string; bio: string; color: string; demo?: boolean; links?: Link[]; school?: string; country?: string }
+export type Audience = "everyone" | "country" | "region" | "school";
 export interface CMsg { id: string; from: "me" | "them"; text: string; t: string; author?: string }
-export interface Post { id: string; authorId: string; kind: "video" | "text"; title: string; body?: string; videoUrl?: string; field: string; tags: string[]; dur?: string; grad: string; createdAt: number; likes: number; liked: boolean; demo?: boolean }
+export interface Post { id: string; authorId: string; kind: "video" | "text"; title: string; body?: string; videoUrl?: string; videoPath?: string; field: string; tags: string[]; dur?: string; grad: string; createdAt: number; likes: number; liked: boolean; demo?: boolean; remote?: boolean }
+export type NewPost = { kind: "video" | "text"; title: string; body?: string; field: string; tags: string[]; durationSeconds?: number; file?: File };
 export interface SharedCourse { id: string; ownerId: string; ownerName?: string; code: string; name: string; school?: string; field: string; description: string; files: string[]; members: string[]; messages: { id: string; authorId: string; text: string; t: string }[]; demo?: boolean; sourceCourseId?: string; priceNgn?: number; itemCounts?: { notes: number; files: number; recs: number } }
 
-export interface Profile { name: string; handle: string; level: string; program: string; institution: string; country: string; bio: string; onboarded: boolean }
+export interface Profile { name: string; handle: string; level: string; program: string; institution: string; country: string; region?: string; links?: Link[]; bio: string; onboarded: boolean }
 export interface Settings {
   autoplay: boolean; personalTags: boolean; recs12h: boolean; readAloud: boolean; answerLength: "short" | "normal" | "detailed";
   notifChat: boolean; notifRec: boolean; notifSession: boolean; notifExplore: boolean;
@@ -67,7 +70,10 @@ const defaultSettings: Settings = {
   aiBrain: "spark", aiTier: "balanced",
   mascotOn: true, mascotChatty: true, dailyGoal: 3,
 };
-const emptyProfile: Profile = { name: "", handle: "", level: "", program: "", institution: "", country: "", bio: "", onboarded: false };
+const emptyProfile: Profile = { name: "", handle: "", level: "", program: "", institution: "", country: "", region: "", links: [], bio: "", onboarded: false };
+const GRAD = "from-[#7C4DDB] to-[#3b1f7a]";
+const fmtDur = (s?: number | null) => (s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : undefined);
+const channelToPerson = (c: Channel): Person => ({ id: c.id, name: c.display_name || c.handle || "Student", handle: c.handle ?? "", field: c.program ?? "", bio: c.bio, color: c.color, links: c.links ?? [], school: c.school ?? undefined, country: c.country ?? undefined });
 
 type BirdieIntent = { courseId: string; mode?: "chat" | "test" | "exam" | "practical"; prompt?: string };
 interface AppCtx {
@@ -100,11 +106,14 @@ interface AppCtx {
   examPassUntil: string | null; buyExamPass: () => Promise<{ ok: boolean; error?: string }>;
   people: Person[]; contacts: string[]; following: string[]; convos: Record<string, CMsg[]>; blocked: string[];
   addContact: (id: string) => void; removeContact: (id: string) => void; toggleFollow: (id: string) => void; sendChat: (id: string, text: string) => void; toggleBlock: (id: string) => void;
-  posts: Post[]; addPost: (p: Omit<Post, "id" | "createdAt" | "likes" | "liked" | "authorId">) => void; toggleLike: (id: string) => void; deletePost: (id: string) => void;
+  posts: Post[]; addPost: (p: NewPost) => Promise<string | null>; toggleLike: (id: string) => void; deletePost: (id: string) => void;
+  refreshFeed: () => Promise<void>; loadChannel: (id: string) => Promise<void>;
+  saveProfile: (p: Profile) => Promise<string | null>;
   shared: SharedCourse[];
-  shareCourse: (courseId: string, info: { description: string; field: string; ownerName: string; school: string; priceNgn: number }, picked: Picked) => Promise<string | null>;
-  getSharing: (courseId: string) => Promise<{ priceNgn: number; picked: Picked } | null>;
-  updateSharing: (courseId: string, priceNgn: number, picked: Picked) => Promise<string | null>;
+  shareCourse: (courseId: string, info: { description: string; field: string; ownerName: string; school: string; priceNgn: number; audience: Audience; audienceValue: string | null }, picked: Picked) => Promise<string | null>;
+  getSharing: (courseId: string) => Promise<{ priceNgn: number; picked: Picked; audience: Audience } | null>;
+  updateSharing: (courseId: string, priceNgn: number, picked: Picked, audience: Audience, audienceValue: string | null) => Promise<string | null>;
+  sharedIntent: string | null; openShared: (id: string) => void; clearSharedIntent: () => void;
   joinShared: (id: string) => Promise<{ courseId?: string; error?: string }>; sendShared: (id: string, text: string) => void; leaveShared: (id: string) => void;
   loadSharedDetail: (id: string) => void; sharedRemoteContent: { notes: Note[]; files: FileItem[]; recs: Rec[] } | null; loadRemoteCourseContent: (sourceCourseId: string) => void;
   personById: (id: string) => Person | null;
@@ -173,6 +182,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [birdieIntent, setBirdieIntent] = useState<AppCtx["birdieIntent"]>(null);
   const [studyIntent, setStudyIntent] = useState<AppCtx["studyIntent"]>(null);
   const [helpIntent, setHelpIntent] = useState<AppCtx["helpIntent"]>(null);
+  const [sharedIntent, setSharedIntent] = useState<string | null>(null);
   const [phone, setPhone] = useState<HTMLElement | null>(null);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const [resetKey, setResetKey] = useState(0);
@@ -334,6 +344,61 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }).concat(prev.filter((p) => p.demo))); // keep any explicit demo-mode entries alongside the real list
   }, [auth.userId]);
   useEffect(() => { if (auth.status === "in") void loadSharedList(); }, [auth.status, loadSharedList]);
+
+  // ---------- real Explore social layer (signed-in users): posts, likes, follows, channels ----------
+  // Remote rows are mapped onto the same Post/Person shapes the UI already uses; the signed-in
+  // user's own id becomes "me", like everywhere else. Demo entries (Settings > demo) stay local.
+  const ingestChannels = useCallback((chs: Channel[]) => {
+    const myId = auth.userId;
+    const others = chs.filter((c) => c.id !== myId).map(channelToPerson);
+    if (others.length) setPeople((ps) => [...ps.filter((p) => !others.some((o) => o.id === p.id)), ...others]);
+  }, [auth.userId]);
+  const toPost = useCallback((r: FeedPost): Post => ({
+    id: r.id, authorId: r.author_id === auth.userId ? "me" : r.author_id, kind: r.kind, title: r.title, body: r.body ?? undefined,
+    videoUrl: r.videoUrl, videoPath: r.video_path ?? undefined, field: r.field ?? "", tags: r.tags, dur: fmtDur(r.duration_seconds), grad: GRAD,
+    createdAt: Date.parse(r.created_at), likes: r.likes, liked: r.liked, remote: true,
+  }), [auth.userId]);
+  const ingestPosts = useCallback(async (rows: FeedPost[], replaceAll: boolean) => {
+    const mapped = rows.map(toPost);
+    setPosts((ps) => replaceAll
+      ? [...mapped, ...ps.filter((p) => p.demo)]
+      : [...ps.filter((p) => !mapped.some((m) => m.id === p.id)), ...mapped].sort((a, b) => b.createdAt - a.createdAt));
+    ingestChannels(await fetchChannels(Array.from(new Set(rows.map((r) => r.author_id)))));
+  }, [toPost, ingestChannels]);
+  const refreshFeed = useCallback(async () => {
+    if (auth.status !== "in") return;
+    try { await ingestPosts(await fetchFeed(auth.userId), true); } catch { /* keep what we have */ }
+  }, [auth.status, auth.userId, ingestPosts]);
+  const loadChannel = useCallback(async (id: string) => {
+    if (auth.status !== "in" || id === "me" || people.find((p) => p.id === id)?.demo) return;
+    try {
+      const [chs, rows] = await Promise.all([fetchChannels([id]), fetchPostsBy(id, auth.userId)]);
+      ingestChannels(chs);
+      await ingestPosts(rows, false);
+    } catch { /* keep what we have */ }
+  }, [auth.status, auth.userId, people, ingestChannels, ingestPosts]);
+  useEffect(() => {
+    if (auth.status !== "in" || !auth.userId) return;
+    void refreshFeed();
+    void fetchMyFollowing(auth.userId).then((ids) => setFollowing((f) => Array.from(new Set([...f.filter((x) => people.find((p) => p.id === x)?.demo), ...ids]))));
+  }, [auth.status, auth.userId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The public channel mirrors the profile's public fields. Background sync covers onboarding and
+  // other devices; if the chosen handle is taken it still saves everything else (handle left
+  // empty) so school/country -- which gate audience-limited shared courses -- are never lost.
+  const channelFields = (p: Profile) => ({
+    handle: p.handle || null, display_name: p.name, bio: p.bio, links: p.links ?? [],
+    school: p.institution || null, country: p.country || null, region: p.region || null, program: p.program || null,
+  });
+  useEffect(() => {
+    if (auth.status !== "in" || !auth.userId || !profile.onboarded) return;
+    const uidNow = auth.userId;
+    const t = setTimeout(async () => {
+      const err = await upsertMyChannel(uidNow, channelFields(profile));
+      if (err === "handle_taken") await upsertMyChannel(uidNow, { ...channelFields(profile), handle: null });
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [auth.status, auth.userId, profile]);
 
   /** Called when the Explore detail sheet opens for a shared course: fetches its real message
    * thread (not loaded in the list view, to keep that one cheap). */
@@ -548,7 +613,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     people, contacts, following, convos, blocked,
     addContact: (id) => { setContacts((c) => (c.includes(id) ? c : [...c, id])); emote("happy", "New study buddy!"); },
     removeContact: (id) => setContacts((c) => c.filter((x) => x !== id)),
-    toggleFollow: (id) => setFollowing((f) => (f.includes(id) ? f.filter((x) => x !== id) : [...f, id])),
+    toggleFollow: (id) => {
+      const on = !following.includes(id);
+      setFollowing((f) => (on ? [...f, id] : f.filter((x) => x !== id)));
+      if (userId && !people.find((p) => p.id === id)?.demo) void setFollow(userId, id, on);
+    },
     toggleBlock: (id) => { setBlocked((b) => (b.includes(id) ? b.filter((x) => x !== id) : [...b, id])); setContacts((c) => c.filter((x) => x !== id)); setFollowing((f) => f.filter((x) => x !== id)); },
     sendChat: (id, text) => {
       setConvos((c) => ({ ...c, [id]: [...(c[id] ?? []), { id: uid(), from: "me", text, t: nowTime() }] }));
@@ -556,9 +625,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (p?.demo) later(() => { setConvos((c) => ({ ...c, [id]: [...(c[id] ?? []), { id: uid(), from: "them", text: DEMO_REPLIES[Math.floor(Math.random() * DEMO_REPLIES.length)], t: nowTime() }] })); notify(p.name, "Sent you a message"); }, 1400);
     },
     posts,
-    addPost: (p) => { setPosts((ps) => [{ ...p, id: uid(), authorId: meId, createdAt: Date.now(), likes: 0, liked: false }, ...ps]); setCounters((c) => ({ ...c, posts: c.posts + 1 })); logActivity(); emote("love", "You posted! Everyone will love it."); },
-    toggleLike: (id) => setPosts((ps) => ps.map((p) => { if (p.id !== id) return p; if (!p.liked) emote("love"); return { ...p, liked: !p.liked, likes: p.likes + (p.liked ? -1 : 1) }; })),
-    deletePost: (id) => setPosts((ps) => ps.filter((p) => p.id !== id)),
+    // Signed in: uploads the video and saves the post for everyone. Guests keep a local-only post.
+    addPost: async (p) => {
+      let post: Post;
+      if (userId) {
+        const r = await createPost(userId, p);
+        if (r.error || !r.post) return r.error ?? "Couldn't post";
+        post = toPost(r.post);
+      } else {
+        post = { id: uid(), authorId: meId, kind: p.kind, title: p.title, body: p.body, videoUrl: p.file ? URL.createObjectURL(p.file) : undefined, field: p.field, tags: p.tags, dur: fmtDur(p.durationSeconds), grad: GRAD, createdAt: Date.now(), likes: 0, liked: false };
+      }
+      setPosts((ps) => [post, ...ps]); setCounters((c) => ({ ...c, posts: c.posts + 1 })); logActivity(); emote("love", "You posted! Everyone will love it.");
+      return null;
+    },
+    toggleLike: (id) => {
+      const target = posts.find((p) => p.id === id); if (!target) return;
+      if (!target.liked) emote("love");
+      setPosts((ps) => ps.map((p) => (p.id === id ? { ...p, liked: !p.liked, likes: p.likes + (p.liked ? -1 : 1) } : p)));
+      if (target.remote && userId) void setLike(id, userId, !target.liked);
+    },
+    deletePost: (id) => {
+      const target = posts.find((p) => p.id === id);
+      setPosts((ps) => ps.filter((p) => p.id !== id));
+      if (target?.remote) void deletePostRemote(id, target.videoPath);
+    },
+    refreshFeed, loadChannel,
+    saveProfile: async (p) => {
+      if (userId) {
+        const err = await upsertMyChannel(userId, channelFields(p));
+        if (err) return err;
+      }
+      setProfileState(p);
+      return null;
+    },
+    sharedIntent, openShared: (id) => { setSharedIntent(id); setTab("explore"); }, clearSharedIntent: () => setSharedIntent(null),
     shared,
     loadSharedDetail,
     sharedRemoteContent,
@@ -574,7 +674,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const c = coursesRef.current.find((x) => x.id === courseId);
       if (!c || !userId) return "Sign in to share a course";
       const maps = await syncCourseForSharing(c, userId);
-      const sharedId = await publishSharedCourse(c.id, userId, info.school, info.field, info.description, info.priceNgn);
+      const sharedId = await publishSharedCourse(c.id, userId, info.school, info.field, info.description, info.priceNgn, info.audience, info.audienceValue);
       if (!sharedId) return "Couldn't publish the course";
       const err = await setSharedItems(sharedId, toShareItems(c, picked, maps));
       if (err) return err;
@@ -586,21 +686,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     getSharing: async (courseId) => {
       const c = coursesRef.current.find((x) => x.id === courseId);
       if (!c?.sharedId || !userId) return null;
-      const [maps, items, price] = await Promise.all([syncCourseForSharing(c, userId), getSharedItems(c.sharedId), createClient().from("shared_courses").select("price_ngn").eq("id", c.sharedId).maybeSingle()]);
+      const [maps, items, price] = await Promise.all([syncCourseForSharing(c, userId), getSharedItems(c.sharedId), createClient().from("shared_courses").select("price_ngn,audience").eq("id", c.sharedId).maybeSingle()]);
       const pathById = (m: Record<string, string>) => Object.fromEntries(Object.entries(m).map(([p, id]) => [id, p]));
       const filePath = pathById(maps.fileIdByPath), recPath = pathById(maps.recIdByPath);
       const pick = (t: ShareItem["item_type"]) => new Set(items.filter((i) => i.item_type === t).map((i) => i.item_id));
       const pn = pick("note"), pf = new Set(Array.from(pick("file")).map((id) => filePath[id])), pr = new Set(Array.from(pick("recording")).map((id) => recPath[id]));
       return {
-        priceNgn: Number(price.data?.price_ngn ?? 0),
+        priceNgn: Number(price.data?.price_ngn ?? 0), audience: (price.data?.audience as Audience) ?? "everyone",
         picked: { notes: c.notes.filter((n) => pn.has(n.id)).map((n) => n.id), files: c.files.filter((f) => f.storagePath && pf.has(f.storagePath)).map((f) => f.id), recs: c.recs.filter((r) => r.storagePath && pr.has(r.storagePath)).map((r) => r.id) },
       };
     },
-    updateSharing: async (courseId, priceNgn, picked) => {
+    updateSharing: async (courseId, priceNgn, picked, audience, audienceValue) => {
       const c = coursesRef.current.find((x) => x.id === courseId);
       if (!c?.sharedId || !userId) return "This course isn't shared";
       const maps = await syncCourseForSharing(c, userId);
-      const err = (await updateSharedPrice(c.sharedId, priceNgn)) ?? (await setSharedItems(c.sharedId, toShareItems(c, picked, maps)));
+      const err = (await updateSharedSettings(c.sharedId, priceNgn, audience, audienceValue)) ?? (await setSharedItems(c.sharedId, toShareItems(c, picked, maps)));
       if (err) return err;
       setShared((ss) => ss.map((x) => (x.id === c.sharedId ? { ...x, priceNgn, itemCounts: { notes: picked.notes.length, files: picked.files.length, recs: picked.recs.length } } : x)));
       return null;
@@ -658,7 +758,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     resetKey, ready,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass]);
+  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, sharedIntent, refreshFeed, loadChannel, toPost]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

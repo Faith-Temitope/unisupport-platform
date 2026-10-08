@@ -9,7 +9,7 @@ import { Avatar, Btn, DemoControls, Empty, Label, Segmented, Sheet, TopBar } fro
 import { ShareCourseForm } from "./ShareCourseForm";
 
 export default function Explore({ active }: { active: boolean }) {
-  const { posts, courses, chats, settings, following, blocked, shared, setOverlay, setTab, goStudy, joinShared, leaveShared, sendShared, loadSharedDetail, personById, profile, flash, setWalletOpen } = useApp();
+  const { posts, courses, chats, settings, following, blocked, shared, setOverlay, setTab, goStudy, joinShared, leaveShared, sendShared, loadSharedDetail, personById, profile, flash, setWalletOpen, refreshFeed, sharedIntent, clearSharedIntent } = useApp();
   const [buying, setBuying] = useState(false);
   async function join(s: SharedCourse) {
     setBuying(true);
@@ -18,6 +18,7 @@ export default function Explore({ active }: { active: boolean }) {
     if (!r.error) return flash(s.priceNgn ? `Unlocked. ${s.code} is in your Study` : "Added to your Study");
     if (r.error === "insufficient_funds") { flash(`Top up first. This course is ${naira(s.priceNgn ?? 0)}`); setWalletOpen(true); return; }
     if (r.error === "sign_in_required") return flash("Sign in to add shared courses");
+    if (r.error === "not_available_to_you") return flash("This course is only open to students from a certain country, region or school");
     flash("Couldn't add that course. Try again.");
   }
   const [seg, setSeg] = useState<"feed" | "courses">("feed");
@@ -34,6 +35,13 @@ export default function Explore({ active }: { active: boolean }) {
     const i = setInterval(() => loadSharedDetail(detail), 4000);
     return () => clearInterval(i);
   }, [detail, loadSharedDetail]);
+
+  // Fresh posts each time Explore is opened; a course tapped on someone's channel opens here.
+  useEffect(() => { if (active) void refreshFeed(); }, [active, refreshFeed]);
+  useEffect(() => {
+    if (!sharedIntent) return;
+    setSeg("courses"); setDetail(sharedIntent); clearSharedIntent(); // eslint-disable-line react-hooks/set-state-in-effect
+  }, [sharedIntent, clearSharedIntent]);
 
   // Tags come from what you actually study and chat about with Birdie (like YouTube's recommendations).
   const interests = useMemo(() => topInterests(chats, courses), [chats, courses]);
@@ -57,7 +65,7 @@ export default function Explore({ active }: { active: boolean }) {
 
   return (
     <div className="flex h-full flex-col">
-      <TopBar title={<h2 className="disp text-[24px] font-bold text-[var(--text)]">Explore</h2>} />
+      <TopBar title={<h2 className="disp text-[24px] font-bold text-[var(--text)]">Explore</h2>} right={<button onClick={() => setOverlay({ t: "profile", id: "me" })} className="flex items-center gap-2 rounded-full bg-white py-1 pl-1 pr-3 text-[12.5px] font-semibold text-[var(--text)] ring-1 ring-[var(--line)] active:scale-95"><Avatar initials={initials(profile.name || "Me")} color="#A63FBD" size={26} />My channel</button>} />
       <div className="px-5 pb-3">
         <div className="flex items-center gap-2 rounded-2xl bg-[var(--paper-dim)] px-3.5 py-3"><Search size={16} className="text-[var(--dim)]" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search videos, posts, courses..." className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-[#a99fb8]" /></div>
         <div className="mt-3"><Segmented value={seg} onChange={setSeg} options={[{ id: "feed", label: "Videos & posts" }, { id: "courses", label: "Shared courses" }]} /></div>

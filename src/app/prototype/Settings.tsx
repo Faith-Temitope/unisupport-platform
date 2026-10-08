@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowLeft, Bell, BookOpen, Bot as BotIcon, Cpu, Compass, CreditCard, Eye, FileText, Lock, LogOut, PlugZap, ShieldCheck, Sparkles, Trash2, Type, UserRound } from "lucide-react";
+import { ArrowLeft, Bell, BookOpen, Bot as BotIcon, Cpu, Compass, CreditCard, Eye, FileText, Lock, LogOut, PlugZap, ShieldCheck, Sparkles, Trash2, Type, UserRound, X } from "lucide-react";
+import { cleanUrl } from "./live/socialData";
 import { useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase";
 import { initials } from "./PostCard";
@@ -24,9 +25,10 @@ const Row = ({ label, sub, onClick, danger }: { label: string; sub?: string; onC
 const Choice = ({ label, children }: { label: string; children: ReactNode }) => (<div className="border-b border-[var(--line)] py-3 last:border-0"><div className="mb-2 text-[14px] font-semibold text-[var(--text)]">{label}</div>{children}</div>);
 
 export default function Settings() {
-  const { overlay, setOverlay, profile, setProfile, settings, setSetting, demoOn, setDemo, balance, txs, setWalletOpen, courses, folders, resetAll, flash, auth, signOut, setAuthOpen } = useApp();
+  const { overlay, setOverlay, profile, saveProfile, settings, setSetting, demoOn, setDemo, balance, txs, setWalletOpen, courses, folders, resetAll, flash, auth, signOut, setAuthOpen } = useApp();
   const [sheet, setSheet] = useState<null | "profile" | "password" | "delete" | "about">(null);
   const [draft, setDraft] = useState(profile);
+  const [saving, setSaving] = useState(false);
   const [pw, setPw] = useState({ a: "", b: "", c: "" });
   const [pwBusy, setPwBusy] = useState(false);
   const close = () => setOverlay(null);
@@ -46,6 +48,7 @@ export default function Settings() {
               <Avatar initials={initials(profile.name)} color="#A63FBD" size={54} />
               <div className="min-w-0 flex-1"><div className="disp truncate text-[17px] font-bold">{profile.name || "Your name"}</div><div className="truncate text-[12.5px] text-[var(--dim)]">@{profile.handle || "handle"} · {[profile.level, profile.program].filter(Boolean).join(" · ") || "Add your level and program"}</div></div><span className="text-[var(--dim)]">›</span>
             </button>
+            <Btn variant="ghost" onClick={() => setOverlay({ t: "profile", id: "me" })}>View my channel</Btn>
 
             {auth.status === "guest" && (
               <div className="rounded-2xl bg-gradient-to-br from-[var(--ink)] to-[#2b1546] p-4 text-[var(--paper)]"><div className="disp text-[16px] font-bold">You're using Birdie as a guest</div><p className="mt-1 text-[12.5px] leading-snug text-white/65">Your work is saved on this device only. Create an account to keep it safe and use it anywhere.</p><button onClick={() => { close(); setAuthOpen(true); }} className="mt-3 rounded-xl bg-[var(--birdie)] px-4 py-2 text-[13px] font-semibold text-white active:scale-95">Create an account</button></div>
@@ -137,8 +140,33 @@ export default function Settings() {
           <TextField value={draft.program} onChange={(v) => setDraft({ ...draft, program: v })} placeholder="Program, e.g. Computer Science" />
           <TextField value={draft.institution} onChange={(v) => setDraft({ ...draft, institution: v })} placeholder="School" />
           <TextField value={draft.country} onChange={(v) => setDraft({ ...draft, country: v })} placeholder="Country" />
-          <TextField multiline value={draft.bio} onChange={(v) => setDraft({ ...draft, bio: v })} placeholder="A short bio" />
-          <Btn variant="study" disabled={!draft.name.trim()} onClick={() => { setProfile(draft); setSheet(null); flash("Profile saved"); }}>Save</Btn>
+          <TextField value={draft.region ?? ""} onChange={(v) => setDraft({ ...draft, region: v })} placeholder="State or region, e.g. Lagos" />
+          <TextField multiline value={draft.bio} onChange={(v) => setDraft({ ...draft, bio: v })} placeholder="Channel description: what you post, what you study" />
+          <div>
+            <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Links (up to 5)</div>
+            <div className="space-y-2">
+              {(draft.links ?? []).map((l, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input value={l.label} onChange={(e) => setDraft({ ...draft, links: (draft.links ?? []).map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} placeholder="Label" className="w-24 shrink-0 rounded-xl bg-[var(--paper-dim)] px-3 py-2.5 text-[13px] outline-none" />
+                  <input value={l.url} onChange={(e) => setDraft({ ...draft, links: (draft.links ?? []).map((x, j) => (j === i ? { ...x, url: e.target.value } : x)) })} placeholder="instagram.com/you" className="min-w-0 flex-1 rounded-xl bg-[var(--paper-dim)] px-3 py-2.5 text-[13px] outline-none" />
+                  <button onClick={() => setDraft({ ...draft, links: (draft.links ?? []).filter((_, j) => j !== i) })} aria-label="Remove link" className="text-[var(--dim)]"><X size={16} /></button>
+                </div>
+              ))}
+              {(draft.links ?? []).length < 5 && <button onClick={() => setDraft({ ...draft, links: [...(draft.links ?? []), { label: "", url: "" }] })} className="text-[12.5px] font-bold text-[var(--study)]">+ Add a link</button>}
+            </div>
+          </div>
+          <p className="text-[11.5px] leading-snug text-[var(--dim)]">Your name, handle, school, country, description and links show on your public channel. Country, region and school also decide which shared courses limited to a place you can see.</p>
+          <Btn variant="study" disabled={!draft.name.trim() || saving} onClick={async () => {
+            const links = (draft.links ?? []).filter((l) => l.url.trim());
+            const bad = links.find((l) => !cleanUrl(l.url));
+            if (bad) return flash(`"${bad.url}" isn't a valid web link`);
+            setSaving(true);
+            const err = await saveProfile({ ...draft, links: links.map((l) => ({ label: l.label.trim(), url: cleanUrl(l.url)! })) });
+            setSaving(false);
+            if (err === "handle_taken") return flash(`@${draft.handle} is taken. Try another handle.`);
+            if (err) return flash("Couldn't save your profile. Check your connection.");
+            setSheet(null); flash("Profile saved");
+          }}>{saving ? "Saving..." : "Save"}</Btn>
         </div>
       </Sheet>
       <Sheet open={sheet === "password"} onClose={() => setSheet(null)} title="Change password">
