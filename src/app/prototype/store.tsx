@@ -13,6 +13,7 @@ import {
 import { logEvent } from "./live/analyticsData";
 import { fetchMyRep } from "./live/repData";
 import { createPost, deletePostRemote, fetchChannels, fetchFeed, fetchLikedPosts, fetchMyFollowing, fetchPostsBy, fetchPostsByIds, pinPost, setFollow, setLike, upsertMyChannel, type Channel, type FeedPost, type Link } from "./live/socialData";
+import { fetchForYou, fetchMyTopics, logPostEvent, type Ranked } from "./live/recData";
 import { DEMO_PEOPLE, DEMO_POSTS, DEMO_SHARED, DEMO_REPLIES } from "./demo";
 import { BADGES, dayKey, streakOf, type Stats } from "./badges";
 
@@ -113,6 +114,8 @@ interface AppCtx {
   addContact: (id: string) => void; removeContact: (id: string) => void; toggleFollow: (id: string) => void; sendChat: (id: string, text: string) => void; toggleBlock: (id: string) => void;
   posts: Post[]; addPost: (p: NewPost) => Promise<string | null>; toggleLike: (id: string) => void; deletePost: (id: string) => void;
   refreshFeed: () => Promise<void>; loadMoreFeed: () => Promise<number>; searchFeed: (term: string) => Promise<void>; loadChannel: (id: string) => Promise<void>;
+  /** For you: post ids ranked by the Birdie algorithm, with why each was picked. */
+  forYou: Ranked[]; loadForYou: (reset: boolean) => Promise<number>; topics: { topic: string; mine: boolean }[]; refreshTopics: () => Promise<void>;
   loadPostsByIds: (ids: string[]) => Promise<void>; loadLiked: () => Promise<string[]>; setPinned: (id: string, on: boolean) => Promise<string | null>;
   saveProfile: (p: Profile) => Promise<string | null>;
   shared: SharedCourse[];
@@ -414,6 +417,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return err;
   }, []);
   // Pulls matches for a search/tag from the server, so results aren't limited to what's loaded.
+  const [forYou, setForYou] = useState<Ranked[]>([]);
+  const forYouRef = useRef<Ranked[]>([]);
+  const seedRef = useRef("");
+  const loadForYou = useCallback(async (reset: boolean) => {
+    if (auth.status !== "in") return 0;
+    if (reset || !seedRef.current) seedRef.current = Math.random().toString(36).slice(2, 10);
+    const offset = reset ? 0 : forYouRef.current.length;
+    const rows = await fetchForYou(seedRef.current, offset);
+    const have = new Set(postsRef.current.map((p) => p.id));
+    const missing = rows.filter((r) => !have.has(r.id)).map((r) => r.id);
+    if (missing.length) await ingestPosts(await fetchPostsByIds(missing, auth.userId), false);
+    const next = reset ? rows : [...forYouRef.current, ...rows.filter((r) => !forYouRef.current.some((x) => x.id === r.id))];
+    forYouRef.current = next; setForYou(next);
+    return rows.length;
+  }, [auth.status, auth.userId, ingestPosts]);
+  const [topics, setTopics] = useState<{ topic: string; mine: boolean }[]>([]);
+  const refreshTopics = useCallback(async () => {
+    if (auth.status !== "in") return;
+    const t = await fetchMyTopics();
+    if (t.length) setTopics(t);
+  }, [auth.status]);
   const searchFeed = useCallback(async (term: string) => {
     if (auth.status !== "in" || term.trim().length < 2) return;
     try { await ingestPosts(await fetchFeed(auth.userId, { term, limit: 60 }), false); } catch { /* keep what we have */ }
@@ -691,7 +715,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const target = posts.find((p) => p.id === id); if (!target) return;
       if (!target.liked) emote("love");
       setPosts((ps) => ps.map((p) => (p.id === id ? { ...p, liked: !p.liked, likes: p.likes + (p.liked ? -1 : 1) } : p)));
-      if (target.remote && userId) void setLike(id, userId, !target.liked);
+      if (target.remote && userId) { void setLike(id, userId, !target.liked); void logPostEvent(id, target.liked ? "unlike" : "like"); }
     },
     deletePost: (id) => {
       const target = posts.find((p) => p.id === id);
@@ -710,6 +734,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     sharedIntent, openShared: (id) => { setSharedIntent(id); setTab("explore"); }, clearSharedIntent: () => setSharedIntent(null),
     printIntent, openPrint: (i) => setPrintIntent(i), closePrint: () => setPrintIntent(null),
     barsHidden, setBarsHidden,
+    forYou, loadForYou, topics, refreshTopics,
     watching, watch: (id) => setWatching({ id, mini: false }), minimizeWatch: () => setWatching((w) => (w ? { ...w, mini: true } : w)), closeWatch: () => setWatching(null),
     shared,
     loadSharedDetail,
@@ -810,7 +835,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     resetKey, ready,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, refreshExamPass, isRep, refreshRep, sharedIntent, printIntent, barsHidden, watching, refreshFeed, loadMoreFeed, searchFeed, loadChannel, loadPostsByIds, loadLiked, setPinned, toPost]);
+  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, refreshExamPass, isRep, refreshRep, sharedIntent, printIntent, barsHidden, watching, forYou, loadForYou, topics, refreshTopics, refreshFeed, loadMoreFeed, searchFeed, loadChannel, loadPostsByIds, loadLiked, setPinned, toPost]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

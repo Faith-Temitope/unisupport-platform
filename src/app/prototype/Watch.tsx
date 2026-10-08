@@ -6,6 +6,7 @@ import PostCard, { ago, initials, useByline } from "./PostCard";
 import { PostMenu } from "./PostMenu";
 import { FeedAd, SponsorBar, usePlacements } from "./Sponsored";
 import { useApp } from "./store";
+import { logPostEvent } from "./live/recData";
 import { Avatar } from "./ui";
 
 /** YouTube-style watch page: player on top, sponsor strip, title, channel + actions, then Up next. */
@@ -24,9 +25,9 @@ export function Watch({ id, onBack }: { id: string; onBack: () => void }) {
   const upNext = useMemo(() => {
     if (!post) return [];
     const others = posts.filter((p) => p.id !== post.id && p.kind === "video");
-    const same = others.filter((p) => p.field === post.field || (post.sourceName && p.sourceName === post.sourceName));
-    const rest = others.filter((p) => !same.includes(p));
-    return [...same, ...rest].slice(0, 30);
+    // Most shared topics first, then the same subject or channel, then the rest.
+    const score = (p: (typeof others)[number]) => p.tags.filter((t) => post.tags.includes(t)).length * 2 + (p.field === post.field ? 1 : 0) + (post.sourceName && p.sourceName === post.sourceName ? 1 : 0);
+    return [...others].sort((a, b) => score(b) - score(a) || b.createdAt - a.createdAt).slice(0, 30);
   }, [posts, post]);
 
   if (!post) return <div className="flex flex-1 items-center justify-center text-[13px] text-[var(--dim)]"><button onClick={onBack}>This video isn&apos;t available. Go back</button></div>;
@@ -34,6 +35,7 @@ export function Watch({ id, onBack }: { id: string; onBack: () => void }) {
   const isFollowing = following.includes(post.authorId);
 
   async function share() {
+    void logPostEvent(post!.id, "share");
     const url = post!.youtubeId ? `https://www.youtube.com/watch?v=${post!.youtubeId}` : window.location.origin;
     const text = `${post!.title} -- watching on Birdie`;
     try { if (navigator.share) await navigator.share({ title: post!.title, text, url }); else { await navigator.clipboard.writeText(`${text} ${url}`); flash("Link copied"); } } catch { /* cancelled */ }

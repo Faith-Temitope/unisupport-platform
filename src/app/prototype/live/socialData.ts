@@ -14,6 +14,8 @@ export interface RemotePost {
   id: string; author_id: string; kind: "video" | "text"; title: string; body: string | null; video_path: string | null;
   field: string | null; tags: string[]; duration_seconds: number | null; created_at: string;
   youtube_id: string | null; source_name: string | null; pinned_at: string | null;
+  /** Real topics (AI, Maths, Web Dev...) worked out by the database from the title and description. */
+  topics?: string[];
 }
 export interface Playlist { id: string; title: string; description: string; is_public: boolean; count: number; cover: string | null; cover_kind: "youtube" | "upload" | "text" | null }
 export interface FeedPost extends RemotePost { videoUrl?: string; likes: number; liked: boolean }
@@ -63,7 +65,7 @@ async function withLikes(rows: RemotePost[], me?: string): Promise<FeedPost[]> {
   const { data } = await createClient().from("post_likes").select("post_id,user_id").in("post_id", rows.map((r) => r.id));
   const count: Record<string, number> = {}; const mine = new Set<string>();
   for (const l of data ?? []) { count[l.post_id as string] = (count[l.post_id as string] ?? 0) + 1; if (l.user_id === me) mine.add(l.post_id as string); }
-  return rows.map((r) => ({ ...r, tags: r.tags ?? [], videoUrl: r.video_path ? videoUrl(r.video_path) : undefined, likes: count[r.id] ?? 0, liked: mine.has(r.id) }));
+  return rows.map((r) => ({ ...r, tags: r.topics?.length ? r.topics : r.tags ?? [], videoUrl: r.video_path ? videoUrl(r.video_path) : undefined, likes: count[r.id] ?? 0, liked: mine.has(r.id) }));
 }
 
 /** Newest first, a page at a time (`before` = createdAt of the last post already shown). `term`
@@ -71,9 +73,15 @@ async function withLikes(rows: RemotePost[], me?: string): Promise<FeedPost[]> {
 export async function fetchFeed(me?: string, opts: { limit?: number; before?: string; term?: string } = {}): Promise<FeedPost[]> {
   let q = createClient().from("posts").select("*").order("created_at", { ascending: false }).limit(opts.limit ?? 40);
   if (opts.before) q = q.lt("created_at", opts.before);
-  const t = opts.term?.trim().replace(/[,()*%]/g, " ").trim();
-  if (t) q = q.or(`title.ilike.*${t}*,field.ilike.*${t}*,source_name.ilike.*${t}*,tags.cs.{${t.toLowerCase()}}`);
-  const { data } = await q;
+  const t = opts.term?.trim().replace(/[,()*%"{}\\]/g, " ").trim();
+  if (t) q = q.or(`title.ilike.*${t}*,field.ilike.*${t}*,source_name.ilike.*${t}*,tags.cs.{${t.toLowerCase()}},topics.cs.{"${t}"}`);
+  let { data, error } = await q;
+  // Older databases without the topics column: search without it.
+  if (error && t) {
+    let q2 = createClient().from("posts").select("*").order("created_at", { ascending: false }).limit(opts.limit ?? 40);
+    if (opts.before) q2 = q2.lt("created_at", opts.before);
+    ({ data, error } = await q2.or(`title.ilike.*${t}*,field.ilike.*${t}*,source_name.ilike.*${t}*,tags.cs.{${t.toLowerCase()}}`));
+  }
   return withLikes((data ?? []) as RemotePost[], me);
 }
 export async function fetchPostsBy(authorId: string, me?: string): Promise<FeedPost[]> {
