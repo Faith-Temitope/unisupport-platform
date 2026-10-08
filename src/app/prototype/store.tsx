@@ -159,6 +159,7 @@ interface AppCtx {
   birdieIntent: BirdieIntent | null; goBirdie: (i: BirdieIntent) => void; clearBirdieIntent: () => void;
   studyIntent: { courseId: string; tab?: string } | null; goStudy: (i: { courseId: string; tab?: string }) => void; clearStudyIntent: () => void;
   helpIntent: { mode: "mentor" | "full"; courseId: string | null; sessionId?: string } | null; goHelp: (i: { mode: "mentor" | "full"; courseId: string | null; sessionId?: string }) => void;
+  tourOpen: boolean; setTourOpen: (b: boolean) => void;
   pocket: PocketItem[]; pocketAdd: (i: NewPocketItem) => void; pocketRemove: (id: string) => void; pocketOpen: boolean; setPocketOpen: (b: boolean) => void; clearHelpIntent: () => void;
   phone: HTMLElement | null; setPhone: (el: HTMLElement | null) => void; slot: HTMLElement | null; setSlot: (el: HTMLElement | null) => void;
   resetAll: () => void; resetKey: number; ready: boolean;
@@ -225,6 +226,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // The buddy's pocket: kept on this phone so it survives closing the app.
   const [pocket, setPocket] = useState<PocketItem[]>([]);
   const [pocketOpen, setPocketOpen] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
   useEffect(() => { void Promise.resolve().then(() => { try { const raw = localStorage.getItem("birdie-pocket"); if (raw) setPocket(JSON.parse(raw)); } catch { /* ignore */ } }); }, []);
   const savePocket = useCallback((next: PocketItem[]) => { setPocket(next); try { localStorage.setItem("birdie-pocket", JSON.stringify(next)); } catch { /* full */ } }, []);
   // Changing screen always brings the bottom nav back.
@@ -798,7 +800,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     sharedIntent, openShared: (id) => { setSharedIntent(id); setTab("explore"); }, clearSharedIntent: () => setSharedIntent(null),
     printIntent, openPrint: (i) => setPrintIntent(i), closePrint: () => setPrintIntent(null),
     barsHidden, setBarsHidden,
-    pocket, pocketOpen, setPocketOpen,
+    pocket, pocketOpen, setPocketOpen, tourOpen, setTourOpen,
     pocketAdd: (i) => {
       const same = (p: PocketItem) => p.kind === i.kind && JSON.stringify({ ...p, id: "", title: "" }) === JSON.stringify({ ...i, id: "", title: "" });
       if (pocket.some(same)) { flash("Your buddy is already holding that"); return; }
@@ -913,7 +915,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     resetKey, ready,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, refreshExamPass, isRep, refreshRep, plus, buyPlus, plusOpen, sharedIntent, printIntent, barsHidden, pocket, pocketOpen, watching, forYou, loadForYou, topics, refreshTopics, refreshFeed, loadMoreFeed, searchFeed, loadChannel, loadPostsByIds, loadLiked, setPinned, toPost]);
+  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, refreshExamPass, isRep, refreshRep, plus, buyPlus, plusOpen, sharedIntent, printIntent, barsHidden, pocket, pocketOpen, tourOpen, watching, forYou, loadForYou, topics, refreshTopics, refreshFeed, loadMoreFeed, searchFeed, loadChannel, loadPostsByIds, loadLiked, setPinned, toPost]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

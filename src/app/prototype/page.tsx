@@ -1,5 +1,6 @@
 "use client";
 
+import { Tour } from "./Tour";
 import { PocketDock, PocketSheet } from "./Pocket";
 import { useOnline } from "./offline";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
@@ -26,7 +27,7 @@ const NAV: [TabId, string, typeof Compass | null][] = [["study", "Study", BookOp
 const ZOOM = { s: 0.92, m: 1, l: 1.1 } as const;
 
 function Shell() {
-  const { tab, setTab, toast, setPhone, setSlot, settings, resetAll, resetKey, skipHours, recommendation, flash, refreshWallet, setWalletOpen, barsHidden, auth, openByHandle, setAuthOpen, plus, setOverlay } = useApp();
+  const { tab, setTab, toast, setPhone, setSlot, settings, resetAll, resetKey, skipHours, recommendation, flash, refreshWallet, setWalletOpen, barsHidden, auth, openByHandle, setAuthOpen, plus, setOverlay, profile, boot, setTourOpen } = useApp();
   const show = (id: TabId) => ({ display: tab === id ? "flex" : "none" });
   // Internal tools (staff app links, timer skip, reset) stay reachable at ?dev=1 for us; real
   // users, testers and Play Store reviewers never see them.
@@ -46,6 +47,14 @@ function Shell() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // New students get the tour once, right after they set up their profile.
+  useEffect(() => {
+    if (boot !== "done" || !profile.onboarded) return;
+    try { if (localStorage.getItem("birdie-tour-seen")) return; } catch { return; }
+    const t = setTimeout(() => setTourOpen(true), 900);
+    return () => clearTimeout(t);
+  }, [boot, profile.onboarded, setTourOpen]);
 
   // Tapping a phone notification: /prototype?tab=help, ?chat=<person>, ?tab=study...
   const openLink = (href: string) => {
@@ -125,6 +134,7 @@ function Shell() {
               <Player bottom={hideNav ? 8 : navH + 22} />
               <Settings />
               <Entry />
+              <Tour />
               <AnimatePresence>
                 {toast && (<motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute bottom-24 left-1/2 z-[95] flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-xl bg-[var(--ink)] px-4 py-3 text-[13px] font-semibold text-[var(--paper)] shadow-xl"><Check size={15} className="text-[#D68BE8]" strokeWidth={3} /> {toast}</motion.div>)}
               </AnimatePresence>
