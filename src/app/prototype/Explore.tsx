@@ -2,7 +2,8 @@
 
 import { BadgeCheck, BookmarkPlus, Search, Send, Users } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { CampusStrip, SponsoredCard, usePlacements } from "./Sponsored";
+import { SponsoredCard, usePlacements } from "./Sponsored";
+import { CampusDeals } from "./CampusDeals";
 import { CertStrip } from "./Certificates";
 import { topInterests } from "./engine";
 import PostCard, { initials } from "./PostCard";
@@ -112,16 +113,7 @@ export default function Explore({ active }: { active: boolean }) {
             </div>
           )
         ) : seg === "deals" ? (
-          <div className="space-y-5">
-            <div>
-              <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Near your campus</div>
-              {campus.length ? <CampusStrip items={campus} /> : <p className="text-[13px] text-[var(--dim)]">Food spots, printers, hostels and repair shops near your school will show up here. Add your school in Settings so we know where you are.</p>}
-            </div>
-            <div>
-              <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Student deals</div>
-              {deals.length ? <div className="space-y-3">{deals.map((d) => <SponsoredCard key={d.id} p={d} />)}</div> : <p className="text-[13px] text-[var(--dim)]">Discounts on laptops, data and gadgets for students will show up here.</p>}
-            </div>
-          </div>
+          <CampusDeals campus={campus} deals={deals} />
         ) : (
           <div className="space-y-3">
             <CertStrip active={active && seg === "courses"} />

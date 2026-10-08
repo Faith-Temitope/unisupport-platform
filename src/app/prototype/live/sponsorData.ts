@@ -6,8 +6,11 @@ import { createClient } from "@/lib/supabase";
 
 export type PlacementKind = "campus" | "deal" | "internship" | "card";
 export type Surface = "birdie" | "video_end" | "explore";
+export const CAMPUS_CATEGORIES = ["Food", "Printing", "Hostels", "Repairs", "Fashion & laundry", "Transport", "Data & gadgets", "Other"];
+export const DEAL_CATEGORIES = ["Laptops & phones", "Data & airtime", "Food", "Courses & books", "Fashion", "Other"];
+
 export interface Placement {
-  id: string; sponsor_name: string; kind: PlacementKind; surface: Surface | null; title: string; body: string;
+  id: string; sponsor_name: string; kind: PlacementKind; surface: Surface | null; category: string | null; title: string; body: string;
   cta_label: string; url: string | null; image_url: string | null; discount_code: string | null;
   company: string | null; location: string | null; deadline: string | null;
 }
@@ -41,6 +44,25 @@ export function fetchPlacements(kind: PlacementKind, surface?: Surface): Promise
 
 export function logPlacement(id: string, kind: "view" | "click") {
   void createClient().rpc("log_placement_event", { p_placement: id, p_kind: kind });
+}
+
+export type BusinessApp = {
+  id: string; kind: "business" | "suggestion"; business_name: string; category: string | null; school: string | null; location: string | null; phone: string | null;
+  offer: string | null; discount_code: string | null; logo_url: string | null; website: string | null; contact_name: string | null; note: string | null;
+  status: "new" | "contacted" | "approved" | "rejected"; placement_id: string | null; created_at: string; submitter: string | null;
+};
+/** Businesses (no account needed) and students' suggestions. Returns an error code or null. */
+export async function submitBusiness(p: Partial<BusinessApp> & { kind: "business" | "suggestion" }): Promise<string | null> {
+  const { error } = await createClient().rpc("submit_business", { p });
+  return error ? error.message.replace(/^.*?exception:\s*/i, "") : null;
+}
+export async function adminListBusinessApps(): Promise<BusinessApp[]> {
+  const { data } = await createClient().rpc("admin_list_business_apps");
+  return (data ?? []) as BusinessApp[];
+}
+export async function adminSetBusinessApp(id: string, status: "contacted" | "approved" | "rejected"): Promise<string | null> {
+  const { error } = await createClient().rpc("admin_set_business_app", { p_id: id, p_status: status });
+  return error ? error.message.replace(/^.*?exception:\s*/i, "") : null;
 }
 
 export async function adminListPlacements(): Promise<AdminPlacement[]> {

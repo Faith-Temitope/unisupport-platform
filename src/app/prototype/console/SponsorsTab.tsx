@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { CertsSection } from "./CertsSection";
 import { cleanUrl } from "../live/socialData";
-import { adminDeletePlacement, adminListPlacements, adminSavePlacement, type AdminPlacement, type PlacementKind, type Surface } from "../live/sponsorData";
+import { CAMPUS_CATEGORIES, DEAL_CATEGORIES, adminDeletePlacement, adminListBusinessApps, adminListPlacements, adminSavePlacement, adminSetBusinessApp, type AdminPlacement, type BusinessApp, type PlacementKind, type Surface } from "../live/sponsorData";
 import { Btn2, Card, Pill, Switch } from "../staff/kit";
 
 const KINDS: { id: PlacementKind; label: string; where: string }[] = [
@@ -18,15 +18,15 @@ const KINDS: { id: PlacementKind; label: string; where: string }[] = [
 const SURFACES: { id: Surface; label: string }[] = [{ id: "birdie", label: "Birdie (new chat)" }, { id: "video_end", label: "End of long videos" }, { id: "explore", label: "Explore feed" }];
 
 type Draft = {
-  id?: string; sponsor_name: string; sponsor_contact: string; kind: PlacementKind; surface: Surface | ""; title: string; body: string;
+  id?: string; sponsor_name: string; sponsor_contact: string; kind: PlacementKind; surface: Surface | ""; category: string; title: string; body: string;
   cta_label: string; url: string; image_url: string; discount_code: string; company: string; location: string; deadline: string;
   countries: string; regions: string; schools: string; starts_at: string; ends_at: string; active: boolean; priority: string;
 };
-const blank: Draft = { sponsor_name: "", sponsor_contact: "", kind: "campus", surface: "", title: "", body: "", cta_label: "", url: "", image_url: "", discount_code: "", company: "", location: "", deadline: "", countries: "", regions: "", schools: "", starts_at: "", ends_at: "", active: true, priority: "0" };
+const blank: Draft = { sponsor_name: "", sponsor_contact: "", kind: "campus", surface: "", category: "", title: "", body: "", cta_label: "", url: "", image_url: "", discount_code: "", company: "", location: "", deadline: "", countries: "", regions: "", schools: "", starts_at: "", ends_at: "", active: true, priority: "0" };
 const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 const fromRow = (p: AdminPlacement): Draft => ({
-  id: p.id, sponsor_name: p.sponsor_name, sponsor_contact: p.sponsor_contact ?? "", kind: p.kind, surface: p.surface ?? "", title: p.title, body: p.body,
+  id: p.id, sponsor_name: p.sponsor_name, sponsor_contact: p.sponsor_contact ?? "", kind: p.kind, surface: p.surface ?? "", category: p.category ?? "", title: p.title, body: p.body,
   cta_label: p.cta_label, url: p.url ?? "", image_url: p.image_url ?? "", discount_code: p.discount_code ?? "", company: p.company ?? "", location: p.location ?? "",
   deadline: p.deadline ?? "", countries: p.countries.join(", "), regions: p.regions.join(", "), schools: p.schools.join(", "),
   starts_at: day(p.starts_at), ends_at: day(p.ends_at), active: p.active, priority: String(p.priority),
@@ -55,7 +55,7 @@ export function SponsorsTab({ show }: { show: (m: string) => void }) {
     if (d.image_url.trim() && !/^https:\/\//i.test(d.image_url.trim())) return show("The image link must start with https://");
     setBusy(true);
     const err = await adminSavePlacement({
-      id: d.id, sponsor_name: d.sponsor_name.trim(), sponsor_contact: d.sponsor_contact.trim() || null, kind: d.kind, surface: d.kind === "card" ? (d.surface as Surface) : null,
+      id: d.id, sponsor_name: d.sponsor_name.trim(), sponsor_contact: d.sponsor_contact.trim() || null, kind: d.kind, surface: d.kind === "card" ? (d.surface as Surface) : null, category: d.kind === "campus" || d.kind === "deal" ? d.category || null : null,
       title: d.title.trim(), body: d.body.trim(), cta_label: d.cta_label.trim(), url, image_url: d.image_url.trim() || null, discount_code: d.discount_code.trim() || null,
       company: d.company.trim() || null, location: d.location.trim() || null, deadline: d.deadline || null,
       countries: list(d.countries), regions: list(d.regions), schools: list(d.schools),
@@ -94,6 +94,7 @@ export function SponsorsTab({ show }: { show: (m: string) => void }) {
         <Card title={d.id ? "Edit placement" : "New placement"} sub={KINDS.find((k) => k.id === d.kind)?.where}>
           <div className="space-y-3">
             <div className="flex flex-wrap gap-2">{KINDS.map((k) => (<button key={k.id} onClick={() => set("kind", k.id)} className={`rounded-xl px-3 py-2 text-[13px] font-semibold ${d.kind === k.id ? "bg-[#1a1024] text-white" : "bg-[#F4EFF8]"}`}>{k.label}</button>))}</div>
+            {(d.kind === "campus" || d.kind === "deal") && <div className="flex flex-wrap gap-1.5">{(d.kind === "campus" ? CAMPUS_CATEGORIES : DEAL_CATEGORIES).map((c) => (<button key={c} onClick={() => set("category", d.category === c ? "" : c)} className={`rounded-lg px-2.5 py-1 text-[12px] font-semibold ${d.category === c ? "bg-[#8b3fa6] text-white" : "bg-white ring-2 ring-[#E6DCF0]"}`}>{c}</button>))}</div>}
             {d.kind === "card" && <div className="flex flex-wrap gap-2">{SURFACES.map((s) => (<button key={s.id} onClick={() => set("surface", s.id)} className={`rounded-xl px-3 py-1.5 text-[12.5px] font-semibold ${d.surface === s.id ? "bg-[#8b3fa6] text-white" : "bg-white ring-2 ring-[#E6DCF0]"}`}>{s.label}</button>))}</div>}
             <div className="grid gap-3 md:grid-cols-2">
               <F label="Sponsor (shown as 'Sponsored · name')"><input className={field} value={d.sponsor_name} onChange={(e) => set("sponsor_name", e.target.value)} placeholder="Chowdeck" /></F>
@@ -148,6 +149,7 @@ export function SponsorsTab({ show }: { show: (m: string) => void }) {
           })}</div>
         )}
       </Card>
+      <BusinessApps show={show} onApproved={() => void reload()} />
       <SponsoredPasses show={show} />
       <CertsSection show={show} />
     </div>
@@ -190,6 +192,47 @@ function SponsoredPasses({ show }: { show: (m: string) => void }) {
             <span className="font-mono font-bold">{r.code}</span>
             <span className="min-w-0 flex-1 text-[var(--dim)]">{r.sponsor_name ? `Sponsored by ${r.sponsor_name}` : `Bought by ${r.buyer ?? "a student"} for ₦${Math.round(Number(r.price_paid)).toLocaleString("en-NG")}`}{r.school ? ` · ${r.school} only` : ""}{r.expires_at ? ` · until ${new Date(r.expires_at).toLocaleDateString([], { day: "numeric", month: "short" })}` : ""}</span>
             <b>{r.claimed}/{r.seats} claimed</b>
+          </div>
+        ))}</div>
+      )}
+    </Card>
+  );
+}
+
+// Businesses applying from /advertise and places students suggest. Approve publishes the business
+// as a campus listing for its school (then edit it like any placement above).
+function BusinessApps({ show, onApproved }: { show: (m: string) => void; onApproved: () => void }) {
+  const [rows, setRows] = useState<BusinessApp[]>([]);
+  const [filter, setFilter] = useState<"open" | "done">("open");
+  useEffect(() => { void adminListBusinessApps().then(setRows); }, []);
+  async function set(a: BusinessApp, status: "contacted" | "approved" | "rejected") {
+    const err = await adminSetBusinessApp(a.id, status);
+    if (err) return show(err);
+    show(status === "approved" ? `${a.business_name} is live in Campus & deals` : status === "contacted" ? "Marked as contacted" : "Rejected");
+    setRows(await adminListBusinessApps()); if (status === "approved") onApproved();
+  }
+  const open = rows.filter((a) => a.status === "new" || a.status === "contacted");
+  const list = filter === "open" ? open : rows.filter((a) => a.status === "approved" || a.status === "rejected");
+  const wa = (p: string) => `https://wa.me/${p.replace(/\D/g, "").replace(/^0/, "234")}`;
+  return (
+    <Card title="Business applications & suggestions" sub="Businesses apply at /advertise (share that link). Students suggest places from Campus & deals. Call them, agree the fee, then approve." pad={false}>
+      <div className="flex gap-2 px-5 pt-3">{(["open", "done"] as const).map((f) => (<button key={f} onClick={() => setFilter(f)} className={`rounded-xl px-3 py-1.5 text-[12.5px] font-semibold ${filter === f ? "bg-[#1a1024] text-white" : "bg-[#F4EFF8]"}`}>{f === "open" ? `To follow up (${open.length})` : "Done"}</button>))}</div>
+      {list.length === 0 ? <div className="p-6 text-center text-sm text-[var(--dim)]">Nothing here.</div> : (
+        <div className="divide-y divide-[#F0EAF7]">{list.map((a) => (
+          <div key={a.id} className="space-y-1 px-5 py-3.5">
+            <div className="flex flex-wrap items-center gap-2"><span className="text-[14px] font-bold">{a.business_name}</span><Pill tone={a.kind === "business" ? "purple" : "amber"}>{a.kind === "business" ? "applied" : "student suggestion"}</Pill>{a.category && <Pill tone="gray">{a.category}</Pill>}<Pill tone={a.status === "approved" ? "green" : a.status === "rejected" ? "gray" : a.status === "contacted" ? "amber" : "red"}>{a.status}</Pill></div>
+            <div className="text-[12.5px] text-[var(--dim)]">{[a.school, a.location].filter(Boolean).join(" · ")}{a.contact_name ? ` · ${a.contact_name}` : ""}{a.submitter ? ` · suggested by ${a.submitter}` : ""}</div>
+            {a.offer && <div className="text-[13px]">Offer: <b>{a.offer}</b>{a.discount_code ? ` · code ${a.discount_code}` : ""}</div>}
+            {a.note && <div className="text-[13px] text-[#4a3a5e]">&ldquo;{a.note}&rdquo;</div>}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {a.phone && <a href={wa(a.phone)} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-[#DDF5EC] px-3 py-1.5 text-[12.5px] font-semibold text-[#0a7a56]">WhatsApp {a.phone}</a>}
+              {a.website && <span className="text-[12px] text-[var(--dim)]">{a.website}</span>}
+              {(a.status === "new" || a.status === "contacted") && (<>
+                {a.status === "new" && <button onClick={() => void set(a, "contacted")} className="rounded-xl bg-white px-3 py-1.5 text-[12.5px] font-semibold ring-2 ring-[#E6DCF0]">Mark contacted</button>}
+                <Btn2 small onClick={() => void set(a, "approved")}>Approve &amp; publish</Btn2>
+                <button onClick={() => void set(a, "rejected")} className="rounded-xl bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#C2412D] ring-2 ring-[#E6DCF0]">Reject</button>
+              </>)}
+            </div>
           </div>
         ))}</div>
       )}
