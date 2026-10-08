@@ -116,8 +116,8 @@ export async function getSharedItems(sharedId: string): Promise<ShareItem[]> {
   const { data } = await createClient().from("shared_course_items").select("item_type,item_id").eq("shared_id", sharedId);
   return (data ?? []) as ShareItem[];
 }
-export async function updateSharedPrice(sharedId: string, priceNgn: number): Promise<string | null> {
-  const { error } = await createClient().from("shared_courses").update({ price_ngn: priceNgn }).eq("id", sharedId);
+export async function updateSharedSettings(sharedId: string, priceNgn: number, audience: string, audienceValue: string | null): Promise<string | null> {
+  const { error } = await createClient().from("shared_courses").update({ price_ngn: priceNgn, audience, audience_value: audienceValue }).eq("id", sharedId);
   return error ? error.message : null;
 }
 
@@ -188,9 +188,9 @@ export async function listPublishedSharedWithCounts(): Promise<{
   return { list, membersBySharedId, fileNamesByCourseId, messageCountBySharedId, itemCountsBySharedId };
 }
 
-export async function publishSharedCourse(sourceCourseId: string, ownerId: string, school: string, field: string, description: string, priceNgn = 0): Promise<string | null> {
+export async function publishSharedCourse(sourceCourseId: string, ownerId: string, school: string, field: string, description: string, priceNgn = 0, audience = "everyone", audienceValue: string | null = null): Promise<string | null> {
   const sb = createClient();
-  const { data, error } = await sb.from("shared_courses").insert({ source_course_id: sourceCourseId, owner_id: ownerId, school: school || null, field, description, published: true, price_ngn: priceNgn }).select("id").single();
+  const { data, error } = await sb.from("shared_courses").insert({ source_course_id: sourceCourseId, owner_id: ownerId, school: school || null, field, description, published: true, price_ngn: priceNgn, audience, audience_value: audienceValue }).select("id").single();
   if (error) { console.error("publishSharedCourse failed", error.message); return null; }
   return data.id as string;
 }
