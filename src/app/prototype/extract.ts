@@ -34,6 +34,17 @@ async function extractPdf(f: File): Promise<string | undefined> {
   return out.length ? out : undefined; // a scanned/image-only PDF has no extractable text
 }
 
+/** Page count for a PDF (used to price print orders); undefined for anything else or on failure. */
+export async function countPdfPages(f: File): Promise<number | undefined> {
+  if (!/\.pdf$/i.test(f.name)) return undefined;
+  try {
+    const pdfjs = await import("pdfjs-dist");
+    pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+    const doc = await pdfjs.getDocument({ data: await f.arrayBuffer() }).promise;
+    return doc.numPages;
+  } catch { return undefined; }
+}
+
 async function extractDocx(f: File): Promise<string | undefined> {
   const mammoth = await import("mammoth");
   const buf = await f.arrayBuffer();

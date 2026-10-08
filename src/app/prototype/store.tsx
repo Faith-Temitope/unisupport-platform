@@ -40,7 +40,8 @@ export interface Person { id: string; name: string; handle: string; field: strin
 export type Audience = "everyone" | "country" | "region" | "school";
 export interface CMsg { id: string; from: "me" | "them"; text: string; t: string; author?: string }
 export interface Post { id: string; authorId: string; kind: "video" | "text"; title: string; body?: string; videoUrl?: string; videoPath?: string; field: string; tags: string[]; dur?: string; grad: string; createdAt: number; likes: number; liked: boolean; demo?: boolean; remote?: boolean }
-export type NewPost = { kind: "video" | "text"; title: string; body?: string; field: string; tags: string[]; durationSeconds?: number; file?: File };
+export type PrintIntent = { kind: "print" | "handwrite" | "orders"; file?: { name: string; path: string } };
+export type NewPost ={ kind: "video" | "text"; title: string; body?: string; field: string; tags: string[]; durationSeconds?: number; file?: File };
 export interface SharedCourse { id: string; ownerId: string; ownerName?: string; code: string; name: string; school?: string; field: string; description: string; files: string[]; members: string[]; messages: { id: string; authorId: string; text: string; t: string }[]; demo?: boolean; sourceCourseId?: string; priceNgn?: number; itemCounts?: { notes: number; files: number; recs: number } }
 
 export interface Profile { name: string; handle: string; level: string; program: string; institution: string; country: string; region?: string; links?: Link[]; bio: string; onboarded: boolean }
@@ -116,6 +117,7 @@ interface AppCtx {
   getSharing: (courseId: string) => Promise<{ priceNgn: number; picked: Picked; audience: Audience } | null>;
   updateSharing: (courseId: string, priceNgn: number, picked: Picked, audience: Audience, audienceValue: string | null) => Promise<string | null>;
   sharedIntent: string | null; openShared: (id: string) => void; clearSharedIntent: () => void;
+  printIntent: PrintIntent | null; openPrint: (i: PrintIntent) => void; closePrint: () => void;
   joinShared: (id: string) => Promise<{ courseId?: string; error?: string }>; sendShared: (id: string, text: string) => void; leaveShared: (id: string) => void;
   loadSharedDetail: (id: string) => void; sharedRemoteContent: { notes: Note[]; files: FileItem[]; recs: Rec[] } | null; loadRemoteCourseContent: (sourceCourseId: string) => void;
   personById: (id: string) => Person | null;
@@ -185,6 +187,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [studyIntent, setStudyIntent] = useState<AppCtx["studyIntent"]>(null);
   const [helpIntent, setHelpIntent] = useState<AppCtx["helpIntent"]>(null);
   const [sharedIntent, setSharedIntent] = useState<string | null>(null);
+  const [printIntent, setPrintIntent] = useState<PrintIntent | null>(null);
   const [phone, setPhone] = useState<HTMLElement | null>(null);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const [resetKey, setResetKey] = useState(0);
@@ -665,6 +668,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return null;
     },
     sharedIntent, openShared: (id) => { setSharedIntent(id); setTab("explore"); }, clearSharedIntent: () => setSharedIntent(null),
+    printIntent, openPrint: (i) => setPrintIntent(i), closePrint: () => setPrintIntent(null),
     shared,
     loadSharedDetail,
     sharedRemoteContent,
@@ -764,7 +768,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     resetKey, ready,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, refreshExamPass, isRep, refreshRep, sharedIntent, refreshFeed, loadChannel, toPost]);
+  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, refreshExamPass, isRep, refreshRep, sharedIntent, printIntent, refreshFeed, loadChannel, toPost]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
