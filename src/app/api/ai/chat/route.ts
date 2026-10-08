@@ -115,7 +115,8 @@ export async function POST(req: Request) {
     admin.from("course_reps").select("status").eq("user_id", user.id).maybeSingle(),
   ]);
   // Birdie Plus = paid (monthly / Exam Pass) or an active course rep.
-  const plus = (!!passRow?.exam_pass_until && new Date(passRow.exam_pass_until) > new Date()) || repRow?.status === "active";
+  const { data: plusRpc, error: plusErr } = await admin.rpc("is_plus", { p_user: user.id });
+  const plus = !plusErr && typeof plusRpc === "boolean" ? plusRpc : (!!passRow?.exam_pass_until && new Date(passRow.exam_pass_until) > new Date()) || repRow?.status === "active";
   if (b.free) {
     // Spark is free for everyone; this daily cap is only an abuse guard.
     const { data: left } = await admin.rpc("ai_free_remaining", { p_user: user.id });

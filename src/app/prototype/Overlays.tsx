@@ -1,5 +1,6 @@
 "use client";
 
+import { GroupThread, GroupsList } from "./Groups";
 import { reportThing } from "./live/socialData";
 import { HoldButton } from "./Pocket";
 import { ProfileBadges } from "./ProfileBadges";
@@ -24,6 +25,7 @@ export default function Overlays() {
       <Screen open={overlay?.t === "chats"} z={60}><ChatsScreen onClose={close} /></Screen>
       <Screen open={overlay?.t === "thread"} z={62}>{overlay?.t === "thread" && <Thread id={overlay.id} onBack={() => setOverlay({ t: "chats" })} />}</Screen>
       <Screen open={overlay?.t === "profile"} z={62}>{overlay?.t === "profile" && <ProfileScreen id={overlay.id} onBack={close} />}</Screen>
+      <Screen open={overlay?.t === "group"} z={62}>{overlay?.t === "group" && <GroupThread key={overlay.id} id={overlay.id} onBack={() => setOverlay({ t: "chats" })} />}</Screen>
       <Screen open={overlay?.t === "source"} z={62}>{overlay?.t === "source" && <SourceScreen name={overlay.name} onBack={close} />}</Screen>
       <Screen open={overlay?.t === "post"} z={62}><Composer onClose={close} /></Screen>
       <Screen open={!!watching && !watching.mini} z={64} fade>{watching && <Watch key={watching.id} id={watching.id} onBack={minimizeWatch} />}</Screen>
@@ -43,7 +45,7 @@ function Header({ title, onBack, right }: { title: React.ReactNode; onBack: () =
 // ---------- Chats list + people ----------
 function ChatsScreen({ onClose }: { onClose: () => void }) {
   const { people, contacts, following, convos, setOverlay, addContact, toggleFollow, flash, profile, findPeople } = useApp();
-  const [seg, setSeg] = useState<"chats" | "people">("chats");
+  const [seg, setSeg] = useState<"chats" | "groups" | "people">("chats");
   const [add, setAdd] = useState(false);
   const [q, setQ] = useState("");
   const [remote, setRemote] = useState<Person[]>([]);
@@ -69,9 +71,9 @@ function ChatsScreen({ onClose }: { onClose: () => void }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Header title={<h2 className="disp text-[19px] font-bold">Chats</h2>} onBack={onClose} right={<button onClick={() => setAdd(true)} className="flex items-center gap-1.5 rounded-xl bg-[var(--ink)] px-3 py-2 text-[12.5px] font-semibold text-[var(--paper)] active:scale-95"><UserPlus size={14} /> Add</button>} />
-      <div className="px-4 pt-3"><Segmented value={seg} onChange={setSeg} options={[{ id: "chats", label: "Chats" }, { id: "people", label: `People (${contacts.length + following.filter((f) => !contacts.includes(f)).length})` }]} /></div>
+      <div className="px-4 pt-3"><Segmented value={seg} onChange={setSeg} options={[{ id: "chats", label: "Chats" }, { id: "groups", label: "Groups" }, { id: "people", label: `People (${contacts.length + following.filter((f) => !contacts.includes(f)).length})` }]} /></div>
       <div className="no-scrollbar flex-1 overflow-y-auto px-4 py-3">
-        {seg === "chats" ? (
+        {seg === "groups" ? <GroupsList /> : seg === "chats" ? (
           sorted.length === 0 ? <Empty icon={<MessageCircle size={20} />} title="No chats yet" text="Add classmates, tutors and people whose help you value, and chat right here instead of scattered WhatsApp groups." action={<Btn variant="study" onClick={() => setAdd(true)}>Add people</Btn>} /> : (
             <div className="overflow-hidden rounded-2xl border border-[var(--line)] bg-white">
               {sorted.map((p) => { const last = convos[p.id]?.slice(-1)[0]; return (

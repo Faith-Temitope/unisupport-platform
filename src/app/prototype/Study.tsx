@@ -1,5 +1,6 @@
 "use client";
 
+import { CourseBoard } from "./CourseBoard";
 import { whileVisible } from "./perf";
 import { HoldButton } from "./Pocket";
 import { PushNudge } from "./PushToggle";
@@ -19,7 +20,7 @@ import { DeadlinesCard, ExtraSheets, TodayCard, type ExtraSheet } from "./StudyE
 import { CategoryPicker, CategoryPill, CategoryTabs } from "./Categories";
 import { ShareCourseForm } from "./ShareCourseForm";
 
-type CTab = "materials" | "notes" | "recordings" | "progress";
+type CTab = "board" | "materials" | "notes" | "recordings" | "progress";
 const KIND_ICON = { pdf: FileText, img: ImageIcon, slides: Presentation, notes: StickyNote, link: FileText, text: FileText } as const;
 const kindOf = (f: File): FileItem["kind"] => (f.type.startsWith("image/") ? "img" : /\.(txt|md)$/i.test(f.name) ? "text" : /\.(ppt|pptx|key)$/i.test(f.name) ? "slides" : "pdf");
 const fmtSize = (n: number) => (n > 1_000_000 ? `${(n / 1_000_000).toFixed(1)} MB` : n > 1000 ? `${Math.round(n / 1000)} KB` : n ? `${n} B` : "");
@@ -204,7 +205,7 @@ function RecordingRow({ r, onDelete, readOnly }: { r: Rec; onDelete: () => void;
 }
 
 function CourseView({ course, startTab, onBack }: { course: Course; startTab: CTab; onBack: () => void }) {
-  const { addNote, deleteNote, addFile, deleteFile, deleteRec, goBirdie, setRecorderOpen, flash, loadRemoteCourseContent, sharedRemoteContent, openPrint } = useApp();
+  const { addNote, deleteNote, addFile, deleteFile, deleteRec, goBirdie, setRecorderOpen, flash, loadRemoteCourseContent, sharedRemoteContent, openPrint, shared } = useApp();
   const [tab, setTab_] = useViewState<CTab>(`study.tab.${course.id}`, startTab);
   const [sheet, setSheet] = useState<null | "note" | "share">(null);
   const [nTitle, setNTitle] = useState(""); const [nBody, setNBody] = useState(""); const [nCat, setNCat] = useState("Notes");
@@ -215,7 +216,9 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
   const input = useRef<HTMLInputElement>(null);
   const overall = course.topics.length ? Math.round(course.topics.reduce((a, t) => a + t.mastery, 0) / course.topics.length) : null;
   const isShared = !!course.sharedId;
-  const tabs: [CTab, string][] = [["materials", "Materials"], ["notes", "Notes"], ["recordings", "Recordings"], ["progress", "Progress"]];
+  // Shared courses (yours, or one you joined) have a notice board for the whole class.
+  const boardId = course.sharedId ?? (course.sourceCourseId ? shared.find((s) => s.sourceCourseId === course.sourceCourseId)?.id : undefined);
+  const tabs: [CTab, string][] = [...(boardId ? [["board", "Board"] as [CTab, string]] : []), ["materials", "Materials"], ["notes", "Notes"], ["recordings", "Recordings"], ["progress", "Progress"]];
 
   // A joined (not owned) shared course: show the owner's real, live content read-only instead of
   // this course's own (empty) local arrays -- a snapshot taken at join time would go stale the
@@ -325,6 +328,7 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
             {shownRecs.map((r) => (<RecordingRow key={r.id} r={r} onDelete={() => deleteRec(course.id, r.id)} readOnly={readOnly} />))}
             {!readOnly && <Btn variant="ghost" onClick={() => setRecorderOpen(true)}>+ Record another</Btn>}</>))}
 
+          {tab === "board" && boardId && <CourseBoard sharedId={boardId} isOwner={!readOnly} courseId={course.id} />}
           {tab === "progress" && (overall === null ? <Empty icon={<Sparkles size={20} />} title="No progress yet" text="Take a quiz in Birdie and your topics and mastery show up here." action={<Btn variant="study" onClick={() => goBirdie({ courseId: course.id, mode: "test" })}>Take a quiz</Btn>} /> : (<>
             <div className="rounded-2xl bg-[var(--study-soft)] p-4"><div className="disp text-[30px] font-bold text-[var(--study)]">{overall}%</div><div className="text-[12.5px] text-[#4a3596]">Overall mastery in {course.code}</div></div>
             {course.topics.map((t) => (<div key={t.name} className="pt-1"><div className="mb-1.5 flex justify-between gap-3 text-[13px] font-semibold"><span className="truncate">{t.name}</span><span className="text-[var(--dim)]">{t.mastery}%</span></div><div className="h-2 overflow-hidden rounded-full bg-[var(--paper-dim)]"><motion.div className="h-full rounded-full" style={{ background: t.mastery < 55 ? "var(--help)" : "var(--study)" }} initial={{ width: 0 }} animate={{ width: `${t.mastery}%` }} /></div></div>))}

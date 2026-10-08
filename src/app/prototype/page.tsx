@@ -26,6 +26,7 @@ const Player = dynamic(() => import("./Player"), { ssr: false });
 const Recorder = dynamic(() => import("./Recorder"), { ssr: false });
 const Settings = dynamic(() => import("./Settings"), { ssr: false });
 const Tour = dynamic(() => import("./Tour").then((m) => m.Tour), { ssr: false });
+const JoinGroupSheet = dynamic(() => import("./Groups").then((m) => m.JoinGroupSheet), { ssr: false });
 const PocketSheet = dynamic(() => import("./Pocket").then((m) => m.PocketSheet), { ssr: false });
 
 /** True from the first time `on` is true, and stays true (so a screen keeps its state once opened). */
@@ -84,17 +85,29 @@ function Shell() {
   // Tapping a phone notification: /prototype?tab=help, ?chat=<person>, ?tab=study...
   const openLink = (href: string) => {
     const q = new URL(href, window.location.origin).searchParams;
-    const t = q.get("tab"); const chat = q.get("chat");
+    const t = q.get("tab"); const chat = q.get("chat"); const group = q.get("group");
+    if (group) setOverlay({ t: "group", id: group });
     if (t === "study" || t === "explore" || t === "birdie" || t === "help") setTab(t);
     if (chat) setOverlay({ t: "thread", id: chat });
   };
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
-    if (q.get("tab") || q.get("chat")) { const href = window.location.href; window.history.replaceState(null, "", window.location.pathname); openLink(href); }
+    if (q.get("tab") || q.get("chat") || q.get("group")) { const href = window.location.href; window.history.replaceState(null, "", window.location.pathname); openLink(href); }
     const onMsg = (e: MessageEvent) => { if (e.data?.type === "open-link") openLink(e.data.url); };
     navigator.serviceWorker?.addEventListener("message", onMsg);
     return () => navigator.serviceWorker?.removeEventListener("message", onMsg);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A group invite link (/g/code -> ?join=code): offer to join once signed in.
+  const [joinCode, setJoinCode] = useState<string | null>(null);
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("join");
+    if (!code) return;
+    if (auth.status === "guest" || auth.status === "out") { setAuthOpen(true); return; }
+    if (auth.status !== "in") return;
+    window.history.replaceState(null, "", window.location.pathname);
+    setJoinCode(code);
+  }, [auth.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Someone's username link (/u/handle -> ?u=handle): open their channel so you can add and chat.
   useEffect(() => {
@@ -160,6 +173,7 @@ function Shell() {
               {seen.settings && <Settings />}
               <Entry />
               {seen.tour && <Tour />}
+              {joinCode && <JoinGroupSheet code={joinCode} onDone={() => setJoinCode(null)} />}
               <AnimatePresence>
                 {toast && (<motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute bottom-24 left-1/2 z-[95] flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-xl bg-[var(--ink)] px-4 py-3 text-[13px] font-semibold text-[var(--paper)] shadow-xl"><Check size={15} className="text-[#D68BE8]" strokeWidth={3} /> {toast}</motion.div>)}
               </AnimatePresence>
