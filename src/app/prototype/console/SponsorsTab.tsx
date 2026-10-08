@@ -3,6 +3,7 @@
 // Sponsored placements: create/edit what sponsors get, target it, and pull the numbers that sell
 // the renewal. Everything goes through admin_* functions (admins only, checked server-side).
 import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase";
 import { cleanUrl } from "../live/socialData";
 import { adminDeletePlacement, adminListPlacements, adminSavePlacement, type AdminPlacement, type PlacementKind, type Surface } from "../live/sponsorData";
 import { Btn2, Card, Pill, Switch } from "../staff/kit";
@@ -146,6 +147,50 @@ export function SponsorsTab({ show }: { show: (m: string) => void }) {
           })}</div>
         )}
       </Card>
+      <SponsoredPasses show={show} />
     </div>
+  );
+}
+
+type PackRow = { code: string; seats: number; claimed: number; sponsor_name: string | null; school: string | null; expires_at: string | null; price_paid: number; buyer: string | null; created_at: string };
+
+// Free Exam Pass packs a sponsor pays you for (or you give away): one code, N passes, optionally
+// one school only. Student-bought packs show here too, for the record.
+function SponsoredPasses({ show }: { show: (m: string) => void }) {
+  const [rows, setRows] = useState<PackRow[]>([]);
+  const [f, setF] = useState({ sponsor: "", seats: "100", school: "", expires: "" });
+  const [busy, setBusy] = useState(false);
+  const load = async () => { const { data } = await createClient().rpc("admin_list_pass_packs"); setRows((data ?? []) as PackRow[]); };
+  useEffect(() => { void createClient().rpc("admin_list_pass_packs").then(({ data }) => setRows((data ?? []) as PackRow[])); }, []);
+  async function create() {
+    const seats = Math.round(Number(f.seats));
+    if (!f.sponsor.trim()) return show("Who is sponsoring it?");
+    if (!(seats >= 1 && seats <= 5000)) return show("Seats must be 1 to 5000");
+    setBusy(true);
+    const { data, error } = await createClient().rpc("admin_create_pass_pack", { p_seats: seats, p_sponsor: f.sponsor.trim(), p_school: f.school.trim(), p_expires: f.expires ? new Date(`${f.expires}T23:59:59`).toISOString() : null });
+    setBusy(false);
+    if (error) return show(error.message);
+    void navigator.clipboard.writeText(data as string);
+    show(`Code ${data} created and copied`); setF({ sponsor: "", seats: "100", school: "", expires: "" }); void load();
+  }
+  return (
+    <Card title="Sponsored Exam Passes" sub="One code, many free passes. Students enter it under Wallet > Have a pass code?">
+      <div className="grid gap-3 md:grid-cols-4">
+        <F label="Sponsor"><input className={field} value={f.sponsor} onChange={(e) => setF({ ...f, sponsor: e.target.value })} placeholder="MTN, or a well-wisher's name" /></F>
+        <F label="Passes"><input type="number" className={field} value={f.seats} onChange={(e) => setF({ ...f, seats: e.target.value })} /></F>
+        <F label="School only (optional)"><input className={field} value={f.school} onChange={(e) => setF({ ...f, school: e.target.value })} placeholder="UNILAG" /></F>
+        <F label="Code expires (optional)"><input type="date" className={field} value={f.expires} onChange={(e) => setF({ ...f, expires: e.target.value })} /></F>
+      </div>
+      <div className="mt-3"><Btn2 disabled={busy} onClick={() => void create()}>{busy ? "Creating..." : "Create code"}</Btn2></div>
+      {rows.length > 0 && (
+        <div className="mt-4 divide-y divide-[#F0EAF7] rounded-xl border-2 border-[#F0EAF7]">{rows.map((r) => (
+          <div key={r.code} className="flex flex-wrap items-center gap-3 px-3 py-2.5 text-[13px]">
+            <span className="font-mono font-bold">{r.code}</span>
+            <span className="min-w-0 flex-1 text-[var(--dim)]">{r.sponsor_name ? `Sponsored by ${r.sponsor_name}` : `Bought by ${r.buyer ?? "a student"} for ₦${Math.round(Number(r.price_paid)).toLocaleString("en-NG")}`}{r.school ? ` · ${r.school} only` : ""}{r.expires_at ? ` · until ${new Date(r.expires_at).toLocaleDateString([], { day: "numeric", month: "short" })}` : ""}</span>
+            <b>{r.claimed}/{r.seats} claimed</b>
+          </div>
+        ))}</div>
+      )}
+    </Card>
   );
 }

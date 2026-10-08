@@ -104,7 +104,7 @@ interface AppCtx {
   focusEndsAt: number | null; startFocus: (minutes: number) => void; stopFocus: (completed?: boolean) => void;
   mascotEvent: MascotEvent | null; emote: (kind: Emote, text?: string) => void;
   balance: number; txs: Tx[]; walletLive: boolean; refreshWallet: () => Promise<void>; spend: (amount: number, label: string) => boolean; topUp: (amount: number) => void; spendWallet: (amount: number, label: string) => Promise<boolean>; topUpLive: (amount: number) => Promise<string | null>;
-  examPassUntil: string | null; buyExamPass: () => Promise<{ ok: boolean; error?: string }>;
+  examPassUntil: string | null; buyExamPass: () => Promise<{ ok: boolean; error?: string }>; refreshExamPass: () => Promise<void>;
   isRep: boolean; refreshRep: () => Promise<void>;
   people: Person[]; contacts: string[]; following: string[]; convos: Record<string, CMsg[]>; blocked: string[];
   addContact: (id: string) => void; removeContact: (id: string) => void; toggleFollow: (id: string) => void; sendChat: (id: string, text: string) => void; toggleBlock: (id: string) => void;
@@ -590,7 +590,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     mascotEvent, emote,
     balance, txs,
     walletLive, refreshWallet,
-    examPassUntil, buyExamPass, isRep, refreshRep,
+    examPassUntil, buyExamPass, refreshExamPass, isRep, refreshRep,
     spend: (amount, label) => {
       if (walletLive) { flash("Writer sessions move onto your real balance in the next update"); return false; }
       if (amount > balance) return false; setBalance((b) => b - amount); if (amount > 0) setTxs((t) => [{ id: uid(), label, amount: -amount, t: "Just now" }, ...t]); return true;
@@ -764,7 +764,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     resetKey, ready,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, isRep, refreshRep, sharedIntent, refreshFeed, loadChannel, toPost]);
+  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, refreshExamPass, isRep, refreshRep, sharedIntent, refreshFeed, loadChannel, toPost]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
