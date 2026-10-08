@@ -5,6 +5,7 @@
 // security boundary). Four tabs: Users (role changes), Schools (per-institution policy toggles),
 // Pricing (the quiz/writing x standard/full rate card, deadline multipliers, app config), AI
 // (provider/model enable + margin).
+import { SchoolSuggestions } from "./SchoolSuggestions";
 import { BadgesTab } from "./BadgesTab";
 import { BadgeCheck, BarChart3, Building2, Cpu, Crown, LogOut, Megaphone, Printer, Sliders, Users as UsersIcon } from "lucide-react";
 import { OrdersTab } from "./OrdersTab";
@@ -383,6 +384,7 @@ function SchoolsTab({ show }: { show: (m: string) => void }) {
 
   return (
     <div className="space-y-4">
+      <SchoolSuggestions show={show} />
       <Card title="Add a school">
         <div className="flex gap-2"><Input value={name} onChange={setName} placeholder="School name" w="flex-1" /><Btn2 onClick={() => void addSchool()}>Add</Btn2></div>
       </Card>

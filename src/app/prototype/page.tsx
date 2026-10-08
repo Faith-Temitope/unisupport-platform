@@ -25,7 +25,7 @@ const NAV: [TabId, string, typeof Compass | null][] = [["study", "Study", BookOp
 const ZOOM = { s: 0.92, m: 1, l: 1.1 } as const;
 
 function Shell() {
-  const { tab, setTab, toast, setPhone, setSlot, settings, resetAll, resetKey, skipHours, recommendation, flash, refreshWallet, setWalletOpen, barsHidden, auth, openByHandle, setAuthOpen, plus } = useApp();
+  const { tab, setTab, toast, setPhone, setSlot, settings, resetAll, resetKey, skipHours, recommendation, flash, refreshWallet, setWalletOpen, barsHidden, auth, openByHandle, setAuthOpen, plus, setOverlay } = useApp();
   const show = (id: TabId) => ({ display: tab === id ? "flex" : "none" });
   // Internal tools (staff app links, timer skip, reset) stay reachable at ?dev=1 for us; real
   // users, testers and Play Store reviewers never see them.
@@ -45,6 +45,21 @@ function Shell() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Tapping a phone notification: /prototype?tab=help, ?chat=<person>, ?tab=study...
+  const openLink = (href: string) => {
+    const q = new URL(href, window.location.origin).searchParams;
+    const t = q.get("tab"); const chat = q.get("chat");
+    if (t === "study" || t === "explore" || t === "birdie" || t === "help") setTab(t);
+    if (chat) setOverlay({ t: "thread", id: chat });
+  };
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("tab") || q.get("chat")) { const href = window.location.href; window.history.replaceState(null, "", window.location.pathname); openLink(href); }
+    const onMsg = (e: MessageEvent) => { if (e.data?.type === "open-link") openLink(e.data.url); };
+    navigator.serviceWorker?.addEventListener("message", onMsg);
+    return () => navigator.serviceWorker?.removeEventListener("message", onMsg);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Someone's username link (/u/handle -> ?u=handle): open their channel so you can add and chat.
   useEffect(() => {

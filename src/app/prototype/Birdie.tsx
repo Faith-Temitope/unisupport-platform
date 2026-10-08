@@ -1,5 +1,6 @@
 "use client";
 
+import { localNotify } from "./push";
 import { useViewState } from "./persist";
 import { VideoLesson } from "./VideoLesson";
 import { AnimatePresence, motion } from "framer-motion";
@@ -133,6 +134,8 @@ export default function Birdie({ active }: { active: boolean }) {
       const list = sanitizeDeep(parseJson<{ q: string; a: string }[]>(res.text));
       if (Array.isArray(list) && list.length && list.every((x) => x && typeof x.q === "string" && typeof x.a === "string")) return finish(bird(`Here are ${Math.min(list.length, 8)} flashcards from your ${c!.code} material. Tap a card to flip it.`, { cards: list.slice(0, 8), meta, actions: [{ label: "Save to course", run: "file", payload: `Flashcards - ${c!.code}.txt` }] }));
     }
+    // Switched to another app while Birdie was thinking? Let them know the answer is in.
+    void localNotify("Birdie replied", stripMarkdown(res.text).slice(0, 120), "/prototype?tab=birdie");
     finish(bird(stripMarkdown(res.text), { meta, cite, actions: (summary || guide) && c ? [{ label: "Save as note", run: "note", payload: `${guide ? "Study guide" : "Summary"} - ${c.code}` }] : undefined }));
   }, [ctx, effectiveCourse, courses, folders, name, chats, setChats, append, settings.answerLength, settings.aiTier, logChat, live, brain, profile.level, profile.program, refreshWallet]); // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { CountryPicker, RegionPicker, SchoolPicker } from "./PlacePicker";
 import { PlusCard, PlusSheet } from "./Plus";
 import { Copy, CreditCard, Heart, MapPin, Share2 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -67,14 +68,14 @@ export default function Sheets() {
     const { data } = await createClient().rpc("reset_topup_link");
     if (data) { setPayLink(`${window.location.origin}/pay/${data}`); flash("New link made. The old one no longer works."); }
   }
-  const [f, setF] = useState({ name: "", level: "", program: "", country: "" });
+  const [f, setF] = useState({ name: "", level: "", program: "", country: "", region: "", institution: "" });
   const [detected, setDetected] = useState("");
   useEffect(() => { const c = detectCountry(); setDetected(c); setF((x) => ({ ...x, country: c })); }, []);
   useEffect(() => { if (profile.name) setF((x) => (x.name ? x : { ...x, name: profile.name })); }, [profile.name]);
 
   function finish() {
     const handle = f.name.trim().toLowerCase().replace(/\s+/g, ".").replace(/[^a-z0-9.]/g, "");
-    setProfile({ name: f.name.trim(), handle, level: f.level, program: f.program.trim(), country: f.country.trim(), onboarded: true });
+    setProfile({ name: f.name.trim(), handle, level: f.level, program: f.program.trim(), country: f.country.trim(), region: f.region, institution: f.institution, onboarded: true });
   }
 
   return (
@@ -120,8 +121,10 @@ export default function Sheets() {
             <TextField value={f.name} onChange={(v) => setF({ ...f, name: v })} placeholder="What should we call you?" />
             <div><div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Your level</div><div className="flex flex-wrap gap-2">{LEVELS.map((l) => (<button key={l} onClick={() => setF({ ...f, level: l })} className={`rounded-full px-3.5 py-2 text-[13px] font-semibold transition active:scale-95 ${f.level === l ? "bg-[var(--ink)] text-[var(--paper)]" : "bg-[var(--paper-dim)] text-[var(--dim)]"}`}>{l}</button>))}</div></div>
             <TextField value={f.program} onChange={(v) => setF({ ...f, program: v })} placeholder="What do you study? (optional)" />
-            <TextField value={f.country} onChange={(v) => setF({ ...f, country: v })} placeholder="Country" />
+            <CountryPicker value={f.country} onChange={(v) => setF({ ...f, country: v, region: v === f.country ? f.region : "" })} />
             {detected && f.country === detected && <div className="flex items-center gap-2 rounded-xl bg-[var(--birdie-soft)] px-3 py-2 text-[12px] text-[var(--birdie-text)]"><MapPin size={14} /> Detected from your device. Change it if it's wrong.</div>}
+            {f.country && <RegionPicker country={f.country} value={f.region} onChange={(v) => setF({ ...f, region: v })} />}
+            {f.country && <SchoolPicker country={f.country} region={f.region} value={f.institution} onChange={(v) => setF({ ...f, institution: v })} />}
           </div>
           <Btn disabled={!f.name.trim() || !f.level} onClick={finish}>Get started</Btn>
         </div>

@@ -168,7 +168,10 @@ function toShareItems(c: Course, picked: Picked, maps: { fileIdByPath: Record<st
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [boot, setBoot] = useState<Boot>("splash");
+  const [boot, setBootState] = useState<Boot>("splash");
+  // The climbing splash plays when the app is opened, not on every refresh of an open app.
+  const setBoot = useCallback((b: Boot) => { setBootState(b); if (b === "done") { try { sessionStorage.setItem("birdie-booted", "1"); } catch { /* ignore */ } } }, []);
+  useEffect(() => { void Promise.resolve().then(() => { try { if (sessionStorage.getItem("birdie-booted")) setBootState("done"); } catch { /* ignore */ } }); }, []);
   const [auth, setAuth] = useState<{ status: AuthStatus; email?: string; userId?: string }>({ status: "loading" });
   const [authOpen, setAuthOpen] = useState(false);
   const [tab, setTabState] = useViewState<TabId>("tab", "study");

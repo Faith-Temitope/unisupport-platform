@@ -5,8 +5,8 @@
 //  - Videos and files the student chose to "save offline" live in their own cache (birdie-offline),
 //    written by the app itself; we only ever read from it here.
 //  - Anything else (Supabase data, payments, AI) is never cached: it needs the internet.
-const SHELL = "birdie-shell-v2";
-const STATIC = "birdie-static-v2";
+const SHELL = "birdie-shell-v3";
+const STATIC = "birdie-static-v3";
 const OFFLINE = "birdie-offline";
 const START = ["/prototype", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
 
@@ -56,5 +56,26 @@ self.addEventListener("fetch", (e) => {
     const hit = await caches.match(req);
     const net = fetch(req).then((res) => { if (res.ok) caches.open(STATIC).then((c) => c.put(req, res.clone())); return res; }).catch(() => undefined);
     return hit || (await net) || new Response("", { status: 504 });
+  })());
+});
+
+// ---- Phone notifications (push) ----
+// The phone plays its normal notification sound and vibrates; tapping opens the right screen.
+self.addEventListener("push", (e) => {
+  let d = { title: "Birdie", body: "", url: "/prototype", tag: undefined };
+  try { d = { ...d, ...e.data.json() }; } catch { if (e.data) d.body = e.data.text(); }
+  e.waitUntil(self.registration.showNotification(d.title, {
+    body: d.body, tag: d.tag, renotify: !!d.tag, icon: "/icon-192.png", badge: "/icon-192.png",
+    vibrate: [120, 60, 120], data: { url: d.url || "/prototype" },
+  }));
+});
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = new URL((e.notification.data && e.notification.data.url) || "/prototype", self.location.origin).href;
+  e.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const open = wins.find((w) => new URL(w.url).pathname.startsWith("/prototype"));
+    if (open) { await open.focus(); open.postMessage({ type: "open-link", url }); return; }
+    await self.clients.openWindow(url);
   })());
 });
