@@ -80,6 +80,35 @@ export function OrdersTab({ show }: { show: (m: string) => void }) {
           })}</div>
         )}
       </Card>
+      <TutorialDisputes show={show} />
     </div>
+  );
+}
+
+type Dispute = { booking_id: string; amount: number; complaint: string | null; title: string; starts_at: string; tutor: string; student: string };
+
+// A student reported a paid tutorial within 24h of it ending; the money is held until you decide.
+function TutorialDisputes({ show }: { show: (m: string) => void }) {
+  const [rows, setRows] = useState<Dispute[]>([]);
+  useEffect(() => { void createClient().rpc("admin_list_tutorial_disputes").then(({ data }) => setRows((data ?? []) as Dispute[])); }, []);
+  async function resolve(d: Dispute, refund: boolean) {
+    if (!confirm(refund ? `Refund ₦${d.amount} to ${d.student}?` : `Pay the tutor (${d.tutor}) for this booking?`)) return;
+    const { error } = await createClient().rpc("admin_resolve_tutorial_dispute", { p_booking: d.booking_id, p_refund: refund });
+    if (error) return show(error.message);
+    show(refund ? "Student refunded" : "Tutor paid"); setRows((r) => r.filter((x) => x.booking_id !== d.booking_id));
+  }
+  return (
+    <Card title="Tutorial complaints" sub="Paid tutorials a student reported. The payment is held until you decide." pad={false}>
+      {rows.length === 0 ? <div className="p-6 text-center text-sm text-[var(--dim)]">No open complaints.</div> : (
+        <div className="divide-y divide-[#F0EAF7]">{rows.map((d) => (
+          <div key={d.booking_id} className="space-y-1.5 px-5 py-3.5">
+            <div className="flex flex-wrap items-center gap-2"><span className="text-[14px] font-bold">{d.title}</span><span className="ml-auto text-[13.5px] font-bold">₦{Math.round(Number(d.amount)).toLocaleString("en-NG")}</span></div>
+            <div className="text-[12.5px] text-[var(--dim)]">{fmt(d.starts_at)} · tutor {d.tutor} · reported by {d.student}</div>
+            {d.complaint && <div className="text-[13px] text-[#4a3a5e]">&ldquo;{d.complaint}&rdquo;</div>}
+            <div className="flex gap-2 pt-1"><Btn2 small onClick={() => void resolve(d, true)}>Refund student</Btn2><button onClick={() => void resolve(d, false)} className="rounded-xl bg-white px-3 py-1.5 text-[12.5px] font-semibold ring-2 ring-[#E6DCF0]">Pay tutor</button></div>
+          </div>
+        ))}</div>
+      )}
+    </Card>
   );
 }
