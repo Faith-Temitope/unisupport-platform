@@ -12,7 +12,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Bell, BookOpen, CheckCircle2, ChevronRight, Download, FileText, FolderInput, FolderPlus, Folder as FolderIcon, Image as ImageIcon, MoreHorizontal, Plus, Presentation, Printer, Search, Share2, Sparkles, StickyNote, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
-import { countPdfPages, extractText } from "./extract";
+import { ingestFiles, readWithAI, scannable, within } from "./ingest";
 import { extOf } from "./FileViewer";
 import { safeName, signedUrl, uploadTo } from "./live/helpData";
 import { folderPath, uid, useApp, type Course, type FileItem, type Folder, type Rec } from "./store";
@@ -23,9 +23,6 @@ import { ShareCourseForm } from "./ShareCourseForm";
 
 type CTab = "board" | "materials" | "notes" | "recordings" | "progress";
 const KIND_ICON = { pdf: FileText, img: ImageIcon, slides: Presentation, notes: StickyNote, link: FileText, text: FileText, doc: FileText } as const;
-const kindOf = (f: File): FileItem["kind"] => (f.type.startsWith("image/") ? "img" : /\.(txt|md)$/i.test(f.name) ? "text" : /\.(ppt|pptx|key)$/i.test(f.name) ? "slides" : /\.(docx?|odt|rtf)$/i.test(f.name) ? "doc" : "pdf");
-// A slow phone or network must never leave a file stuck on "Adding...": everything has a time limit.
-const within = <T,>(p: Promise<T>, ms: number): Promise<T | undefined> => Promise.race([p, new Promise<undefined>((r) => setTimeout(() => r(undefined), ms))]);
 const EXT_TONE: Record<string, string> = { pdf: "bg-[#FDE8E4] text-[#C2412D]", docx: "bg-[#E6EEFD] text-[#1F5FD1]", doc: "bg-[#E6EEFD] text-[#1F5FD1]", pptx: "bg-[#FDEEE2] text-[#C25A12]", ppt: "bg-[#FDEEE2] text-[#C25A12]", xlsx: "bg-[#E2F5EC] text-[#0E7F55]" };
 const fmtSize = (n: number) => (n > 1_000_000 ? `${(n / 1_000_000).toFixed(1)} MB` : n > 1000 ? `${Math.round(n / 1000)} KB` : n ? `${n} B` : "");
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -246,27 +243,12 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
     if (!files || !files.length) return;
     const list = Array.from(files);
     if (input.current) input.current.value = "";
-    // The sign-in saved on this phone (no network round trip), so files appear instantly even on slow data.
-    const { data: { session } } = await createClient().auth.getSession();
-    const user = session?.user ?? null;
-    flash(`Adding ${list.length} file${list.length === 1 ? "" : "s"}...`);
-    await Promise.all(list.map(async (f) => {
-      const id = addFile(course.id, { name: f.name, kind: kindOf(f), size: f.size, url: URL.createObjectURL(f), category: fileCat, status: user ? "uploading" : undefined });
-      const [text, pages] = await Promise.all([
-        within(extractText(f), 25000),
-        /\.pdf$/i.test(f.name) ? within(countPdfPages(f), 15000) : Promise.resolve(undefined),
-      ]);
-      let storagePath: string | undefined;
-      if (user && f.size > 40 * 1024 * 1024) flash(`${f.name} is over 40 MB, so it stays on this phone only`);
-      else if (user) {
-        // Durable copy so the file still opens after this page session ends.
-        const path = `${user.id}/${course.id}/${uid()}-${safeName(f.name)}`;
-        const err = await within(uploadTo("study-files", path, f), 180000);
-        if (err === null) storagePath = path; else console.error("study file upload failed", err ?? "timed out");
-      }
-      updateFile(course.id, id, { text, pages, storagePath, status: user && !storagePath ? "failed" : undefined });
-    }));
-    flash(`${list.length} file${list.length === 1 ? "" : "s"} added`);
+    await ingestFiles(list, course.id, { addFile, updateFile, flash, category: fileCat });
+  }
+  async function readIt(f: FileItem) {
+    flash("Birdie is reading it. Scans take a minute.");
+    const ok = await readWithAI(course.id, f, updateFile);
+    flash(ok ? `Birdie can read ${f.name} now` : "Birdie couldn't make out any text in that file");
   }
   async function retryUpload(f: FileItem) {
     if (!f.url) return flash("Add the file again from your phone");
@@ -280,6 +262,7 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
     const err = await within(uploadTo("study-files", path, new File([blob], f.name, { type: blob.type })), 180000);
     updateFile(course.id, f.id, err === null ? { storagePath: path, status: undefined } : { status: "failed" });
     if (err !== null) flash("Still couldn't upload. Check your connection.");
+    else if (!f.text && scannable(f.name)) await readWithAI(course.id, { id: f.id, storagePath: path }, updateFile);
   }
 
   const saved = useOfflineIndex();
@@ -334,10 +317,13 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
                     </div>
                     {f.status === "uploading" && <div className="mt-1 text-[11.5px] font-semibold text-[var(--study)]">Uploading...</div>}
                     {f.status === "failed" && <div className="mt-1 text-[11.5px] font-semibold text-[var(--help)]">Not uploaded yet. It only opens on this phone.</div>}
+                    {f.status === "reading" && <div className="mt-1 text-[11.5px] font-semibold text-[var(--birdie-text)]">Birdie is reading this scan...</div>}
+                    {!f.text && f.storagePath && scannable(f.name) && f.status !== "reading" && f.status !== "uploading" && <div className="mt-1 text-[11.5px] font-semibold text-[var(--dim)]">{f.status === "unread" ? "Birdie couldn't find text in this one." : "Birdie can't read this yet."}</div>}
                   </div>
                   </button>
                   <div className="mt-2 flex items-center justify-end gap-4 border-t border-[var(--line)] pt-2">
                   {f.status === "failed" && !readOnly && <button onClick={() => void retryUpload(f)} className="mr-auto text-[12px] font-bold text-[var(--help)]">Retry upload</button>}
+                  {!readOnly && !f.text && f.storagePath && scannable(f.name) && f.status !== "reading" && <button onClick={() => void readIt(f)} className="flex items-center gap-1 rounded-lg bg-[var(--birdie-soft)] px-2.5 py-1.5 text-[12px] font-bold text-[var(--birdie-text)]"><Sparkles size={13} />{f.status === "unread" ? "Try reading again" : "Let Birdie read it"}</button>}
                   {(f.url || f.storagePath) && <button onClick={() => openFile(f)} className="mr-auto rounded-lg bg-[var(--paper-dim)] px-3 py-1.5 text-[12px] font-bold text-[var(--text)]">Open</button>}
                   <HoldButton item={{ kind: "file", title: f.name, courseId: course.id, fileId: f.id }} className="text-[var(--dim)] active:scale-90" />
                   {f.storagePath && <button onClick={() => void toggleOffline(f)} aria-label={saved[`file:${f.storagePath}`] ? "Remove offline copy" : "Save offline"} className={`active:scale-90 ${saved[`file:${f.storagePath}`] ? "text-[var(--study)]" : "text-[var(--dim)]"}`}>{saved[`file:${f.storagePath}`] ? <CheckCircle2 size={15} /> : <Download size={15} />}</button>}
