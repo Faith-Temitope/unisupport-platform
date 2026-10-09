@@ -4,7 +4,7 @@ import { CourseBoard } from "./CourseBoard";
 import { whileVisible } from "./perf";
 import { HoldButton } from "./Pocket";
 import { PushNudge } from "./PushToggle";
-import { offlineUrl, removeOffline, saveOffline, useOfflineIndex } from "./offline";
+import { removeOffline, saveOffline, useOfflineIndex } from "./offline";
 import { useViewState } from "./persist";
 import { SlotAd } from "./Sponsored";
 import { CourseShares } from "./CourseShare";
@@ -12,8 +12,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Bell, BookOpen, CheckCircle2, ChevronRight, Download, FileText, FolderInput, FolderPlus, Folder as FolderIcon, Image as ImageIcon, MoreHorizontal, Plus, Presentation, Printer, Search, Share2, Sparkles, StickyNote, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
-import { extractText } from "./extract";
-import { openUrl, safeName, signedUrl, uploadTo } from "./live/helpData";
+import { countPdfPages, extractText } from "./extract";
+import { extOf } from "./FileViewer";
+import { safeName, signedUrl, uploadTo } from "./live/helpData";
 import { folderPath, uid, useApp, type Course, type FileItem, type Folder, type Rec } from "./store";
 import { Btn, Empty, IconBtn, Label, Sheet, TextField, TopBar } from "./ui";
 import { DeadlinesCard, ExtraSheets, TodayCard, type ExtraSheet } from "./StudyExtras";
@@ -21,8 +22,11 @@ import { CategoryPicker, CategoryPill, CategoryTabs } from "./Categories";
 import { ShareCourseForm } from "./ShareCourseForm";
 
 type CTab = "board" | "materials" | "notes" | "recordings" | "progress";
-const KIND_ICON = { pdf: FileText, img: ImageIcon, slides: Presentation, notes: StickyNote, link: FileText, text: FileText } as const;
-const kindOf = (f: File): FileItem["kind"] => (f.type.startsWith("image/") ? "img" : /\.(txt|md)$/i.test(f.name) ? "text" : /\.(ppt|pptx|key)$/i.test(f.name) ? "slides" : "pdf");
+const KIND_ICON = { pdf: FileText, img: ImageIcon, slides: Presentation, notes: StickyNote, link: FileText, text: FileText, doc: FileText } as const;
+const kindOf = (f: File): FileItem["kind"] => (f.type.startsWith("image/") ? "img" : /\.(txt|md)$/i.test(f.name) ? "text" : /\.(ppt|pptx|key)$/i.test(f.name) ? "slides" : /\.(docx?|odt|rtf)$/i.test(f.name) ? "doc" : "pdf");
+// A slow phone or network must never leave a file stuck on "Adding...": everything has a time limit.
+const within = <T,>(p: Promise<T>, ms: number): Promise<T | undefined> => Promise.race([p, new Promise<undefined>((r) => setTimeout(() => r(undefined), ms))]);
+const EXT_TONE: Record<string, string> = { pdf: "bg-[#FDE8E4] text-[#C2412D]", docx: "bg-[#E6EEFD] text-[#1F5FD1]", doc: "bg-[#E6EEFD] text-[#1F5FD1]", pptx: "bg-[#FDEEE2] text-[#C25A12]", ppt: "bg-[#FDEEE2] text-[#C25A12]", xlsx: "bg-[#E2F5EC] text-[#0E7F55]" };
 const fmtSize = (n: number) => (n > 1_000_000 ? `${(n / 1_000_000).toFixed(1)} MB` : n > 1000 ? `${Math.round(n / 1000)} KB` : n ? `${n} B` : "");
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
@@ -205,7 +209,7 @@ function RecordingRow({ r, onDelete, readOnly }: { r: Rec; onDelete: () => void;
 }
 
 function CourseView({ course, startTab, onBack }: { course: Course; startTab: CTab; onBack: () => void }) {
-  const { addNote, deleteNote, addFile, deleteFile, deleteRec, goBirdie, setRecorderOpen, flash, loadRemoteCourseContent, sharedRemoteContent, openPrint, shared } = useApp();
+  const { addNote, deleteNote, addFile, updateFile, openFile: openViewer, deleteFile, deleteRec, goBirdie, setRecorderOpen, flash, loadRemoteCourseContent, sharedRemoteContent, openPrint, shared } = useApp();
   const [tab, setTab_] = useViewState<CTab>(`study.tab.${course.id}`, startTab);
   const [sheet, setSheet] = useState<null | "note" | "share">(null);
   const [nTitle, setNTitle] = useState(""); const [nBody, setNBody] = useState(""); const [nCat, setNCat] = useState("Notes");
@@ -236,27 +240,46 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
   const shownNotes = noteFilter === "All" ? allNotes : allNotes.filter((n) => (n.category || "Notes") === noteFilter);
   const shownRecs = readOnly ? sharedRemoteContent?.recs ?? [] : course.recs;
 
+  // Files show up straight away. Reading their text, counting pages and uploading happen in the
+  // background, each with a time limit, so a slow phone or network can't leave them stuck.
   async function pick(files: FileList | null) {
-    if (!files) return;
+    if (!files || !files.length) return;
     const list = Array.from(files);
-    flash(`Adding ${list.length} file${list.length === 1 ? "" : "s"}...`);
-    const sb = createClient();
-    const { data: { user } } = await sb.auth.getUser();
-    for (const f of list) {
-      const text = await extractText(f); // reads .txt/.md directly, parses .pdf/.docx in the browser
-      let storagePath: string | undefined;
-      if (user) {
-        // Durable copy so the file can still be opened after the blob URL below dies with this
-        // page session (reload, device restart, TWA relaunch) -- the file list used to go dark on
-        // "Open" for exactly that reason once the tab closed.
-        const path = `${user.id}/${course.id}/${uid()}-${safeName(f.name)}`;
-        const err = await uploadTo("study-files", path, f);
-        if (!err) storagePath = path; else console.error("study file upload failed", err);
-      }
-      addFile(course.id, { name: f.name, kind: kindOf(f), size: f.size, text, url: URL.createObjectURL(f), storagePath, category: fileCat });
-    }
-    flash(`${list.length} file${list.length === 1 ? "" : "s"} added`);
     if (input.current) input.current.value = "";
+    // The sign-in saved on this phone (no network round trip), so files appear instantly even on slow data.
+    const { data: { session } } = await createClient().auth.getSession();
+    const user = session?.user ?? null;
+    flash(`Adding ${list.length} file${list.length === 1 ? "" : "s"}...`);
+    await Promise.all(list.map(async (f) => {
+      const id = addFile(course.id, { name: f.name, kind: kindOf(f), size: f.size, url: URL.createObjectURL(f), category: fileCat, status: user ? "uploading" : undefined });
+      const [text, pages] = await Promise.all([
+        within(extractText(f), 25000),
+        /\.pdf$/i.test(f.name) ? within(countPdfPages(f), 15000) : Promise.resolve(undefined),
+      ]);
+      let storagePath: string | undefined;
+      if (user && f.size > 40 * 1024 * 1024) flash(`${f.name} is over 40 MB, so it stays on this phone only`);
+      else if (user) {
+        // Durable copy so the file still opens after this page session ends.
+        const path = `${user.id}/${course.id}/${uid()}-${safeName(f.name)}`;
+        const err = await within(uploadTo("study-files", path, f), 180000);
+        if (err === null) storagePath = path; else console.error("study file upload failed", err ?? "timed out");
+      }
+      updateFile(course.id, id, { text, pages, storagePath, status: user && !storagePath ? "failed" : undefined });
+    }));
+    flash(`${list.length} file${list.length === 1 ? "" : "s"} added`);
+  }
+  async function retryUpload(f: FileItem) {
+    if (!f.url) return flash("Add the file again from your phone");
+    const { data: { session } } = await createClient().auth.getSession();
+    const user = session?.user;
+    if (!user) return;
+    updateFile(course.id, f.id, { status: "uploading" });
+    const blob = await fetch(f.url).then((r) => r.blob()).catch(() => null);
+    if (!blob) { updateFile(course.id, f.id, { status: "failed" }); return flash("Add the file again from your phone"); }
+    const path = `${user.id}/${course.id}/${uid()}-${safeName(f.name)}`;
+    const err = await within(uploadTo("study-files", path, new File([blob], f.name, { type: blob.type })), 180000);
+    updateFile(course.id, f.id, err === null ? { storagePath: path, status: undefined } : { status: "failed" });
+    if (err !== null) flash("Still couldn't upload. Check your connection.");
   }
 
   const saved = useOfflineIndex();
@@ -269,18 +292,10 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
     const err = await saveOffline(key, url, f.name, "file");
     flash(err ?? "Saved. It opens without internet now.");
   }
-  async function openFile(f: FileItem) {
-    if (f.storagePath) {
-      const local = await offlineUrl(`file:${f.storagePath}`);
-      if (local) return openUrl(local);
-      // No `download` filename here -- that forces a Content-Disposition: attachment, so every
-      // "Open" tap re-downloaded a fresh copy even when one was already saved on the phone. Leave
-      // it off so the browser just displays the file (PDFs/images render inline) instead of
-      // insisting on a new download each time.
-      const url = await signedUrl("study-files", f.storagePath);
-      if (url) return openUrl(url);
-    }
-    if (f.url) return openUrl(f.url); // same-session fallback (e.g. upload failed, or guest/offline)
+  // Opens inside Birdie (PDF, Word, pictures) and keeps a copy on the phone: no re-download each time.
+  function openFile(f: FileItem) {
+    if (f.storagePath) return openViewer({ name: f.name, path: f.storagePath });
+    if (f.url) return openViewer({ name: f.name, url: f.url });
     flash("This file isn't available anymore. Try re-adding it.");
   }
 
@@ -305,15 +320,30 @@ function CourseView({ course, startTab, onBack }: { course: Course; startTab: CT
             {!readOnly && <input ref={input} type="file" multiple hidden onChange={(e) => pick(e.target.files)} />}
             <CategoryTabs items={allFiles} base="Materials" value={fileFilter} onChange={setFileFilter} allowCustom={!readOnly} />
             {shownFiles.length === 0 ? <Empty icon={<Upload size={20} />} title={fileFilter === "All" ? "No materials yet" : `No ${fileFilter.toLowerCase()} yet`} text={readOnly ? "This classmate hasn't added anything here yet." : fileFilter === "All" ? "Add slides, PDFs, photos of the whiteboard, or .txt / .md notes. Pick a tab above first to file them as past questions, assignments or tests." : `Anything you add here is filed under ${fileFilter}.`} action={readOnly ? undefined : <Btn variant="study" onClick={() => input.current?.click()}>{fileFilter === "All" ? "Choose files" : `Add ${fileFilter.toLowerCase()}`}</Btn>} /> : (<>
-              {shownFiles.map((f) => { const Icon = KIND_ICON[f.kind] ?? KIND_ICON.pdf; return (
-                <div key={f.id} className="flex items-center gap-3 rounded-2xl border border-[var(--line)] bg-white p-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--study-soft)] text-[var(--study)]"><Icon size={18} /></div>
-                  <div className="min-w-0 flex-1"><div className="truncate text-[13.5px] font-semibold text-[var(--text)]">{f.name}</div><div className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-[var(--dim)]"><CategoryPill category={f.category} />{f.added}{f.size ? ` · ${fmtSize(f.size)}` : ""} · {f.text ? "Birdie can read this" : "Birdie reads this once AI is connected"}</div></div>
-                  {(f.url || f.storagePath) && <button onClick={() => void openFile(f)} className="rounded-lg bg-[var(--paper-dim)] px-2.5 py-1.5 text-[11.5px] font-bold text-[var(--dim)]">Open</button>}
+              {shownFiles.map((f) => { const Icon = KIND_ICON[f.kind] ?? KIND_ICON.pdf; const ext = extOf(f.name); return (
+                <div key={f.id} className="rounded-2xl border border-[var(--line)] bg-white p-3">
+                  <button onClick={() => openFile(f)} disabled={!f.url && !f.storagePath} className="flex w-full items-start gap-3 text-left">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--study-soft)] text-[var(--study)]"><Icon size={18} /></div>
+                  <div className="min-w-0 flex-1">
+                    <div className="break-words text-[13.5px] font-semibold leading-snug text-[var(--text)]">{f.name}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11.5px] text-[var(--dim)]">
+                      {ext && <span className={`rounded px-1.5 py-0.5 text-[10.5px] font-bold uppercase ${EXT_TONE[ext] ?? "bg-[var(--paper-dim)] text-[var(--dim)]"}`}>{ext}</span>}
+                      {f.pages ? <span>{f.pages} page{f.pages === 1 ? "" : "s"}</span> : null}
+                      {f.size ? <span>{fmtSize(f.size)}</span> : null}
+                      <span>{f.added}</span><CategoryPill category={f.category} />
+                    </div>
+                    {f.status === "uploading" && <div className="mt-1 text-[11.5px] font-semibold text-[var(--study)]">Uploading...</div>}
+                    {f.status === "failed" && <div className="mt-1 text-[11.5px] font-semibold text-[var(--help)]">Not uploaded yet. It only opens on this phone.</div>}
+                  </div>
+                  </button>
+                  <div className="mt-2 flex items-center justify-end gap-4 border-t border-[var(--line)] pt-2">
+                  {f.status === "failed" && !readOnly && <button onClick={() => void retryUpload(f)} className="mr-auto text-[12px] font-bold text-[var(--help)]">Retry upload</button>}
+                  {(f.url || f.storagePath) && <button onClick={() => openFile(f)} className="mr-auto rounded-lg bg-[var(--paper-dim)] px-3 py-1.5 text-[12px] font-bold text-[var(--text)]">Open</button>}
                   <HoldButton item={{ kind: "file", title: f.name, courseId: course.id, fileId: f.id }} className="text-[var(--dim)] active:scale-90" />
                   {f.storagePath && <button onClick={() => void toggleOffline(f)} aria-label={saved[`file:${f.storagePath}`] ? "Remove offline copy" : "Save offline"} className={`active:scale-90 ${saved[`file:${f.storagePath}`] ? "text-[var(--study)]" : "text-[var(--dim)]"}`}>{saved[`file:${f.storagePath}`] ? <CheckCircle2 size={15} /> : <Download size={15} />}</button>}
                   {!readOnly && f.storagePath && <button onClick={() => openPrint({ kind: "print", file: { name: f.name, path: f.storagePath! } })} aria-label="Print this" className="text-[var(--dim)] active:scale-90"><Printer size={15} /></button>}
                   {!readOnly && <button onClick={() => deleteFile(course.id, f.id)} aria-label="Delete file" className="text-[var(--dim)] active:scale-90"><Trash2 size={15} /></button>}
+                  </div>
                 </div>); })}
               {!readOnly && <Btn variant="ghost" onClick={() => input.current?.click()}>{fileFilter === "All" ? "+ Add more files" : `+ Add to ${fileFilter}`}</Btn>}
             </>)}
