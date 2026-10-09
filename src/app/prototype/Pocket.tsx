@@ -3,8 +3,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Backpack, FileText, MessageCircle, Play, StickyNote, X } from "lucide-react";
 import Buddy from "@/components/brand/Buddy";
-import { openUrl, signedUrl } from "./live/helpData";
-import { offlineUrl } from "./offline";
 import { initials } from "./PostCard";
 import { useApp, type NewPocketItem, type PocketItem } from "./store";
 import { Sheet } from "./ui";
@@ -13,7 +11,7 @@ const ICON = { file: FileText, video: Play, chat: MessageCircle, helpchat: Messa
 
 /** Opens whatever the buddy is holding, from any screen. */
 export function usePocketOpener() {
-  const { courses, posts, watch, loadPostsByIds, setOverlay, goHelp, goStudy, flash, setPocketOpen } = useApp();
+  const { courses, posts, watch, loadPostsByIds, setOverlay, goHelp, goStudy, flash, setPocketOpen, openFile } = useApp();
   return async (it: PocketItem) => {
     setPocketOpen(false);
     if (it.kind === "video") {
@@ -25,12 +23,7 @@ export function usePocketOpener() {
     if (it.kind === "note") { setOverlay(null); goStudy({ courseId: it.courseId, tab: "notes" }); return; }
     const f = courses.find((c) => c.id === it.courseId)?.files.find((x) => x.id === it.fileId);
     if (!f) return flash("That file isn't in your course anymore");
-    if (f.storagePath) {
-      const local = await offlineUrl(`file:${f.storagePath}`);
-      const url = local ?? (await signedUrl("study-files", f.storagePath));
-      if (url) return openUrl(url);
-    }
-    if (f.url) return openUrl(f.url);
+    if (f.storagePath || f.url) return openFile({ name: f.name, path: f.storagePath, url: f.url });
     flash("Couldn't open that file. Check your connection.");
   };
 }

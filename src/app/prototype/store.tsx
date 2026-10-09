@@ -1,5 +1,6 @@
 "use client";
 
+import { COUNTRIES, REGIONS, canonical, sameSchool } from "./places";
 import { isLowEndDevice } from "./perf";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase";
@@ -24,7 +25,7 @@ export type AuthStatus = "loading" | "out" | "guest" | "in";
 export type Boot = "splash" | "word" | "done";
 export type Emote = "happy" | "sad" | "love" | "say" | "angry";
 
-export interface FileItem { id: string; name: string; kind: "pdf" | "img" | "slides" | "notes" | "link" | "text"; size: number; added: string; text?: string; url?: string; storagePath?: string; category?: string }
+export interface FileItem { id: string; name: string; kind: "pdf" | "img" | "slides" | "notes" | "link" | "text" | "doc"; size: number; added: string; text?: string; url?: string; storagePath?: string; category?: string; pages?: number; status?: "uploading" | "failed" }
 export interface Note { id: string; title: string; body: string; date: string; category?: string }
 /** Local ids of the notes/files/recordings an owner chose to include in a shared listing. */
 export type Picked = { notes: string[]; files: string[]; recs: string[] };
@@ -110,7 +111,9 @@ interface AppCtx {
   deleteCourse: (id: string) => void; moveCourse: (id: string, folderId: string | null) => void;
   addFolder: (name: string, parentId: string | null) => void; renameFolder: (id: string, name: string) => void; deleteFolder: (id: string) => void;
   addNote: (courseId: string, title: string, body: string, category?: string) => void; deleteNote: (courseId: string, noteId: string) => void;
-  addFile: (courseId: string, f: Omit<FileItem, "id" | "added">) => void; deleteFile: (courseId: string, fileId: string) => void;
+  addFile: (courseId: string, f: Omit<FileItem, "id" | "added">) => string; updateFile: (courseId: string, fileId: string, patch: Partial<FileItem>) => void;
+  /** Opens a file inside Birdie (PDF, Word, pictures, text) instead of downloading it every time. */
+  viewFile: { name: string; path?: string; url?: string } | null; openFile: (f: { name: string; path?: string; url?: string }) => void; closeFile: () => void; deleteFile: (courseId: string, fileId: string) => void;
   addRec: (courseId: string, r: Omit<Rec, "id" | "date">) => string; deleteRec: (courseId: string, recId: string) => void;
   updateRec: (courseId: string, recId: string, patch: Partial<Rec>) => void;
   applyQuiz: (courseId: string, per: Record<string, { right: number; total: number }>) => void;
@@ -229,6 +232,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [pocket, setPocket] = useState<PocketItem[]>([]);
   const [pocketOpen, setPocketOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
+  const [viewFile, setViewFile] = useState<{ name: string; path?: string; url?: string } | null>(null);
   useEffect(() => { void Promise.resolve().then(() => { try { const raw = localStorage.getItem("birdie-pocket"); if (raw) setPocket(JSON.parse(raw)); } catch { /* ignore */ } }); }, []);
   const savePocket = useCallback((next: PocketItem[]) => { setPocket(next); try { localStorage.setItem("birdie-pocket", JSON.stringify(next)); } catch { /* full */ } }, []);
   // Changing screen always brings the bottom nav back.
@@ -525,6 +529,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(t);
   }, [auth.status, auth.userId, profile]);
 
+  // Old profiles typed by hand ("Federal University of Lokoja ", region "Lokoja"): quietly switch them
+  // to the listed spellings so courses, ads and internships aimed at a school or state still reach them.
+  const tidied = useRef(false);
+  useEffect(() => {
+    if (tidied.current || auth.status !== "in" || !profile.onboarded) return;
+    tidied.current = true;
+    void Promise.resolve(createClient().rpc("list_schools", { p_country: profile.country || null, p_q: "" })).then(({ data }) => {
+      const schools = (data ?? []) as { name: string; state: string | null }[];
+      const fix: Partial<Profile> = {};
+      const country = profile.country ? canonical(profile.country, COUNTRIES) : undefined;
+      if (country && country !== profile.country) fix.country = country;
+      const school = profile.institution ? sameSchool(profile.institution, schools.map((x) => x.name)) : undefined;
+      if (school && school !== profile.institution) fix.institution = school;
+      const states = REGIONS[country ?? profile.country];
+      if (states && profile.region && !states.includes(profile.region)) {
+        const st = canonical(profile.region, states) ?? schools.find((x) => x.name === (school ?? profile.institution))?.state ?? undefined;
+        if (st && st !== profile.region) fix.region = st;
+      }
+      if (Object.keys(fix).length) setProfileState((p) => ({ ...p, ...fix }));
+    }).catch(() => undefined);
+  }, [auth.status, profile.onboarded, profile.country, profile.institution, profile.region]);
+
   // Share your buddy's look so it shows up when you chat with people (ignored until the column exists).
   useEffect(() => {
     if (auth.status !== "in" || !auth.userId) return;
@@ -658,9 +684,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (coursesRef.current.find((c) => c.id === courseId)?.sharedId) void deleteRemoteNote(noteId);
     },
     addFile: (courseId, f) => {
-      patchCourse(courseId, (c) => ({ ...c, files: [{ ...f, id: uid(), added: dateLabel() }, ...c.files] })); logActivity();
+      const id = uid();
+      patchCourse(courseId, (c) => ({ ...c, files: [{ ...f, id, added: dateLabel() }, ...c.files] })); logActivity();
       if (coursesRef.current.find((c) => c.id === courseId)?.sharedId && userId && f.storagePath) void createRemoteFile(courseId, userId, f.name, f.kind, f.storagePath, f.category);
+      return id;
     },
+    updateFile: (courseId, fileId, patch) => {
+      const before = coursesRef.current.find((c) => c.id === courseId)?.files.find((x) => x.id === fileId);
+      patchCourse(courseId, (c) => ({ ...c, files: c.files.map((x) => (x.id === fileId ? { ...x, ...patch } : x)) }));
+      // Finished uploading after the course was already shared: publish it for the class too.
+      if (before && !before.storagePath && patch.storagePath && userId && coursesRef.current.find((c) => c.id === courseId)?.sharedId) void createRemoteFile(courseId, userId, before.name, before.kind, patch.storagePath, before.category);
+    },
+    viewFile, openFile: (f) => setViewFile(f), closeFile: () => setViewFile(null),
     deleteFile: (courseId, fileId) => {
       const f = coursesRef.current.find((c) => c.id === courseId)?.files.find((x) => x.id === fileId);
       patchCourse(courseId, (c) => ({ ...c, files: c.files.filter((x) => x.id !== fileId) }));
@@ -920,7 +955,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     resetKey, ready,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, refreshExamPass, isRep, refreshRep, plus, buyPlus, plusOpen, sharedIntent, printIntent, barsHidden, pocket, pocketOpen, tourOpen, watching, forYou, loadForYou, topics, refreshTopics, refreshFeed, loadMoreFeed, searchFeed, loadChannel, loadPostsByIds, loadLiked, setPinned, toPost]);
+  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, refreshExamPass, isRep, refreshRep, plus, buyPlus, plusOpen, sharedIntent, printIntent, barsHidden, pocket, pocketOpen, tourOpen, viewFile, watching, forYou, loadForYou, topics, refreshTopics, refreshFeed, loadMoreFeed, searchFeed, loadChannel, loadPostsByIds, loadLiked, setPinned, toPost]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

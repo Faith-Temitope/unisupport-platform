@@ -1,5 +1,6 @@
 "use client";
 
+import { PlaceMultiPick } from "@/components/PlaceFields";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 
@@ -156,7 +157,7 @@ function Apply({ onDone, say }: { onDone: () => void; say: (t: string) => void }
   const set = (k: keyof typeof f, v: string) => setF((x) => ({ ...x, [k]: v }));
   async function submit() {
     setBusy(true);
-    const { error } = await sb.rpc("partner_apply", { p: { ...f, schools: f.schools.split(",").map((s) => s.trim()).filter(Boolean), services } });
+    const { error } = await sb.rpc("partner_apply", { p: { ...f, schools: f.schools.split("|").map((s) => s.trim()).filter(Boolean), services } });
     setBusy(false);
     if (error) return say(msg(error) === "phone_required" ? "Add a phone number" : "Couldn't send. Try again.");
     say("Application sent"); onDone();
@@ -168,8 +169,8 @@ function Apply({ onDone, say }: { onDone: () => void; say: (t: string) => void }
       <input className={field} placeholder="Your name" value={f.contact_name} onChange={(e) => set("contact_name", e.target.value)} />
       <input className={field} placeholder="WhatsApp number" value={f.phone} onChange={(e) => set("phone", e.target.value)} />
       <input className={field} placeholder="Shop address (students pick up here)" value={f.address} onChange={(e) => set("address", e.target.value)} />
-      <div className="grid grid-cols-2 gap-2"><input className={field} placeholder="City" value={f.city} onChange={(e) => set("city", e.target.value)} /><input className={field} placeholder="State" value={f.state} onChange={(e) => set("state", e.target.value)} /></div>
-      <input className={field} placeholder="Schools you serve, e.g. UNILAG, YABATECH" value={f.schools} onChange={(e) => set("schools", e.target.value)} />
+      <div className="grid grid-cols-2 gap-2"><input className={field} placeholder="City" value={f.city} onChange={(e) => set("city", e.target.value)} /><PlaceMultiPick kind="region" max={1} values={f.state ? [f.state] : []} onChange={(v) => set("state", v[0] ?? "")} placeholder="State" /></div>
+      <div><div className="mb-1 text-[12px] text-[#6E6480]">Schools you serve</div><PlaceMultiPick kind="school" allowNew values={f.schools ? f.schools.split("|") : []} onChange={(v) => set("schools", v.join("|"))} /></div>
       <div className="flex flex-wrap gap-2">{[["print", "Printing"], ["bind", "Binding"], ["handwrite", "Handwriting"], ["deliver", "Delivery"]].map(([id, label]) => (
         <button key={id} onClick={() => setServices((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))} className={`rounded-xl px-3 py-2 text-[13px] font-semibold ${services.includes(id) ? "bg-[#A63FBD] text-white" : "bg-[#F4EFF8]"}`}>{label}</button>
       ))}</div>

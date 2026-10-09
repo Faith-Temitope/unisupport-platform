@@ -18,3 +18,49 @@ export const REGIONS: Record<string, string[]> = {
   Uganda: ["Central", "Eastern", "Northern", "Western"],
   "United Kingdom": ["England", "Scotland", "Wales", "Northern Ireland"],
 };
+
+// ---- Matching school names however people type them ----
+// "Federal University Lokoja", "federal university of lokoja", "FUL" and "Fed Uni Lokoja" should
+// all find the same school, so profiles, shared-course limits and ads all line up.
+
+const STOP = new Set(["of", "the", "and", "&", "at", "in", "for"]);
+const SHORT: Record<string, string> = { fed: "federal", uni: "university", univ: "university", poly: "polytechnic", tech: "technology", coll: "college", educ: "education", sci: "science", st: "state" };
+
+/** Lowercase words without punctuation, filler words or the "(ACRONYM)" part; common shortenings expanded. */
+export function normName(s: string): string {
+  return s.toLowerCase().replace(/\(.*?\)/g, " ").replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((w) => w && !STOP.has(w)).map((w) => SHORT[w] ?? w).join(" ");
+}
+
+/** The acronyms a school goes by: the one in brackets ("UNILAG") and its initials ("FUL"). */
+export function acronymsOf(name: string): string[] {
+  const out: string[] = [];
+  const paren = name.match(/\(([^)]+)\)/)?.[1];
+  if (paren) out.push(...paren.split(/[,/]/).map((x) => x.trim().toLowerCase()).filter(Boolean));
+  const initials = normName(name).split(" ").map((w) => w[0]).join("");
+  if (initials.length >= 2) out.push(initials);
+  return out;
+}
+
+/** Does what someone typed match this school? */
+export function schoolMatches(name: string, q: string): boolean {
+  const t = q.trim().toLowerCase();
+  if (!t) return true;
+  const nq = normName(t), nn = normName(name);
+  if (nn.includes(nq) || name.toLowerCase().includes(t)) return true;
+  if (acronymsOf(name).some((a) => a === t.replace(/[^a-z0-9]/g, ""))) return true;
+  // Every word typed appears in the name ("lokoja federal").
+  const words = nq.split(" ").filter(Boolean);
+  return words.length > 1 && words.every((w) => nn.includes(w));
+}
+
+/** The listed school someone most likely meant, if what they typed is really the same school. */
+export function sameSchool(typed: string, names: string[]): string | undefined {
+  const t = typed.trim().toLowerCase().replace(/[^a-z0-9]/g, ""), nt = normName(typed);
+  return names.find((n) => normName(n) === nt) ?? names.find((n) => acronymsOf(n).includes(t));
+}
+
+/** "lagos" -> "Lagos": the listed spelling of a country or state, if it matches. */
+export function canonical(typed: string, list: string[]): string | undefined {
+  const t = typed.trim().toLowerCase().replace(/[^a-z]/g, "");
+  return list.find((x) => x.toLowerCase().replace(/[^a-z]/g, "") === t);
+}

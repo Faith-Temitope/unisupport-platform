@@ -1,5 +1,6 @@
 "use client";
 
+import { PlaceMultiPick } from "@/components/PlaceFields";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase";
 
@@ -41,7 +42,7 @@ export default function InternshipForm() {
       <input className={field} value={f.category} onChange={set("category")} placeholder="Who is it for? e.g. Computer Science, Accounting, any course" />
       <div className="grid gap-3 md:grid-cols-2">
         <input className={field} value={f.location} onChange={set("location")} placeholder="Location, e.g. Lagos, onsite / remote" />
-        <input className={field} value={f.school} onChange={set("school")} placeholder="Only one school? (optional)" />
+        <PlaceMultiPick kind="school" allowNew max={1} values={f.school ? [f.school] : []} onChange={(v) => setF({ ...f, school: v[0] ?? "" })} placeholder="Only one school? (optional)" />
       </div>
       <div className="grid gap-3 md:grid-cols-2">
         <input className={field} value={f.website} onChange={set("website")} placeholder="How to apply: link or email" />

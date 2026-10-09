@@ -73,7 +73,7 @@ export function PrintOrders() {
 
   async function attach(list: FileList | null) {
     if (!list?.length) return;
-    const sb = createClient(); const { data: { user } } = await sb.auth.getUser();
+    const sb = createClient(); const user = (await sb.auth.getSession()).data.session?.user ?? null;
     if (!user) return flash("Sign in to place an order");
     setUploading(true);
     let added = 0;

@@ -67,7 +67,7 @@ export default function Recorder() {
     // Durable copy so playback still works once the blob URL dies with this page session (reload,
     // device restart, TWA relaunch) -- recordings used to go silent for exactly that reason.
     void (async () => {
-      const { data: { user } } = await createClient().auth.getUser();
+      const user = (await createClient().auth.getSession()).data.session?.user ?? null;
       if (!user) return;
       const path = `${user.id}/${courseId}/${recId}-${safeName(file.name)}`;
       const err = await uploadTo("study-recordings", path, file);

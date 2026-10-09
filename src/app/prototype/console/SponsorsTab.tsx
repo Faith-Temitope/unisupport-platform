@@ -3,6 +3,7 @@
 
 // Sponsored placements: create/edit what sponsors get, target it, and pull the numbers that sell
 // the renewal. Everything goes through admin_* functions (admins only, checked server-side).
+import { PlaceMultiPick } from "@/components/PlaceFields";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { CertsSection } from "./CertsSection";
@@ -28,12 +29,13 @@ type Draft = {
   countries: string; regions: string; schools: string; starts_at: string; ends_at: string; active: boolean; priority: string;
 };
 const blank: Draft = { sponsor_name: "", sponsor_contact: "", kind: "campus", surface: "", category: "", title: "", body: "", cta_label: "", url: "", image_url: "", discount_code: "", company: "", location: "", deadline: "", media_kind: "none", media_url: "", countries: "", regions: "", schools: "", starts_at: "", ends_at: "", active: true, priority: "0" };
-const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
+// Targeting lists are kept one per line (school names can contain commas).
+const list = (s: string) => s.split("\n").map((x) => x.trim()).filter(Boolean);
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 const fromRow = (p: AdminPlacement): Draft => ({
   id: p.id, sponsor_name: p.sponsor_name, sponsor_contact: p.sponsor_contact ?? "", kind: p.kind, surface: p.surface ?? "", category: p.category ?? "", title: p.title, body: p.body,
   cta_label: p.cta_label, url: p.url ?? "", image_url: p.image_url ?? "", discount_code: p.discount_code ?? "", company: p.company ?? "", location: p.location ?? "",
-  deadline: p.deadline ?? "", media_kind: p.media_kind ?? "none", media_url: p.media_url ?? "", countries: p.countries.join(", "), regions: p.regions.join(", "), schools: p.schools.join(", "),
+  deadline: p.deadline ?? "", media_kind: p.media_kind ?? "none", media_url: p.media_url ?? "", countries: p.countries.join("\n"), regions: p.regions.join("\n"), schools: p.schools.join("\n"),
   starts_at: day(p.starts_at), ends_at: day(p.ends_at), active: p.active, priority: String(p.priority),
 });
 const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 1000) / 10}%` : "-");
@@ -117,11 +119,11 @@ export function SponsorsTab({ show }: { show: (m: string) => void }) {
             <MediaField kind={d.media_kind} url={d.media_url} onChange={(k, u) => setD((x) => (x ? { ...x, media_kind: k, media_url: u } : x))} show={show} />
             <F label="Details"><textarea className={`${field} min-h-[70px]`} value={d.body} onChange={(e) => set("body", e.target.value)} placeholder={d.kind === "internship" ? "What they'll do, who can apply, stipend, duration" : "One or two lines"} /></F>
             <div className="rounded-xl bg-[#F8F4FB] p-3">
-              <div className="mb-2 text-[12.5px] font-bold">Who sees it <span className="font-normal text-[var(--dim)]">(leave blank for everyone; separate several with commas; matched to students&apos; profiles, any capitalisation)</span></div>
+              <div className="mb-2 text-[12.5px] font-bold">Who sees it <span className="font-normal text-[var(--dim)]">(leave blank for everyone; pick from the lists so it matches students&apos; profiles exactly)</span></div>
               <div className="grid gap-3 md:grid-cols-3">
-                <F label="Countries"><input className={field} value={d.countries} onChange={(e) => set("countries", e.target.value)} placeholder="Nigeria" /></F>
-                <F label="Regions / states"><input className={field} value={d.regions} onChange={(e) => set("regions", e.target.value)} placeholder="Lagos, Ogun" /></F>
-                <F label="Schools"><input className={field} value={d.schools} onChange={(e) => set("schools", e.target.value)} placeholder="UNILAG, LASU" /></F>
+                <div><div className="mb-1 text-[11.5px] font-semibold text-[var(--dim)]">Countries</div><PlaceMultiPick kind="country" values={list(d.countries)} onChange={(v) => set("countries", v.join("\n"))} /></div>
+                <div><div className="mb-1 text-[11.5px] font-semibold text-[var(--dim)]">Regions / states</div><PlaceMultiPick kind="region" values={list(d.regions)} onChange={(v) => set("regions", v.join("\n"))} /></div>
+                <div><div className="mb-1 text-[11.5px] font-semibold text-[var(--dim)]">Schools</div><PlaceMultiPick kind="school" values={list(d.schools)} onChange={(v) => set("schools", v.join("\n"))} /></div>
               </div>
             </div>
             <div className="grid gap-3 md:grid-cols-4">

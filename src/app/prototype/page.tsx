@@ -27,6 +27,7 @@ const Recorder = dynamic(() => import("./Recorder"), { ssr: false });
 const Settings = dynamic(() => import("./Settings"), { ssr: false });
 const Tour = dynamic(() => import("./Tour").then((m) => m.Tour), { ssr: false });
 const JoinGroupSheet = dynamic(() => import("./Groups").then((m) => m.JoinGroupSheet), { ssr: false });
+const FileViewer = dynamic(() => import("./FileViewer").then((m) => m.FileViewer), { ssr: false });
 const PocketSheet = dynamic(() => import("./Pocket").then((m) => m.PocketSheet), { ssr: false });
 
 /** True from the first time `on` is true, and stays true (so a screen keeps its state once opened). */
@@ -40,8 +41,8 @@ const NAV: [TabId, string, typeof Compass | null][] = [["study", "Study", BookOp
 const ZOOM = { s: 0.92, m: 1, l: 1.1 } as const;
 
 function Shell() {
-  const { tab, setTab, toast, setPhone, setSlot, settings, resetAll, resetKey, skipHours, recommendation, flash, refreshWallet, setWalletOpen, barsHidden, auth, openByHandle, setAuthOpen, plus, setOverlay, profile, boot, setTourOpen, overlay, watching, tourOpen, recorderOpen, pocketOpen } = useApp();
-  const seen = { explore: useEver(tab === "explore"), birdie: useEver(tab === "birdie"), help: useEver(tab === "help"), settings: useEver(overlay?.t === "settings"), overlays: useEver((!!overlay && overlay.t !== "settings") || !!watching), player: useEver(!!watching), tour: useEver(tourOpen), recorder: useEver(recorderOpen), pocket: useEver(pocketOpen) };
+  const { tab, setTab, toast, setPhone, setSlot, settings, resetAll, resetKey, skipHours, recommendation, flash, refreshWallet, setWalletOpen, barsHidden, auth, openByHandle, setAuthOpen, plus, setOverlay, profile, boot, setTourOpen, overlay, watching, tourOpen, recorderOpen, pocketOpen, viewFile } = useApp();
+  const seen = { explore: useEver(tab === "explore"), birdie: useEver(tab === "birdie"), help: useEver(tab === "help"), settings: useEver(overlay?.t === "settings"), overlays: useEver((!!overlay && overlay.t !== "settings") || !!watching), player: useEver(!!watching), tour: useEver(tourOpen), recorder: useEver(recorderOpen), pocket: useEver(pocketOpen), viewer: useEver(!!viewFile) };
   const show = (id: TabId) => ({ display: tab === id ? "flex" : "none" });
   // Internal tools (staff app links, timer skip, reset) stay reachable at ?dev=1 for us; real
   // users, testers and Play Store reviewers never see them.
@@ -173,6 +174,7 @@ function Shell() {
               {seen.settings && <Settings />}
               <Entry />
               {seen.tour && <Tour />}
+              {seen.viewer && <FileViewer />}
               {joinCode && <JoinGroupSheet code={joinCode} onDone={() => setJoinCode(null)} />}
               <AnimatePresence>
                 {toast && (<motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute bottom-24 left-1/2 z-[95] flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-xl bg-[var(--ink)] px-4 py-3 text-[13px] font-semibold text-[var(--paper)] shadow-xl"><Check size={15} className="text-[#D68BE8]" strokeWidth={3} /> {toast}</motion.div>)}

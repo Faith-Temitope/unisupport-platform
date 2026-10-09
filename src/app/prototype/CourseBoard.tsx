@@ -3,8 +3,6 @@
 import { Megaphone, Paperclip, Pin, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
-import { openUrl, signedUrl } from "./live/helpData";
-import { offlineUrl } from "./offline";
 import { ago } from "./PostCard";
 import { useApp } from "./store";
 import { Btn, Empty, Sheet, TextField } from "./ui";
@@ -17,7 +15,7 @@ type BoardPost = { id: string; body: string; pinned: boolean; created_at: string
  * the shared course sees it and gets a notification.
  */
 export function CourseBoard({ sharedId, isOwner, courseId }: { sharedId: string; isOwner: boolean; courseId: string }) {
-  const { flash } = useApp();
+  const { flash, openFile: openViewer } = useApp();
   const [posts, setPosts] = useState<BoardPost[] | null>(null);
   const [draft, setDraft] = useState("");
   const [file, setFile] = useState<{ id: string; name: string } | null>(null);
@@ -48,10 +46,7 @@ export function CourseBoard({ sharedId, isOwner, courseId }: { sharedId: string;
     await createClient().rpc("board_post_update", { p_id: p.id, p_pinned: change.pinned ?? null, p_delete: !!change.del });
     void load();
   }
-  async function openFile(f: NonNullable<BoardPost["file"]>) {
-    const url = (await offlineUrl(`file:${f.path}`)) ?? (await signedUrl("study-files", f.path));
-    if (url) openUrl(url); else flash("Couldn't open that file");
-  }
+  const openFile = (f: NonNullable<BoardPost["file"]>) => openViewer({ name: f.name, path: f.path });
 
   return (
     <div className="space-y-3">
@@ -74,7 +69,7 @@ export function CourseBoard({ sharedId, isOwner, courseId }: { sharedId: string;
               {isOwner && <span className="ml-auto flex gap-3"><button onClick={() => void update(p, { pinned: !p.pinned })} aria-label={p.pinned ? "Unpin" : "Pin"}><Pin size={13} /></button><button onClick={() => { if (confirm("Delete this announcement?")) void update(p, { del: true }); }} aria-label="Delete"><Trash2 size={13} /></button></span>}
             </div>
             <p className="whitespace-pre-line text-[14px] leading-snug">{p.body}</p>
-            {p.file && <button onClick={() => void openFile(p.file!)} className="mt-2 flex w-full items-center gap-2 rounded-xl bg-[var(--study-soft)] px-3 py-2.5 text-left text-[13px] font-semibold text-[var(--study)]"><Paperclip size={14} /><span className="truncate">{p.file.name}</span></button>}
+            {p.file && <button onClick={() => openFile(p.file!)} className="mt-2 flex w-full items-center gap-2 rounded-xl bg-[var(--study-soft)] px-3 py-2.5 text-left text-[13px] font-semibold text-[var(--study)]"><Paperclip size={14} /><span className="truncate">{p.file.name}</span></button>}
           </div>
         ))}
       <Sheet open={picker} onClose={() => setPicker(false)} title="Attach a file from this course">

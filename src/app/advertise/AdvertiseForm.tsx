@@ -1,5 +1,6 @@
 "use client";
 
+import { PlaceMultiPick } from "@/components/PlaceFields";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase";
 
@@ -37,7 +38,7 @@ export default function AdvertiseForm() {
       <h2 className="text-[20px] font-bold">List your business</h2>
       <input className={field} value={f.business_name} onChange={set("business_name")} placeholder="Business name" required />
       <div className="flex flex-wrap gap-1.5">{CATEGORIES.map((c) => (<button type="button" key={c} onClick={() => setF({ ...f, category: c })} className={`rounded-full px-3 py-1.5 text-[12.5px] font-semibold ${f.category === c ? "bg-[#1a1024] text-white" : "bg-[#F4EFF8] text-[#6E6480]"}`}>{c}</button>))}</div>
-      <input className={field} value={f.school} onChange={set("school")} placeholder="Which school are you near? e.g. UNILAG, FUL" />
+      <PlaceMultiPick kind="school" allowNew max={1} values={f.school ? [f.school] : []} onChange={(v) => setF({ ...f, school: v[0] ?? "" })} placeholder="Which school are you near? e.g. UNILAG, FUL" />
       <input className={field} value={f.location} onChange={set("location")} placeholder="Where exactly? e.g. opposite the main gate" />
       <div className="grid gap-3 md:grid-cols-2">
         <input className={field} value={f.contact_name} onChange={set("contact_name")} placeholder="Your name" />
