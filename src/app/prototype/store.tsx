@@ -25,7 +25,7 @@ export type AuthStatus = "loading" | "out" | "guest" | "in";
 export type Boot = "splash" | "word" | "done";
 export type Emote = "happy" | "sad" | "love" | "say" | "angry";
 
-export interface FileItem { id: string; name: string; kind: "pdf" | "img" | "slides" | "notes" | "link" | "text" | "doc"; size: number; added: string; text?: string; url?: string; storagePath?: string; category?: string; pages?: number; status?: "uploading" | "failed" }
+export interface FileItem { id: string; name: string; kind: "pdf" | "img" | "slides" | "notes" | "link" | "text" | "doc"; size: number; added: string; text?: string; url?: string; storagePath?: string; category?: string; pages?: number; status?: "uploading" | "failed" | "reading" | "unread" }
 export interface Note { id: string; title: string; body: string; date: string; category?: string }
 /** Local ids of the notes/files/recordings an owner chose to include in a shared listing. */
 export type Picked = { notes: string[]; files: string[]; recs: string[] };
@@ -37,8 +37,8 @@ export interface Tx { id: string; label: string; amount: number; t: string }
 export interface Deadline { id: string; title: string; date: string; courseId: string | null; done: boolean }
 export interface Notice { id: string; title: string; body?: string; t: string; read: boolean }
 
-export interface BAction { label: string; run: "note" | "file" | "test" | "writer" | "study" | "topup" | "spark" | "brain"; payload?: string }
-export interface BMsg { id: string; from: "me" | "bird"; text: string; cite?: string; cards?: { q: string; a: string }[]; actions?: BAction[]; done?: boolean; t: string; at: number; meta?: string }
+export interface BAction { label: string; run: "note" | "file" | "test" | "writer" | "study" | "topup" | "spark" | "brain" | "retry" | "plus"; payload?: string }
+export interface BMsg { id: string; from: "me" | "bird"; text: string; cite?: string; cards?: { q: string; a: string }[]; actions?: BAction[]; done?: boolean; t: string; at: number; meta?: string; /** A picture Birdie drew (study-files path). */ img?: string; /** A photo the student asked about. */ photo?: string }
 
 export interface Person { id: string; name: string; handle: string; field: string; bio: string; color: string; demo?: boolean; links?: Link[]; school?: string; country?: string; mascot?: string }
 export type Audience = "everyone" | "country" | "region" | "school";

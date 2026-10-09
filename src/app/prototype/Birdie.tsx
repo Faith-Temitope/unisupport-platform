@@ -5,7 +5,11 @@ import { localNotify } from "./push";
 import { useViewState } from "./persist";
 import { VideoLesson } from "./VideoLesson";
 import { AnimatePresence, motion } from "framer-motion";
-import { Backpack, BookOpenCheck, Check, Clapperboard, ClipboardCheck, FileQuestion, FlaskConical, Menu, Mic, Paperclip, Plus, Send, SquarePen, Volume2, X } from "lucide-react";
+import { AudioLines, Backpack, BookOpen, BookOpenCheck, Check, ChevronDown, Clapperboard, ClipboardCheck, FileQuestion, FlaskConical, Loader2, Menu, Mic, Palette, Paperclip, Plus, Send, Square, SquarePen, Volume2, X } from "lucide-react";
+import { Rich } from "./Rich";
+import { VoiceChat, primeVoiceAudio, type VoiceLine } from "./VoiceChat";
+import { ingestFiles } from "./ingest";
+import { signedUrl } from "./live/helpData";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { answer, docsOf, flashcards, general, makeFree, makeQuiz, summarize, type FreeQ, type MCQ } from "./engine";
@@ -14,11 +18,29 @@ import { Btn, DemoControls, Empty, Sheet } from "./ui";
 import { brainName } from "./BrainPicker";
 import { SponsoredCard, usePlacements } from "./Sponsored";
 import { brainById } from "@/lib/ai/registry";
-import { CARDS_SYSTEM, GRADE_SYSTEM, QUIZ_SYSTEM, askAI, chatSystem, libraryOutline, contextFor, parseJson, sanitizeDeep, stripMarkdown, type AiFail } from "./aiClient";
+import { CARDS_SYSTEM, GRADE_SYSTEM, QUIZ_SYSTEM, askAI, chatSystem, libraryOutline, contextFor, makePicture, parseJson, sanitizeDeep, speechUrl, stripMarkdown, type AiFail } from "./aiClient";
 
 type Mode = "chat" | "test" | "exam" | "practical";
+type Photo = { mime: string; data: string; thumb: string };
 const bird = (text: string, extra: Partial<BMsg> = {}): BMsg => ({ id: uid(), from: "bird", text, t: nowTime(), at: Date.now(), ...extra });
-const me = (text: string): BMsg => ({ id: uid(), from: "me", text, t: nowTime(), at: Date.now() });
+const me = (text: string, photo?: string): BMsg => ({ id: uid(), from: "me", text, t: nowTime(), at: Date.now(), ...(photo ? { photo } : {}) });
+// "Draw a...", "make me a poster of...": Birdie draws it instead of describing it.
+const PICTURE = /^(?:please\s+|can you\s+|could you\s+)?(?:draw|sketch|paint|illustrate)\b|^(?:please\s+|can you\s+|could you\s+)?(?:generate|create|make|design)\s+(?:me\s+)?(?:an?\s+|the\s+)?(?:image|picture|photo|illustration|drawing|poster|logo|flyer|cartoon)\b/i;
+
+/** A photo, shrunk for sending (and a tiny thumbnail kept in the chat). */
+async function photoOf(f: File): Promise<Photo | null> {
+  try {
+    const bmp = await createImageBitmap(f);
+    const draw = (max: number, q: number) => {
+      const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+      const c = document.createElement("canvas"); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+      c.getContext("2d")!.drawImage(bmp, 0, 0, c.width, c.height);
+      return c.toDataURL("image/jpeg", q);
+    };
+    const full = draw(1600, 0.85);
+    return { mime: "image/jpeg", data: full.slice(full.indexOf(",") + 1), thumb: draw(220, 0.6) };
+  } catch { return null; }
+}
 
 function greeting(c: Course | null, name: string): BMsg {
   if (!c) return bird(`Hi ${name}. This is a general chat, not tied to a course. Create a course in Study and I can learn from your slides and notes.`);
@@ -29,9 +51,9 @@ function greeting(c: Course | null, name: string): BMsg {
   const parts = [`${c.notes.length} note${c.notes.length === 1 ? "" : "s"}`];
   if (filesWithText) parts.push(`${filesWithText} file${filesWithText === 1 ? "" : "s"}`);
   if (recsWithText) parts.push(`${recsWithText} recording${recsWithText === 1 ? "" : "s"}`);
-  if (n > 0) return bird(`I'm ready for ${c.code}. I can read ${parts.join(", ")}. Ask me anything and I'll answer only from what you've added.`);
+  if (n > 0) return bird(`I'm ready for ${c.code}. I can read ${parts.join(", ")}. Ask me anything. I'll use your material first and tell you when something isn't from it.`);
   if (transcribing) return bird(`I'm ready for ${c.code}, but I'm still turning your recording into text. Give it a minute and ask again.`);
-  return bird(`I'm ready for ${c.code}, but there's nothing to learn from yet. Add a note, upload a PDF, Word doc or text file, or record a lecture in Study and I'll answer only from it.`);
+  return bird(`I'm ready for ${c.code}, but there's nothing to learn from yet. You can still ask me anything. Add notes, PDFs (even scans), Word files or a lecture recording in Study and I'll match what your lecturer taught.`);
 }
 
 function respond(text: string, c: Course | null, length: "short" | "normal" | "detailed"): BMsg {
@@ -48,7 +70,11 @@ function respond(text: string, c: Course | null, length: "short" | "normal" | "d
 }
 
 export default function Birdie({ active }: { active: boolean }) {
-  const { courses, folders, profile, settings, chats, setChats, birdieIntent, clearBirdieIntent, applyQuiz, addNote, addFile, flash, setTab, goStudy, goHelp, phone, setOverlay, logChat, setBrainOpen, auth, setWalletOpen, setSetting, refreshWallet, loadRemoteCourseContent, sharedRemoteContent, setBarsHidden, pocketAdd } = useApp();
+  const { courses, folders, profile, settings, chats, setChats, birdieIntent, clearBirdieIntent, applyQuiz, addNote, addFile, updateFile, openFile, openPlus, flash, setTab, goStudy, goHelp, phone, setOverlay, logChat, setBrainOpen, auth, setWalletOpen, setSetting, refreshWallet, loadRemoteCourseContent, sharedRemoteContent, setBarsHidden, pocketAdd } = useApp();
+  const [photo, setPhoto] = useState<Photo | null>(null);
+  const [voiceSys, setVoiceSys] = useState<string | null>(null);
+  const [speaking, setSpeaking] = useState<{ id: string; loading: boolean } | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [ctx, setCtx] = useViewState<string>("birdie.ctx", "general");
   const [typing, setTyping] = useState(false);
   const [mode, setMode] = useViewState<Mode>("birdie.mode", "chat");
@@ -99,23 +125,28 @@ export default function Birdie({ active }: { active: boolean }) {
     return null;
   };
 
-  const send = useCallback(async (text: string, key = ctx, c: Course | null = effectiveCourse) => {
-    if (!text.trim()) return;
+  const send = useCallback(async (raw: string, key = ctx, c: Course | null = effectiveCourse, pic: Photo | null = null) => {
+    if (!raw.trim() && !pic) return;
+    const text = raw.trim() || "Help me with this photo.";
     logChat();
     const base = [greeting(c, name)];
-    const history = (chats[key] ?? []).slice(-8);
-    setChats((cs) => ({ ...cs, [key]: [...(cs[key] ?? base), me(text.trim())] }));
+    const history = (chats[key] ?? []).slice(-16);
+    setChats((cs) => ({ ...cs, [key]: [...(cs[key] ?? base), me(text, pic?.thumb)] }));
     setTyping(true);
     const t = text.toLowerCase();
-    const local = () => respond(text, c, settings.answerLength);
     const finish = (m: BMsg) => { setTyping(false); append(key, m, base); };
     const all = c ? docsOf(c) : [];
     const focused = focusSrc ? all.filter((d) => d.source === focusSrc) : [];
     const cdocs = focused.length ? focused : all;
-    const quizAsk = /quiz|test me|mock/.test(t);
 
-    // Guests and quiz requests use the offline engine (no AI cost).
-    if (!live || quizAsk) { timers.current.push(setTimeout(() => finish(local()), 600)); return; }
+    // Signed out: a small offline preview that only searches their own notes.
+    if (!live) { timers.current.push(setTimeout(() => finish(respond(text, c, settings.answerLength)), 600)); return; }
+
+    if (!pic && PICTURE.test(text)) {
+      const r = await makePicture(text);
+      if (r.ok) return finish(bird(r.caption || "Here you go.", { img: r.path, meta: "Spark · picture" }));
+      return finish(bird(r.message, r.code === "plus_required" ? { actions: [{ label: "Get Birdie Plus", run: "plus" }] } : { actions: [{ label: "Try again", run: "retry", payload: text }] }));
+    }
 
     const cards = /flash/.test(t) && cdocs.length > 0, summary = /summar/.test(t) && cdocs.length > 0, guide = /study guide/.test(t) && cdocs.length > 0;
     const info = c ? contextFor(cdocs, cards || summary || guide ? "" : text) : { text: "", used: [] };
@@ -124,26 +155,31 @@ export default function Birdie({ active }: { active: boolean }) {
     if (cards) { system = CARDS_SYSTEM(info.text, 6); messages = [{ role: "user", content: "Make the flashcards now." }]; }
     else if (summary) messages = [{ role: "user", content: "Summarise this course material as clear bullet points a student can revise from." }];
     else if (guide) messages = [{ role: "user", content: "Build a study guide: the main topics in a sensible order, with the key points to remember under each." }];
-    else messages = [...history.filter((m) => !m.actions && !m.cards).map((m) => ({ role: (m.from === "me" ? "user" : "assistant") as "user" | "assistant", content: m.text })), { role: "user", content: text.trim() }];
-    // the API needs the conversation to start with a user turn
+    else messages = [...history.filter((m) => !m.cards && m.text && !m.actions?.some((a) => a.run === "retry")).map((m) => ({ role: (m.from === "me" ? "user" : "assistant") as "user" | "assistant", content: m.text })), { role: "user", content: text }];
+    // the API needs the conversation to start with a user turn, and alternate
     while (messages.length > 1 && messages[0].role !== "user") messages.shift();
+    messages = messages.filter((m, i) => i === messages.length - 1 || m.role !== messages[i + 1].role);
 
-    const res = await askAI({ brain: brain.id, tier: settings.aiTier, system, messages, feature: cards ? "flashcards" : summary || guide ? "summary" : "chat" });
+    const res = await askAI({ brain: brain.id, tier: settings.aiTier, system, messages, feature: cards ? "flashcards" : summary || guide ? "summary" : "chat", images: pic ? [{ mime: pic.mime, data: pic.data }] : undefined });
     if (!res.ok) {
       const f = failMsg(res);
       if (f) return finish(f);
-      const l = local(); return finish({ ...l, text: `(${brain.brand} couldn't answer just now, so I searched your notes instead.)\n\n${l.text}` });
+      return finish(bird(`${brain.brand} couldn't answer just now. It's usually the connection. Try again in a moment.`, { actions: [{ label: "Try again", run: "retry", payload: text }] }));
     }
     if (res.charged_ngn > 0) void refreshWallet();
     const meta = `${brain.brand} · ${res.charged_ngn > 0 ? "₦" + res.charged_ngn : "free"}`;
-    const cite = c && info.used.length && /\[/.test(res.text) ? info.used.map((d) => d.source).join(" · ") : undefined;
+    // Birdie tags what it used as [source]. Those tags move into the folded "From your notes" list instead of cluttering the answer.
+    const refs = c ? info.used.map((d) => d.source).filter((s) => res.text.includes(`[${s}]`)) : [];
+    const cite = refs.length ? refs.join(" · ") : undefined;
+    const answerText = refs.reduce((t, s) => t.split(` [${s}]`).join("").split(`[${s}]`).join(""), res.text)
+      .replace(/ ?\[(?:Note: [^\]\n]{1,100}|[^\]\n]{1,120}\.(?:pdf|docx?|txt|md|pptx?|jpe?g|png|webp))\]/gi, "");
     if (cards) {
       const list = sanitizeDeep(parseJson<{ q: string; a: string }[]>(res.text));
       if (Array.isArray(list) && list.length && list.every((x) => x && typeof x.q === "string" && typeof x.a === "string")) return finish(bird(`Here are ${Math.min(list.length, 8)} flashcards from your ${c!.code} material. Tap a card to flip it.`, { cards: list.slice(0, 8), meta, actions: [{ label: "Save to course", run: "file", payload: `Flashcards - ${c!.code}.txt` }] }));
     }
     // Switched to another app while Birdie was thinking? Let them know the answer is in.
     void localNotify("Birdie replied", stripMarkdown(res.text).slice(0, 120), "/prototype?tab=birdie");
-    finish(bird(stripMarkdown(res.text), { meta, cite, actions: (summary || guide) && c ? [{ label: "Save as note", run: "note", payload: `${guide ? "Study guide" : "Summary"} - ${c.code}` }] : undefined }));
+    finish(bird(answerText.trim(), { meta, cite, actions: (summary || guide) && c ? [{ label: "Save as note", run: "note", payload: `${guide ? "Study guide" : "Summary"} - ${c.code}` }] : undefined }));
   }, [focusSrc, ctx, effectiveCourse, courses, folders, name, chats, setChats, append, settings.answerLength, settings.aiTier, logChat, live, brain, profile.level, profile.program, refreshWallet]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Test mode: for signed-in students the AI writes the questions from their material.
@@ -184,19 +220,51 @@ export default function Birdie({ active }: { active: boolean }) {
   function runAction(m: BMsg, a: BAction) {
     setChats((cs) => ({ ...cs, [ctx]: (cs[ctx] ?? []).map((x) => (x.id === m.id ? { ...x, done: true } : x)) }));
     if (a.run === "topup") { setWalletOpen(true); return; }
+    if (a.run === "plus") { openPlus("Birdie Plus"); return; }
+    if (a.run === "retry") { void send(a.payload ?? ""); return; }
     if (a.run === "spark") { setSetting("aiBrain", "spark"); flash("Switched to Spark (free)"); return; }
     if (a.run === "brain") { setBrainOpen(true); return; }
     if (a.run === "writer") { goHelp({ mode: "mentor", courseId: course?.id ?? null }); return; }
     if (a.run === "study" && course) { goStudy({ courseId: course.id, tab: "notes" }); return; }
     if (!course) return;
-    if (a.run === "note") { addNote(course.id, a.payload ?? "Summary", m.text); flash("Saved to Notes"); }
+    if (a.run === "note") { addNote(course.id, a.payload ?? "Summary", stripMarkdown(m.text)); flash("Saved to Notes"); }
     if (a.run === "file") { addFile(course.id, { name: a.payload ?? "Study material.txt", kind: "text", size: m.text.length, text: (m.cards ?? []).map((c) => `${c.q}\n${c.a}`).join("\n\n") || m.text }); flash("Saved to Materials"); }
     if (a.run === "test") setMode("test");
   }
 
-  function speak(text: string) {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) { flash("Read aloud isn't supported in this browser"); return; }
-    window.speechSynthesis.cancel(); window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  // Read aloud in a natural voice (Gemini), falling back to the phone's own voice offline.
+  async function speak(m: BMsg) {
+    const stop = () => { audioRef.current?.pause(); audioRef.current = null; if ("speechSynthesis" in window) window.speechSynthesis.cancel(); };
+    if (speaking?.id === m.id) { stop(); setSpeaking(null); return; }
+    stop(); setSpeaking({ id: m.id, loading: true });
+    const done = () => setSpeaking((s) => (s?.id === m.id ? null : s));
+    const url = live ? await speechUrl(m.text) : null;
+    if (url) {
+      const a = new Audio(url); audioRef.current = a; a.onended = done;
+      setSpeaking({ id: m.id, loading: false });
+      try { await a.play(); } catch { done(); flash("Tap play again to listen"); }
+      return;
+    }
+    if (!("speechSynthesis" in window)) { done(); flash("Read aloud isn't available here"); return; }
+    const u = new SpeechSynthesisUtterance(stripMarkdown(m.text)); u.onend = done;
+    setSpeaking({ id: m.id, loading: false }); window.speechSynthesis.speak(u);
+  }
+  useEffect(() => () => { audioRef.current?.pause(); }, []);
+
+  // Voice chat: a real-time call with Birdie (Gemini Live). It knows the course material too.
+  function startVoice() {
+    if (!live) { flash("Sign in to talk to Birdie"); return; }
+    primeVoiceAudio();
+    const cdocs = effectiveCourse ? docsOf(effectiveCourse) : [];
+    const focused = focusSrc ? cdocs.filter((d) => d.source === focusSrc) : [];
+    const material = effectiveCourse ? contextFor(focused.length ? focused : cdocs, "", 16000).text : "";
+    setVoiceSys(chatSystem({ name, level: profile.level, program: profile.program, course: effectiveCourse ? `${effectiveCourse.code} ${effectiveCourse.name}` : null, material, length: settings.answerLength, library: libraryOutline(folders, courses), voice: true }));
+  }
+  function endVoice(lines: VoiceLine[]) {
+    setVoiceSys(null);
+    if (!lines.length) return;
+    const base = [greeting(effectiveCourse, name)];
+    setChats((cs) => ({ ...cs, [ctx]: [...(cs[ctx] ?? base), ...lines.map((l) => (l.from === "me" ? me(l.text) : bird(l.text, { meta: "Voice chat" })))] }));
   }
 
   function pickMode(m: Mode) {
@@ -218,13 +286,29 @@ export default function Birdie({ active }: { active: boolean }) {
   // "Teach me step by step" is the Learn mode: Birdie guides with questions instead of handing over answers.
   const TEACH = course ? `Teach me ${course.code} step by step. Start with the first key idea from my notes, check I understand with a question, and only move on when I get it.` : "Teach me something step by step. Ask me what I want to learn first, then guide me with questions instead of just giving answers.";
   const chips = course ? ["Teach me step by step", "Summarize my notes", "Make flashcards", "Quiz me"] : ["Teach me step by step", "Help me plan my week", "I'm feeling stressed"];
-  const sendChip = (c: string) => send(c === "Teach me step by step" ? TEACH : c);
+  const sendChip = (c: string) => (c === "Quiz me" && course && docs.length ? pickMode("test") : send(c === "Teach me step by step" ? TEACH : c));
+  function submit() { if (!chatting || (!draft.trim() && !photo)) return; void send(draft, ctx, effectiveCourse, photo); setDraft(""); setPhoto(null); }
   const birdieCards = usePlacements("card", "birdie", active);
   const chatting = mode === "chat";
   function toolTeach() { setAttach(false); setMode("chat"); send(TEACH); }
   function toolLesson() { setAttach(false); if (!live) { flash("Sign in to make video lessons"); return; } setLesson(true); }
   function toolMode(m: Mode) { setAttach(false); pickMode(m); }
-  function toolFile() { if (!course) { flash("Pick a course to attach files to"); return; } fileIn.current?.click(); }
+  function toolFile() { setAttach(false); fileIn.current?.click(); }
+  function toolPicture() { setAttach(false); setMode("chat"); setDraft("Draw "); }
+  async function onPick(f: File | undefined) {
+    if (!f) return;
+    if (f.type.startsWith("image/")) {
+      const p = await photoOf(f);
+      if (p) setPhoto(p); else flash("Couldn't open that picture. Try a JPG or PNG.");
+      return;
+    }
+    if (!course) { flash("Pick a course to add files to"); return; }
+    if (!live) { flash("Sign in to add files"); return; }
+    const c = course;
+    append(ctx, bird(`Adding ${f.name} to ${c.code}. I'll tell you once I've read it.`), [greeting(effectiveCourse, name)]);
+    const [r] = await ingestFiles([f], c.id, { addFile, updateFile, flash });
+    append(ctx, bird(r?.readable ? `I've read ${f.name}. Ask me anything about it.` : `${f.name} is saved in ${c.code}, but I couldn't find any text in it.`), [greeting(effectiveCourse, name)]);
+  }
   // Scrolling up through a long chat tucks the bottom nav away, so there's more room to read.
   const lastY = useRef(0);
   const onChatScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -256,14 +340,16 @@ export default function Birdie({ active }: { active: boolean }) {
             {thread.map((m) => (
               <motion.div key={m.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`flex ${m.from === "me" ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-[88%] ${m.from === "me" ? "" : "w-full"}`}>
-                  <div className={`whitespace-pre-line rounded-2xl px-3.5 py-2.5 text-[14px] leading-snug ${m.from === "me" ? "ml-auto w-fit rounded-br-md bg-[var(--ink)] text-[var(--paper)]" : "w-fit max-w-full rounded-bl-md border border-[var(--line)] bg-white text-[var(--text)]"}`}>{m.text}</div>
-                  {m.cite && <div className="mt-1 pl-1 text-[11px] font-semibold text-[var(--study)]">From: {m.cite}</div>}
+                  {m.photo && <img src={m.photo} alt="Your photo" className="mb-1 ml-auto block max-h-40 rounded-2xl" />}
+                  <div className={`rounded-2xl px-3.5 py-2.5 text-[14px] leading-snug ${m.from === "me" ? "ml-auto w-fit whitespace-pre-line rounded-br-md bg-[var(--ink)] text-[var(--paper)]" : "w-fit max-w-full rounded-bl-md border border-[var(--line)] bg-white text-[var(--text)]"}`}>{m.from === "bird" ? <Rich text={m.text} /> : m.text}</div>
+                  {m.img && <DrawnPicture path={m.img} onOpen={() => openFile({ name: "Birdie picture.png", path: m.img })} />}
+                  {m.cite && <Sources cite={m.cite} />}
                   {m.meta && <div className="mt-0.5 pl-1 text-[10.5px] text-[var(--dim)]">{m.meta}</div>}
                   {m.cards && <Flashcards cards={m.cards} />}
                   {m.from === "bird" && (
                     <div className="mt-1.5 flex flex-wrap items-center gap-2 pl-1">
-                      {settings.readAloud && <button onClick={() => speak(m.text)} aria-label="Read aloud" className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--dim)] active:bg-[var(--paper-dim)]"><Volume2 size={14} /></button>}
-                      {m.actions?.map((a) => (<button key={a.label} disabled={m.done && a.run !== "study" && a.run !== "writer" && a.run !== "topup" && a.run !== "brain"} onClick={() => runAction(m, a)} className="rounded-lg bg-[var(--ink)] px-3 py-1.5 text-[12px] font-semibold text-white transition active:scale-95 disabled:opacity-40">{m.done && a.run !== "study" && a.run !== "writer" && a.run !== "topup" && a.run !== "brain" ? "Done" : a.label}</button>))}
+                      {settings.readAloud && <button onClick={() => void speak(m)} aria-label={speaking?.id === m.id ? "Stop reading" : "Read aloud"} className={`flex h-7 w-7 items-center justify-center rounded-lg active:bg-[var(--paper-dim)] ${speaking?.id === m.id ? "text-[var(--birdie)]" : "text-[var(--dim)]"}`}>{speaking?.id === m.id ? (speaking.loading ? <Loader2 size={14} className="animate-spin" /> : <Square size={12} fill="currentColor" />) : <Volume2 size={14} />}</button>}
+                      {m.actions?.map((a) => (<button key={a.label} disabled={m.done && a.run !== "study" && a.run !== "writer" && a.run !== "topup" && a.run !== "brain" && a.run !== "plus"} onClick={() => runAction(m, a)} className="rounded-lg bg-[var(--ink)] px-3 py-1.5 text-[12px] font-semibold text-white transition active:scale-95 disabled:opacity-40">{m.done && a.run !== "study" && a.run !== "writer" && a.run !== "topup" && a.run !== "brain" && a.run !== "plus" ? "Done" : a.label}</button>))}
                     </div>
                   )}
                 </div>
@@ -287,13 +373,18 @@ export default function Birdie({ active }: { active: boolean }) {
       )}
       {chatting && thread.length <= 2 && (<div className="no-scrollbar flex shrink-0 gap-2 overflow-x-auto px-5 pb-2 pt-1">{chips.map((c) => (<button key={c} onClick={() => sendChip(c)} className="shrink-0 rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[var(--text)] active:scale-95">{c}</button>))}</div>)}
 
+      {chatting && photo && (
+        <div className="mx-4 mb-1 flex items-center gap-2.5 rounded-xl bg-[var(--paper-dim)] p-2"><img src={photo.thumb} alt="" className="h-11 w-11 rounded-lg object-cover" /><span className="min-w-0 flex-1 text-[12.5px] font-semibold text-[var(--dim)]">Photo attached. Ask about it, or just send.</span><button onClick={() => setPhoto(null)} aria-label="Remove photo" className="p-1 text-[var(--dim)]"><X size={15} /></button></div>
+      )}
       {!chatting && <div className="flex shrink-0 items-center justify-between border-t border-[var(--line)] px-5 py-2 text-[12.5px]"><span className="font-bold capitalize">{mode} mode</span><button onClick={() => setMode("chat")} className="font-semibold text-[var(--birdie-text)]">Back to chat</button></div>}
       <div className="flex shrink-0 items-center gap-2 px-4 pb-3 pt-2">
-        <input ref={fileIn} type="file" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (!f || !course) return; const text = /\.(txt|md)$/i.test(f.name) ? await f.text() : undefined; addFile(course.id, { name: f.name, kind: text ? "text" : "pdf", size: f.size, text, url: URL.createObjectURL(f) }); setAttach(false); flash(`Saved to ${course.code}`); append(ctx, bird(text ? `Added ${f.name} to ${course.code}. I can read it now.` : `Added ${f.name} to ${course.code}. I'll be able to read it once the AI is connected.`)); }} />
+        <input ref={fileIn} type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; void onPick(f); }} />
         <button onClick={() => setAttach(true)} aria-label="More tools" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--paper-dim)] text-[var(--dim)] active:scale-90"><Plus size={19} /></button>
-        <input value={draft} disabled={!chatting} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { send(draft); setDraft(""); } }} placeholder={!chatting ? `${mode} mode` : listening ? "Listening..." : course ? `Ask about ${course.code}...` : "Talk to Birdie..."} className="min-w-0 flex-1 rounded-full bg-[var(--paper-dim)] px-4 py-3 text-[14px] outline-none placeholder:text-[#a99fb8] disabled:opacity-50" />
+        <input value={draft} disabled={!chatting} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} placeholder={!chatting ? `${mode} mode` : listening ? "Listening..." : course ? `Ask about ${course.code}...` : "Talk to Birdie..."} className="min-w-0 flex-1 rounded-full bg-[var(--paper-dim)] px-4 py-3 text-[14px] outline-none placeholder:text-[#a99fb8] disabled:opacity-50" />
         <button onClick={dictate} aria-label="Dictate" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:scale-90 ${listening ? "bg-[var(--help)] text-white" : "bg-[var(--paper-dim)] text-[var(--dim)]"}`}><Mic size={17} /></button>
-        <button onClick={() => { send(draft); setDraft(""); }} disabled={!draft.trim() || !chatting} aria-label="Send" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--birdie)] text-white transition active:scale-90 disabled:opacity-40"><Send size={17} /></button>
+        {draft.trim() || photo || !chatting
+          ? <button onClick={submit} disabled={(!draft.trim() && !photo) || !chatting} aria-label="Send" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--birdie)] text-white transition active:scale-90 disabled:opacity-40"><Send size={17} /></button>
+          : <button onClick={startVoice} aria-label="Voice chat" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--birdie)] text-white transition active:scale-90"><AudioLines size={18} /></button>}
       </div>
 
       {phone && createPortal(
@@ -318,7 +409,9 @@ export default function Birdie({ active }: { active: boolean }) {
           <Tool label="Quiz me" sub="Multiple choice from your notes" Icon={ClipboardCheck} onClick={() => toolMode("test")} />
           <Tool label="Exam practice" sub="Theory questions, marked" Icon={FileQuestion} onClick={() => toolMode("exam")} />
           <Tool label="Practical" sub="Applied questions, marked" Icon={FlaskConical} onClick={() => toolMode("practical")} />
-          <Tool label="Add a file" sub={course ? `Saved to ${course.code}` : "Pick a course first"} Icon={Paperclip} onClick={toolFile} />
+          <Tool label="Voice chat" sub="Talk it through out loud, like a call" Icon={AudioLines} onClick={() => { setAttach(false); startVoice(); }} />
+          <Tool label="Make a picture" sub="Diagrams, illustrations, posters" Icon={Palette} onClick={toolPicture} />
+          <Tool label="Photo or file" sub={course ? `Ask about a photo, or add a file to ${course.code}` : "Ask about a photo of a question"} Icon={Paperclip} onClick={toolFile} />
           <Tool label="Ask about a course file" sub="Use a file already in this course, no re-upload" Icon={FileQuestion} onClick={() => { setAttach(false); if (!course) { flash("Pick a course first"); return; } setFocusPick(true); }} />
           <Tool label="Hold a file for me" sub="Your buddy keeps it handy while you learn" Icon={Backpack} onClick={() => { setAttach(false); if (!course) { flash("Pick a course first"); return; } setHoldPick(true); }} />
         </div>
@@ -342,11 +435,12 @@ export default function Birdie({ active }: { active: boolean }) {
           </div>
         ))}
       </Sheet>
+      {phone && voiceSys && createPortal(<VoiceChat system={voiceSys} title={course ? course.code : "General"} onClose={endVoice} />, phone)}
       {lesson && <VideoLesson course={course ?? null} onClose={() => setLesson(false)} />}
 
       <DemoControls active={active} title="Birdie: how it works right now">
-        <p className="text-[12.5px] leading-snug text-[var(--dim)]">Claude isn't connected, so Birdie runs on a local engine that works <b className="text-[var(--text)]">only from your notes and .txt files</b>. It searches them, builds fill-the-gap quizzes and flashcards, and marks free answers by key terms. Nothing is made up.</p>
-        <ul className="list-disc space-y-1 pl-4 text-[12.5px] leading-snug text-[var(--text)]"><li>Add 3+ notes in Study, then pick Test</li><li>Ask a question using words from a note</li><li>Ask something not in your notes to see it refuse to guess</li></ul>
+        <p className="text-[12.5px] leading-snug text-[var(--dim)]">Signed in, every message goes to the real AI you picked (Spark is free). It answers anything, uses your course material first, and folds the files it used under &quot;From your notes&quot;. Signed out, a small offline preview only searches your notes.</p>
+        <ul className="list-disc space-y-1 pl-4 text-[12.5px] leading-snug text-[var(--text)]"><li>Upload a CamScanner PDF or a photo of notes: Birdie reads it</li><li>Tap the sound-wave button for a live voice chat</li><li>Start a message with &quot;Draw&quot; for a picture</li></ul>
       </DemoControls>
     </div>
   );
@@ -456,4 +550,27 @@ function FreeResponse({ q, onGrade, onExit, onAdd }: { q: FreeQ | null; onGrade?
 
 function Tool({ label, sub, Icon, onClick }: { label: string; sub: string; Icon: typeof Paperclip; onClick: () => void }) {
   return <button onClick={onClick} className="rounded-2xl border border-[var(--line)] bg-white p-3 text-left active:scale-[0.98]"><Icon size={18} className="text-[var(--birdie)]" /><div className="mt-1.5 text-[13.5px] font-bold leading-tight">{label}</div><div className="text-[11.5px] leading-snug text-[var(--dim)]">{sub}</div></button>;
+}
+
+/** "From your notes" sources, folded away until tapped. */
+function Sources({ cite }: { cite: string }) {
+  const [open, setOpen] = useState(false);
+  const list = Array.from(new Set(cite.split(" · ").filter(Boolean)));
+  return (
+    <div className="mt-1 pl-1">
+      <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-1 text-[11px] font-semibold text-[var(--study)]"><BookOpen size={11} />From your notes · {list.length} source{list.length === 1 ? "" : "s"}<ChevronDown size={12} className={`transition ${open ? "rotate-180" : ""}`} /></button>
+      {open && <div className="mt-1 space-y-0.5 border-l-2 border-[var(--study-soft)] pl-2">{list.map((s) => <div key={s} className="truncate text-[11.5px] text-[var(--dim)]">{s.replace(/^Note: /, "")}</div>)}</div>}
+    </div>
+  );
+}
+
+/** A picture Birdie drew, loaded from the student's files. */
+function DrawnPicture({ path, onOpen }: { path: string; onOpen: () => void }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => { let on = true; void signedUrl("study-files", path).then((u) => { if (on) setUrl(u); }); return () => { on = false; }; }, [path]);
+  return (
+    <button onClick={onOpen} className="mt-1.5 block w-full max-w-[280px] overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--paper-dim)]" aria-label="Open picture">
+      {url ? <img src={url} alt="Picture Birdie drew" className="block w-full" /> : <div className="flex aspect-square items-center justify-center text-[12px] text-[var(--dim)]">Loading picture...</div>}
+    </button>
+  );
 }

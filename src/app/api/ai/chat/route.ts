@@ -12,7 +12,7 @@ import { DEFAULT_USD_NGN, brainById, modelOf, priceNgn, type Brain, type BrainMo
 type Msg = { role: "user" | "assistant"; content: string };
 type Img = { mime: string; data: string };
 const IMG_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const MAX_OUT = 2048;
+const MAX_OUT = 4096;
 
 const err = (status: number, error: string, extra: Record<string, unknown> = {}) => NextResponse.json({ error, ...extra }, { status });
 
@@ -38,7 +38,8 @@ async function callVendor(b: Brain, m: BrainModel, system: string | undefined, m
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const contents = messages.map((x, i) => ({ role: x.role === "assistant" ? "model" : "user", parts: [...(i === lastIdx ? images.map((im) => ({ inlineData: { mimeType: im.mime, data: im.data } })) : []), { text: x.content }] as never[] }));
   // Thinking tokens are billed as output. Ask for the least thinking the task allows; some models reject a level, so step up.
-  const wanted = feature === "quiz" || feature === "grade" ? ["LOW"] : ["MINIMAL", "LOW"];
+  // Quick answers think least; Balanced thinks a little; Deep uses the model's own default.
+  const wanted = m.tier === "deep" ? [] : feature === "quiz" || feature === "grade" || m.tier === "balanced" ? ["LOW"] : ["MINIMAL", "LOW"];
   let lastErr: unknown;
   for (const level of [...wanted, undefined]) {
     try {
