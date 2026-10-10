@@ -63,9 +63,13 @@ async function callWithRetry(b: Brain, m: BrainModel, system: string | undefined
     try { return { ...(await callVendor(b, m, system, messages, feature, images)), used: m }; }
     catch (e) { last = e; if (outOfCapacity(e) || !transient(e)) break; await sleep(600 * (i + 1)); }
   }
-  const quick = b.models.find((x) => x.tier === "quick");
-  if (quick && quick.vendorModel !== m.vendorModel && (transient(last) || outOfCapacity(last))) {
-    try { return { ...(await callVendor(b, quick, system, messages, feature, images)), used: quick }; } catch (e) { last = e; }
+  // Out of capacity: each model has its own quota, so try the brain's other models, strongest first,
+  // before falling back to the lightest one.
+  const rank = { deep: 0, balanced: 1, quick: 2 } as const;
+  const others = b.models.filter((x) => x.vendorModel !== m.vendorModel).sort((x, y) => rank[x.tier] - rank[y.tier]);
+  for (const alt of others) {
+    if (!(transient(last) || outOfCapacity(last))) break;
+    try { return { ...(await callVendor(b, alt, system, messages, feature, images)), used: alt }; } catch (e) { last = e; }
   }
   throw last;
 }
