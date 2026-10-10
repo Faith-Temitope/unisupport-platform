@@ -65,34 +65,89 @@ export function sanitizeDeep<T>(v: T): T {
   return v;
 }
 
-/** Pick the most relevant material for a question, within a size budget (roughly 3k tokens). */
-export function contextFor(docs: Doc[], question: string, budget = 12000): { text: string; used: Doc[] } {
-  const qt = new Set(words(question));
-  const scored = docs.map((d) => {
-    const dt = new Set(words(d.title + " " + d.text)); let s = 0; qt.forEach((w) => { if (dt.has(w)) s += 1; });
-    return { d, s };
+/**
+ * The course material Birdie reads for a question. If everything fits the budget (60k characters,
+ * about 15k tokens, is roughly a 40-page handout plus notes), it gets ALL of it, whole and in order.
+ * Bigger courses are cut into passages: the ones that match the question come first (rarer words
+ * count more), each with the passage that follows it, then the rest spread evenly across every file
+ * so nothing is ignored. `onlyRelevant` (general chat across all courses) sends nothing if nothing matches.
+ */
+export function contextFor(docs: Doc[], question: string, budget = 60000, opts: { onlyRelevant?: boolean } = {}): { text: string; used: Doc[] } {
+  const bySrc = new Map<string, string[]>();
+  for (const d of docs) bySrc.set(d.source, [...(bySrc.get(d.source) ?? []), d.text]);
+  const sources = [...bySrc].map(([source, parts]) => ({ source, text: parts.join("\n\n") }));
+  const asDoc = (s: { source: string; text: string }): Doc => ({ title: s.source, text: s.text, source: s.source });
+  const total = sources.reduce((n, s) => n + s.text.length, 0);
+  if (!opts.onlyRelevant && total <= budget) return { text: sources.map((s) => `[${s.source}]\n${s.text}`).join("\n\n"), used: sources.map(asDoc) };
+
+  type Chunk = { si: number; i: number; text: string; score: number };
+  const chunks: Chunk[] = [];
+  sources.forEach((s, si) => {
+    let buf = "", i = 0;
+    for (const p of s.text.split(/\n{2,}/)) {
+      if (buf && buf.length + p.length > 1800) { chunks.push({ si, i: i++, text: buf, score: 0 }); buf = ""; }
+      buf += (buf ? "\n\n" : "") + p;
+    }
+    if (buf.trim()) chunks.push({ si, i: i++, text: buf, score: 0 });
   });
-  // relevant first; if nothing matches (e.g. "summarise"), fall back to document order
-  const ordered = scored.some((x) => x.s > 0) ? [...scored].sort((a, b) => b.s - a.s) : scored;
-  const used: Doc[] = []; let n = 0;
-  for (const { d } of ordered) { const chunk = d.text.slice(0, 3500); if (n + chunk.length > budget) break; used.push({ ...d, text: chunk }); n += chunk.length; }
-  return { text: used.map((d) => `[${d.source}]\n${d.text}`).join("\n\n"), used };
+  const qw = Array.from(new Set(words(question)));
+  if (qw.length) {
+    const sets = chunks.map((c) => new Set(words(c.text)));
+    const df = new Map(qw.map((w) => [w, sets.filter((st) => st.has(w)).length]));
+    chunks.forEach((c, k) => {
+      for (const w of qw) if (sets[k].has(w)) c.score += Math.log(1 + chunks.length / Math.max(1, df.get(w)!));
+      const title = words(sources[c.si].source); for (const w of qw) if (title.includes(w)) c.score += 0.5;
+    });
+  }
+  const relevant = chunks.some((c) => c.score > 0);
+  if (opts.onlyRelevant && !relevant) return { text: "", used: [] };
+  const key = (c: Chunk) => `${c.si}:${c.i}`;
+  const at = new Map(chunks.map((c) => [key(c), c]));
+  const order: Chunk[] = [];
+  if (relevant) {
+    const seen = new Set<string>();
+    for (const c of [...chunks].sort((a, b) => b.score - a.score)) {
+      if (opts.onlyRelevant && c.score <= 0) break;
+      for (const n of [c, at.get(`${c.si}:${c.i + 1}`)]) if (n && !seen.has(key(n))) { seen.add(key(n)); order.push(n); }
+    }
+  } else {
+    // nothing specific asked (summaries, quizzes): take turns across files so every file is covered
+    const lists = sources.map((_, si) => chunks.filter((c) => c.si === si));
+    for (let r = 0; order.length < chunks.length; r++) lists.forEach((l) => { if (l[r]) order.push(l[r]); });
+  }
+  const picked: Chunk[] = []; let n = 0;
+  for (const c of order) { if (n + c.text.length > budget) continue; picked.push(c); n += c.text.length; if (n > budget - 400) break; }
+  picked.sort((a, b) => a.si - b.si || a.i - b.i);
+  const used = Array.from(new Set(picked.map((c) => c.si)));
+  const text = used.map((si) => {
+    const part = picked.filter((c) => c.si === si);
+    const whole = part.length === chunks.filter((c) => c.si === si).length;
+    return `[${sources[si].source}]${whole ? "" : " (excerpts)"}\n${part.map((c) => c.text).join("\n[...]\n")}`;
+  }).join("\n\n");
+  const skipped = sources.filter((_, si) => !used.includes(si)).map((s) => s.source);
+  return { text: text + (skipped.length && !opts.onlyRelevant ? `\n\n(Also in this course, not shown here: ${skipped.join("; ")})` : ""), used: used.map((si) => asDoc(sources[si])) };
 }
 
 export function chatSystem(o: { name: string; level: string; program: string; course: string | null; material: string; length: keyof typeof LEN; library?: string; voice?: boolean }) {
   const style = o.voice ? VOICE : `${LEN[o.length]}\n${FORMAT}`;
   const who = `${o.name}${o.level || o.program ? `, a ${[o.level, o.program].filter(Boolean).join(" ")} student` : ""}`;
   const lib = o.library ? `\nTheir study library (folders and courses):\n${o.library}` : "";
-  const teach = "If they ask you to teach them step by step, teach one small idea at a time, ask a short check question, and wait for their answer before moving on. Don't dump everything at once.";
+  const teach = [
+    "How to help them study: do the work of explaining. Break topics into clear parts, define every key term, explain the why and the how, give worked examples (with full working for calculations), and end longer explanations with a short recap of the key points. Where it helps, add a memory trick or the kind of exam question this usually becomes.",
+    "Don't answer a question with a question, and don't stall with 'what would you like to know?'. If a request is vague, give your best full answer first, then offer what you could go into next.",
+    "When they ask about a topic in their material, gather everything the material says about it (it may be spread across several files, notes and lecture recordings) and bring it together in a logical order, then fill any gaps from general knowledge, marked 'Not from your notes:'.",
+    "Only when they explicitly ask to be taught step by step: give a short overview of the topics first, then teach the first one fully with examples, then end with one quick check question. When they reply, correct or confirm it and move on to the next topic.",
+  ].join("\n");
   if (!o.course) return [
     `You are Birdie, a warm, encouraging and genuinely knowledgeable study partner for ${who}. This is a general chat, not tied to one course.`,
     BROAD,
-    "When a question clearly belongs to one of their courses, you can mention that opening that course gives answers from their own notes.",
+    o.material ? "Below are passages from their own courses that match this question. Use them first (they're what their lecturers taught), name the source in square brackets, and mark anything else 'Not from your notes:'." : "When a question clearly belongs to one of their courses, you can mention that opening that course gives answers from their own notes.",
     teach, style, lib,
+    o.material ? `\n--- FROM THEIR COURSES ---\n${o.material}` : "",
   ].join("\n");
   return [
     `You are Birdie, a friendly, knowledgeable study partner for ${who}, helping with the course "${o.course}".`,
-    "Use the course material below first, because it's what their lecturer taught. When you use it, name where it came from in square brackets, for example [Note: Eigenvalues].",
+    "Read all of the course material below (notes, files and lecture recordings) before answering, and use it first, because it's what their lecturer taught. When you use it, cite the file using its exact name as shown in square brackets above its text, for example [Note: Eigenvalues] or [Lecture 3.pdf]. Cite each file once, at the end of the sentence or paragraph that used it.",
     "If the material doesn't cover the question, still answer it properly from general knowledge, but start that part with 'Not from your notes:' so they know. Never present outside knowledge as if it came from their notes.",
     BROAD, teach, style, lib,
     o.material ? `\n--- COURSE MATERIAL ---\n${o.material}` : "\n(No material has been added to this course yet. Answer from general knowledge, starting with 'Not from your notes:', and suggest adding their notes so you can match their lecturer.)",

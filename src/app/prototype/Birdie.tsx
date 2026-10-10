@@ -149,18 +149,25 @@ export default function Birdie({ active }: { active: boolean }) {
     }
 
     const cards = /flash/.test(t) && cdocs.length > 0, summary = /summar/.test(t) && cdocs.length > 0, guide = /study guide/.test(t) && cdocs.length > 0;
-    const info = c ? contextFor(cdocs, cards || summary || guide ? "" : text) : { text: "", used: [] };
+    // Course chat reads the whole course (or the best passages of a big one). General chat looks across
+    // every course and brings in only passages that match the question.
+    const budget = settings.aiTier === "deep" ? 150000 : settings.aiTier === "quick" ? 40000 : 60000;
+    const everywhere = c ? [] : courses.flatMap((x) => docsOf(x).map((d) => ({ ...d, source: `${x.code}: ${d.source}` })));
+    const info = c ? contextFor(cdocs, cards || summary || guide ? "" : text, budget) : contextFor(everywhere, text, 30000, { onlyRelevant: true });
     let system = chatSystem({ name, level: profile.level, program: profile.program, course: c ? `${c.code} ${c.name}` : null, material: info.text, length: settings.answerLength, library: libraryOutline(folders, courses) });
     let messages: { role: "user" | "assistant"; content: string }[];
     if (cards) { system = CARDS_SYSTEM(info.text, 6); messages = [{ role: "user", content: "Make the flashcards now." }]; }
-    else if (summary) messages = [{ role: "user", content: "Summarise this course material as clear bullet points a student can revise from." }];
-    else if (guide) messages = [{ role: "user", content: "Build a study guide: the main topics in a sensible order, with the key points to remember under each." }];
+    else if (summary) messages = [{ role: "user", content: "Summarise ALL of this course material, every file, note and recording, topic by topic, as revision notes: headings per topic, the key points, definitions and formulas under each, and a short recap at the end." }];
+    else if (guide) messages = [{ role: "user", content: "Build a complete study guide from all of this material: every main topic in a sensible order, with the key points, definitions, worked examples and likely exam questions under each." }];
     else messages = [...history.filter((m) => !m.cards && m.text && !m.actions?.some((a) => a.run === "retry")).map((m) => ({ role: (m.from === "me" ? "user" : "assistant") as "user" | "assistant", content: m.text })), { role: "user", content: text }];
     // the API needs the conversation to start with a user turn, and alternate
     while (messages.length > 1 && messages[0].role !== "user") messages.shift();
     messages = messages.filter((m, i) => i === messages.length - 1 || m.role !== messages[i + 1].role);
 
-    const res = await askAI({ brain: brain.id, tier: settings.aiTier, system, messages, feature: cards ? "flashcards" : summary || guide ? "summary" : "chat", images: pic ? [{ mime: pic.mime, data: pic.data }] : undefined });
+    const call = () => askAI({ brain: brain.id, tier: settings.aiTier, system, messages, feature: cards ? "flashcards" : summary || guide ? "summary" : "chat", images: pic ? [{ mime: pic.mime, data: pic.data }] : undefined });
+    // One quiet retry for a network or overload blip before bothering the student.
+    let res = await call();
+    if (!res.ok && res.code === "error") { await new Promise((r) => setTimeout(r, 2000)); res = await call(); }
     if (!res.ok) {
       const f = failMsg(res);
       if (f) return finish(f);
@@ -169,10 +176,17 @@ export default function Birdie({ active }: { active: boolean }) {
     if (res.charged_ngn > 0) void refreshWallet();
     const meta = `${brain.brand} · ${res.charged_ngn > 0 ? "₦" + res.charged_ngn : "free"}`;
     // Birdie tags what it used as [source]. Those tags move into the folded "From your notes" list instead of cluttering the answer.
-    const refs = c ? info.used.map((d) => d.source).filter((s) => res.text.includes(`[${s}]`)) : [];
-    const cite = refs.length ? refs.join(" · ") : undefined;
-    const answerText = refs.reduce((t, s) => t.split(` [${s}]`).join("").split(`[${s}]`).join(""), res.text)
-      .replace(/ ?\[(?:Note: [^\]\n]{1,100}|[^\]\n]{1,120}\.(?:pdf|docx?|txt|md|pptx?|jpe?g|png|webp))\]/gi, "");
+    // Any [bracket] naming a source, however the AI wrote it ("[file.pdf, page 27]"), counts as a citation.
+    const names = info.used.map((d) => d.source);
+    const found = new Set<string>();
+    const answerText = res.text.replace(/ ?\[([^\]\n]{2,200})\]/g, (whole, inner: string) => {
+      let hit = names.filter((n) => inner.includes(n) || inner.includes(n.replace(/^[^:]+: /, "")));
+      // "[Lecture page 27: The Okafor Rule]": a heading quoted from inside one of the files.
+      if (!hit.length && inner.length >= 6) hit = info.used.filter((d) => d.text.toLowerCase().includes(inner.trim().toLowerCase())).map((d) => d.source).slice(0, 1);
+      if (hit.length) { hit.forEach((h) => found.add(h)); return ""; }
+      return /(^|[\s,;])Note: |\.(pdf|docx?|txt|md|pptx?|jpe?g|png|webp)\b/i.test(inner) ? "" : whole;
+    });
+    const cite = found.size ? Array.from(found).join(" · ") : undefined;
     if (cards) {
       const list = sanitizeDeep(parseJson<{ q: string; a: string }[]>(res.text));
       if (Array.isArray(list) && list.length && list.every((x) => x && typeof x.q === "string" && typeof x.a === "string")) return finish(bird(`Here are ${Math.min(list.length, 8)} flashcards from your ${c!.code} material. Tap a card to flip it.`, { cards: list.slice(0, 8), meta, actions: [{ label: "Save to course", run: "file", payload: `Flashcards - ${c!.code}.txt` }] }));
@@ -189,7 +203,7 @@ export default function Birdie({ active }: { active: boolean }) {
     const key = course.id + docs.map((d) => d.title).join("|");
     if (aiQuiz?.key === key) return;
     setAiQuiz({ key, qs: null, loading: true });
-    const info = contextFor(docs, "");
+    const info = contextFor(docs, "", 40000);
     askAI({ brain: brain.id, tier: settings.aiTier, system: QUIZ_SYSTEM(info.text, 5), messages: [{ role: "user", content: "Write the questions now." }], feature: "quiz" }).then((res) => {
       if (res.ok) {
         if (res.charged_ngn > 0) void refreshWallet();
@@ -257,7 +271,7 @@ export default function Birdie({ active }: { active: boolean }) {
     primeVoiceAudio();
     const cdocs = effectiveCourse ? docsOf(effectiveCourse) : [];
     const focused = focusSrc ? cdocs.filter((d) => d.source === focusSrc) : [];
-    const material = effectiveCourse ? contextFor(focused.length ? focused : cdocs, "", 16000).text : "";
+    const material = effectiveCourse ? contextFor(focused.length ? focused : cdocs, "", 40000).text : "";
     setVoiceSys(chatSystem({ name, level: profile.level, program: profile.program, course: effectiveCourse ? `${effectiveCourse.code} ${effectiveCourse.name}` : null, material, length: settings.answerLength, library: libraryOutline(folders, courses), voice: true }));
   }
   function endVoice(lines: VoiceLine[]) {
@@ -284,7 +298,7 @@ export default function Birdie({ active }: { active: boolean }) {
   }
 
   // "Teach me step by step" is the Learn mode: Birdie guides with questions instead of handing over answers.
-  const TEACH = course ? `Teach me ${course.code} step by step. Start with the first key idea from my notes, check I understand with a question, and only move on when I get it.` : "Teach me something step by step. Ask me what I want to learn first, then guide me with questions instead of just giving answers.";
+  const TEACH = course ? `Teach me ${course.code} step by step from all my materials. Give me an overview of every topic first, then teach the first topic fully with examples, then give me one quick question to check I got it.` : "Teach me step by step. If I haven't said a topic yet, suggest a few from my courses and start teaching the first one fully with examples.";
   const chips = course ? ["Teach me step by step", "Summarize my notes", "Make flashcards", "Quiz me"] : ["Teach me step by step", "Help me plan my week", "I'm feeling stressed"];
   const sendChip = (c: string) => (c === "Quiz me" && course && docs.length ? pickMode("test") : send(c === "Teach me step by step" ? TEACH : c));
   function submit() { if (!chatting || (!draft.trim() && !photo)) return; void send(draft, ctx, effectiveCourse, photo); setDraft(""); setPhoto(null); }
