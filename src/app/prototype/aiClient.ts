@@ -27,14 +27,35 @@ const LEN = {
   detailed: "Give thorough answers: explain the reasoning step by step, with worked examples and the common mistakes to avoid.",
 } as const;
 // The chat shows light formatting (bold, lists, headings, code), so Birdie can lay answers out like any good AI.
-const FORMAT = "You can use light Markdown: **bold** for key terms, numbered or bulleted lists, short ### headings for long answers, and code blocks for code. No tables, no images, no links unless they ask. Write maths in plain text (x^2, sqrt(x), a/b).";
-const VOICE = "This is a live voice conversation. Talk naturally, like a friendly classmate on a call: short spoken sentences, one idea at a time, no lists or symbols, and leave room for them to reply. Don't read out citations or brackets. Match their language: if they speak Pidgin, Yoruba, Igbo or Hausa, you can reply in kind.";
+const FORMAT = [
+  "Write like a good teacher talking to a student: mostly clear, connected paragraphs. Use a list only for things that really are a list (steps in order, items the notes enumerate), never to chop an explanation into fragments. Use **bold** for key terms, short ### headings only to separate the parts of a long answer, and code blocks for code. No tables or images.",
+  "Write maths in LaTeX: $...$ inside a sentence and $$...$$ on its own line for bigger formulas, e.g. $x^2 + 3x = 0$ or $$\\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$$. The app draws it properly. Never put maths in code blocks.",
+].join("\n");
+const VOICE = "This is a live voice conversation. Talk naturally, like a friendly classmate on a call: short spoken sentences, one idea at a time, no lists or symbols, and leave room for them to reply. Don't read out citations or brackets, and say maths in words (x squared plus three x). Still give definitions from their notes word for word when teaching. Match their language: if they speak Pidgin, Yoruba, Igbo or Hausa, you can reply in kind.";
 const BROAD = "You are a capable general assistant as well as a tutor: help with anything they ask (any subject, writing, coding, maths with full working, careers, student life, everyday questions), accurately and specifically, the way the best AI assistants do. Don't refuse or water things down because a question isn't about school. If you aren't sure of a fact, say so rather than inventing it. For assignments, help them understand and do the work themselves rather than handing over something to submit as their own.";
+
+const SYM: Record<string, string> = {
+  times: "×", cdot: "·", div: "÷", pm: "±", mp: "∓", leq: "≤", le: "≤", geq: "≥", ge: "≥", neq: "≠", ne: "≠", approx: "≈", equiv: "≡", infty: "∞",
+  rightarrow: "→", to: "→", leftarrow: "←", Rightarrow: "⇒", implies: "⇒", iff: "⇔", leftrightarrow: "↔", sum: "Σ", prod: "Π", int: "∫", partial: "∂", nabla: "∇",
+  in: "∈", notin: "∉", subset: "⊂", subseteq: "⊆", cup: "∪", cap: "∩", emptyset: "∅", forall: "∀", exists: "∃", neg: "¬", land: "∧", lor: "∨", degree: "°", circ: "°",
+  alpha: "α", beta: "β", gamma: "γ", delta: "δ", epsilon: "ε", varepsilon: "ε", theta: "θ", lambda: "λ", mu: "μ", pi: "π", rho: "ρ", sigma: "σ", tau: "τ", phi: "φ", omega: "ω",
+  Gamma: "Γ", Delta: "Δ", Theta: "Θ", Lambda: "Λ", Sigma: "Σ", Phi: "Φ", Omega: "Ω", ldots: "…", cdots: "…", quad: " ", qquad: "  ",
+};
+/** LaTeX maths as readable plain text, for saved notes, notifications and the voice ("\frac{a}{b}" -> "(a)/(b)"). */
+export function latexToText(text: string): string {
+  if (!/\$|\\[a-zA-Z([]/.test(text)) return text;
+  let t = text.replace(/\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\((.+?)\\\)|(?<![\\\w])\$(?!\s)([^$\n]+?)(?<!\s)\$/g, (_m, a, b, c, d) => a ?? b ?? c ?? d);
+  for (let i = 0; i < 4; i++) t = t.replace(/\\[dt]?frac\{([^{}]*)\}\{([^{}]*)\}/g, "($1)/($2)").replace(/\\sqrt\{([^{}]*)\}/g, "√($1)");
+  t = t.replace(/\\(?:text|mathrm|mathbf|mathit|operatorname)\{([^{}]*)\}/g, "$1").replace(/\\(?:left|right|displaystyle)\b/g, "");
+  t = t.replace(/\\([a-zA-Z]+)/g, (m, w: string) => SYM[w] ?? w).replace(/\\([{}%$&#_,;!])/g, "$1");
+  t = t.replace(/\^\{([^{}]*)\}/g, "^$1").replace(/_\{([^{}]*)\}/g, "_$1").replace(/[{}]/g, "");
+  return t;
+}
 
 /** Strips markdown syntax an AI reply slipped in despite being told not to, so the chat bubble
  * (plain text, no markdown renderer) never shows raw #, *, _ or backtick characters to the student. */
 export function stripMarkdown(text: string): string {
-  let t = text;
+  let t = latexToText(text);
   t = t.replace(/```[a-z]*\n?/gi, "").replace(/```/g, "");
   t = t.replace(/^#{1,6}\s+/gm, "");
   t = t.replace(/\*\*\*(.+?)\*\*\*/g, "$1");
@@ -136,6 +157,8 @@ export function chatSystem(o: { name: string; level: string; program: string; co
     "How to help them study: do the work of explaining. Break topics into clear parts, define every key term, explain the why and the how, give worked examples (with full working for calculations), and end longer explanations with a short recap of the key points. Where it helps, add a memory trick or the kind of exam question this usually becomes.",
     "Don't answer a question with a question, and don't stall with 'what would you like to know?'. If a request is vague, give your best full answer first, then offer what you could go into next.",
     "When they ask about a topic in their material, gather everything the material says about it (it may be spread across several files, notes and lecture recordings) and bring it together in a logical order, then fill any gaps from general knowledge, marked 'Not from your notes:'.",
+    "Definitions matter for exams. For every key term, first give the definition exactly as their material states it, in quotation marks (that's what their lecturer will mark against), then explain it in plain words with an example. If the material uses a term without defining it, build a definition from how the material uses it and say so. Only if the material doesn't cover it at all, give the standard textbook definition, marked 'Not from your notes:'.",
+    "Cover everything the material lists, not just the first or most famous items. If the notes list four kinds of something (for example the imperative, declarative, functional and logic programming paradigms), teach all four, each with its definition, features and an example, in the order the notes give them.",
     "Only when they explicitly ask to be taught step by step: give a short overview of the topics first, then teach the first one fully with examples, then end with one quick check question. When they reply, correct or confirm it and move on to the next topic.",
   ].join("\n");
   if (!o.course) return [

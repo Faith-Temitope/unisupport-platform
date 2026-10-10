@@ -176,7 +176,9 @@ export default function Birdie({ active }: { active: boolean }) {
       return finish(bird(`${brain.brand} couldn't answer just now. It's usually the connection. Try again in a moment.`, { actions: [{ label: "Try again", run: "retry", payload: text }] }));
     }
     if (res.charged_ngn > 0) void refreshWallet();
-    const meta = `${brain.brand} · ${res.charged_ngn > 0 ? "₦" + res.charged_ngn : "free"}`;
+    // Show which model actually answered, so a busy-day fallback to a lighter model is visible, not hidden.
+    const usedLabel = brain.models.find((x) => x.vendorModel === res.model)?.label ?? res.model;
+    const meta = `${brain.brand} · ${usedLabel} · ${res.charged_ngn > 0 ? "₦" + res.charged_ngn : "free"}`;
     // Birdie tags what it used as [source]. Those tags move into the folded "From your notes" list instead of cluttering the answer.
     // Any [bracket] naming a source, however the AI wrote it ("[file.pdf, page 27]"), counts as a citation.
     const names = info.used.map((d) => d.source);

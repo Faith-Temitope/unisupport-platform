@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = { title: "Privacy Policy" };
 
-const UPDATED = "30 September 2026";
+const UPDATED = "9 October 2026";
 
 export default function PrivacyPage() {
   return (
@@ -20,16 +20,31 @@ export default function PrivacyPage() {
           <ul>
             <li><b>Account details:</b> your email and password (handled by our authentication provider, Supabase — we never see or store your raw password), plus the name, level, program, school and country you add to your profile.</li>
             <li><b>Your content:</b> notes, uploaded files, recordings, chat messages, quiz answers and anything else you create or upload in Study, Birdie or Help.</li>
-            <li><b>AI conversations:</b> if you ask Birdie's AI a question, your message and the relevant course material you've added are sent to the AI provider behind whichever "brain" you picked (Google Gemini, OpenAI, or Anthropic) to generate an answer. We don't send your content to a provider you haven't chosen.</li>
+            <li><b>AI conversations:</b> if you ask Birdie's AI a question, your message, any photo you attach and the relevant course material you've added are sent to the AI provider behind whichever "brain" you picked (Google Gemini, OpenAI, or Anthropic) to generate an answer. We don't send your content to a provider you haven't chosen for chat.</li>
+            <li><b>Scans, voice and pictures:</b> a few Birdie features always run on Google Gemini, whichever brain you picked. When a file has no readable text (a CamScanner PDF or a photo of your notes), it's sent to Gemini to read the words off the page. During a voice chat, your voice is streamed to Gemini as you speak so Birdie can answer out loud; we don't keep the audio, only the written transcript that appears in your chat. Read-aloud sends the answer's text to Gemini to turn it into speech. If you ask Birdie to draw a picture, your request goes to Gemini and the picture is saved in your own files.</li>
             <li><b>Payments:</b> if you top up your Birdie balance or pay a writer fee, our payment processor, Paystack, handles your card or bank details directly. We only ever receive the amount and a payment reference, never your card number.</li>
-            <li><b>Usage data:</b> basic activity like when you study, which features you use, and device/browser information, so we can keep the app working and improve it.</li>
+            <li><b>Usage data:</b> basic activity like when you study, which features you use, and device/browser information, so we can keep the app working and improve it. If you turn on notifications, we also keep a token for your device so we can send them.</li>
+            <li><b>Answer ratings:</b> when you tap 👍 or 👎 on a Birdie answer, we keep the rating and the reason you picked, with no text. More only if you opt in (see below).</li>
           </ul>
+
+          <h2>Helping improve Birdie (only if you opt in)</h2>
+          <p>We're building Birdie's own AI model, trained on how Nigerian students actually study. If you turn on <b>Settings → Help improve Birdie</b>, or tick &quot;Share&quot; when you correct an answer, we keep the question you asked, Birdie&apos;s answer and your correction.</p>
+          <ul>
+            <li>It's off unless you turn it on.</li>
+            <li>Your name, email and profile are never attached. Phone numbers and email addresses in what you write are removed before it's saved.</li>
+            <li>Your notes, files and recordings are never shared this way, only the question and the correction you chose to send.</li>
+            <li>The Birdie team reviews what's shared, and only corrections we've checked are used for training.</li>
+            <li>You can turn it off and wipe everything you've shared at any time with <b>Settings → Delete what I&apos;ve shared</b>. Once removed, it isn't used in any future training.</li>
+          </ul>
+
+          <h2>Sponsored posts</h2>
+          <p>Birdie shows a small number of clearly labelled sponsored posts from businesses, mostly local ones near campus. They're matched to your country, state and school inside our own system, so advertisers never receive your data. They only see totals, like how many students viewed or tapped their post. Birdie Plus members don't see them.</p>
 
           <h2>What we don't do</h2>
           <ul>
             <li>We don't sell your data.</li>
-            <li>We don't show ads or share your data with advertisers.</li>
-            <li>We don't use your notes, recordings or chats for anything other than running the app for you, unless you explicitly opt in (for example, turning on "Demo community" only adds sample content to your own view, and never shares your data outward).</li>
+            <li>We don't share your personal data with advertisers.</li>
+            <li>We don't use your notes, recordings or chats for anything other than running the app for you, unless you explicitly opt in as described above.</li>
           </ul>
 
           <h2>Who can see what</h2>
@@ -38,7 +53,7 @@ export default function PrivacyPage() {
           <h2>Third parties we use</h2>
           <ul>
             <li><b>Supabase</b> — our database, authentication and file storage.</li>
-            <li><b>Google Gemini, OpenAI and Anthropic</b> — power Birdie's AI brains (Spark, Nova and Sage). Each has its own privacy terms for API use; free-tier use of Gemini may be used by Google to improve its products, which we tell you about when you pick that brain.</li>
+            <li><b>Google Gemini, OpenAI and Anthropic</b> — power Birdie's AI brains (Spark, Nova and Sage). Google Gemini also reads scanned files, runs voice chat and read-aloud, and draws pictures. Each has its own privacy terms for API use. While Birdie uses Gemini's free tier, Google may use what's sent to it (including scans and voice chats) to improve its products. We tell you about this when you pick Spark, and we'll update this page when that changes.</li>
             <li><b>Paystack</b> — processes payments and top-ups.</li>
             <li><b>Vercel</b> — hosts the app.</li>
           </ul>
