@@ -38,7 +38,7 @@ export interface Deadline { id: string; title: string; date: string; courseId: s
 export interface Notice { id: string; title: string; body?: string; t: string; read: boolean }
 
 export interface BAction { label: string; run: "note" | "file" | "test" | "writer" | "study" | "topup" | "spark" | "brain" | "retry" | "plus"; payload?: string }
-export interface BMsg { id: string; from: "me" | "bird"; text: string; cite?: string; cards?: { q: string; a: string }[]; actions?: BAction[]; done?: boolean; t: string; at: number; meta?: string; /** A picture Birdie drew (study-files path). */ img?: string; /** A photo the student asked about. */ photo?: string }
+export interface BMsg { id: string; from: "me" | "bird"; text: string; cite?: string; cards?: { q: string; a: string }[]; actions?: BAction[]; done?: boolean; t: string; at: number; meta?: string; /** A picture Birdie drew (study-files path). */ img?: string; /** A photo the student asked about. */ photo?: string; /** The student's 👍 / 👎. */ rating?: 1 | -1 }
 
 export interface Person { id: string; name: string; handle: string; field: string; bio: string; color: string; demo?: boolean; links?: Link[]; school?: string; country?: string; mascot?: string }
 export type Audience = "everyone" | "country" | "region" | "school";
@@ -59,7 +59,7 @@ export interface SharedCourse { id: string; ownerId: string; ownerName?: string;
 
 export interface Profile { name: string; handle: string; level: string; program: string; institution: string; country: string; region?: string; links?: Link[]; bio: string; onboarded: boolean }
 export interface Settings {
-  autoplay: boolean; personalTags: boolean; recs12h: boolean; readAloud: boolean; answerLength: "short" | "normal" | "detailed";
+  autoplay: boolean; personalTags: boolean; recs12h: boolean; readAloud: boolean; answerLength: "short" | "normal" | "detailed"; /** Opted in to sharing questions + corrections to train Birdie. */ improveBirdie: boolean;
   notifChat: boolean; notifRec: boolean; notifSession: boolean; notifExplore: boolean;
   dyslexia: boolean; textSize: "s" | "m" | "l"; reduceMotion: boolean;
   theme: "light" | "dark" | "system"; accent: "purple" | "blue" | "green" | "orange" | "pink";
@@ -81,7 +81,7 @@ export const naira = (n: number) => "₦" + n.toLocaleString("en-NG");
 export const HOUR = 3600_000;
 
 const defaultSettings: Settings = {
-  autoplay: true, personalTags: true, recs12h: true, readAloud: true, answerLength: "normal",
+  autoplay: true, personalTags: true, recs12h: true, readAloud: true, answerLength: "normal", improveBirdie: false,
   notifChat: true, notifRec: true, notifSession: true, notifExplore: false,
   dyslexia: false, textSize: "m", reduceMotion: false,
   theme: "system", accent: "purple",

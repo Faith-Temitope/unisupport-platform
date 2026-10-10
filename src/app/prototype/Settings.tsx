@@ -79,6 +79,8 @@ export default function Settings() {
               <Choice label="Answer length"><Segmented value={settings.answerLength} onChange={(v) => setSetting("answerLength", v)} options={[{ id: "short", label: "Short" }, { id: "normal", label: "Normal" }, { id: "detailed", label: "Detailed" }]} /></Choice>
               <Choice label="Daily study goal"><Segmented value={String(settings.dailyGoal)} onChange={(v) => setSetting("dailyGoal", Number(v))} options={[{ id: "1", label: "1 action" }, { id: "3", label: "3 actions" }, { id: "5", label: "5 actions" }]} /></Choice>
               <Toggle on={settings.recordReminder} onChange={(v) => setSetting("recordReminder", v)} label="Recording consent reminder" sub="Show a consent check before every recording" />
+              <Toggle on={settings.improveBirdie} onChange={(v) => setSetting("improveBirdie", v)} label="Help improve Birdie" sub="When you rate an answer, share the question and your correction so we can train Birdie's own model. No name or email is attached. Your notes and files are never shared." />
+              {auth.status === "in" && <Row label="Delete what I've shared" sub="Removes the questions and corrections you shared. Your 👍/👎 counts stay, with no text." onClick={async () => { const { data, error } = await createClient().rpc("forget_my_ai_feedback"); setSetting("improveBirdie", false); flash(error ? "Couldn't delete right now. Try again." : `Deleted ${data ?? 0} shared item${data === 1 ? "" : "s"}`); }} />}
             </Group>
 
             <Group icon={BotIcon} title="Birdie the mascot">

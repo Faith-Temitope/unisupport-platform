@@ -7,6 +7,7 @@
 // (provider/model enable + margin).
 import { AlertsBell, AlertsTab } from "./Alerts";
 import { ReportsCard } from "./ReportsCard";
+import { FeedbackCard } from "./FeedbackCard";
 import { SchoolSuggestions } from "./SchoolSuggestions";
 import { BadgesTab } from "./BadgesTab";
 import { BadgeCheck, BarChart3, Bell, Building2, Cpu, Crown, LogOut, Megaphone, Printer, Sliders, Users as UsersIcon } from "lucide-react";
@@ -554,6 +555,7 @@ function AiTab({ show }: { show: (m: string) => void }) {
           ))}
         </div>
       </Card>
+      <FeedbackCard show={show} />
     </div>
   );
 }
