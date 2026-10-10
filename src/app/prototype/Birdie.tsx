@@ -5,7 +5,7 @@ import { localNotify } from "./push";
 import { useViewState } from "./persist";
 import { VideoLesson } from "./VideoLesson";
 import { AnimatePresence, motion } from "framer-motion";
-import { AudioLines, Backpack, BookOpen, BookOpenCheck, Check, ChevronDown, Clapperboard, ClipboardCheck, FileQuestion, FlaskConical, Loader2, Menu, Mic, Palette, Paperclip, Plus, Send, Square, SquarePen, Volume2, X } from "lucide-react";
+import { AudioLines, Backpack, BookOpen, BookOpenCheck, Check, ChevronDown, Clapperboard, ClipboardCheck, FileQuestion, FlaskConical, Loader2, Menu, Mic, Palette, Paperclip, Plus, Send, Square, SquarePen, ThumbsDown, ThumbsUp, Volume2, X } from "lucide-react";
 import { Rich } from "./Rich";
 import { VoiceChat, primeVoiceAudio, type VoiceLine } from "./VoiceChat";
 import { ingestFiles } from "./ingest";
@@ -15,6 +15,7 @@ import { createPortal } from "react-dom";
 import { answer, docsOf, flashcards, general, makeFree, makeQuiz, summarize, type FreeQ, type MCQ } from "./engine";
 import { firstName, nowTime, uid, useApp, type BAction, type BMsg, type Course } from "./store";
 import { Btn, DemoControls, Empty, Sheet } from "./ui";
+import { createClient } from "@/lib/supabase";
 import { brainName } from "./BrainPicker";
 import { SponsoredCard, usePlacements } from "./Sponsored";
 import { brainById } from "@/lib/ai/registry";
@@ -75,6 +76,7 @@ export default function Birdie({ active }: { active: boolean }) {
   const [voiceSys, setVoiceSys] = useState<string | null>(null);
   const [speaking, setSpeaking] = useState<{ id: string; loading: boolean } | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [fbFor, setFbFor] = useState<BMsg | null>(null);
   const [ctx, setCtx] = useViewState<string>("birdie.ctx", "general");
   const [typing, setTyping] = useState(false);
   const [mode, setMode] = useViewState<Mode>("birdie.mode", "chat");
@@ -281,6 +283,23 @@ export default function Birdie({ active }: { active: boolean }) {
     setChats((cs) => ({ ...cs, [ctx]: [...(cs[ctx] ?? base), ...lines.map((l) => (l.from === "me" ? me(l.text) : bird(l.text, { meta: "Voice chat" })))] }));
   }
 
+  // 👍 / 👎 on answers. The question, answer and correction are only stored if the student opted in.
+  const redact = (t: string) => t.replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, "[email]").replace(/(?:\+?234|0)[789][01]\d{8}\b/g, "[phone]");
+  function questionFor(m: BMsg) {
+    const i = thread.findIndex((x) => x.id === m.id);
+    for (let k = i - 1; k >= 0; k--) if (thread[k].from === "me") return thread[k].text;
+    return "";
+  }
+  async function rate(m: BMsg, rating: 1 | -1, extra: { reason?: string; correction?: string; share?: boolean } = {}) {
+    const share = extra.share ?? settings.improveBirdie;
+    setChats((cs) => ({ ...cs, [ctx]: (cs[ctx] ?? []).map((x) => (x.id === m.id ? { ...x, rating } : x)) }));
+    const { error } = await createClient().rpc("submit_ai_feedback", {
+      p_msg_id: m.id, p_rating: rating, p_reason: extra.reason ?? null, p_correction: extra.correction ? redact(extra.correction) : null,
+      p_question: redact(questionFor(m)), p_answer: m.text, p_course: course?.code ?? null, p_brain: brain.id, p_share: share,
+    });
+    flash(error ? "Couldn't send that. Check your connection." : rating === 1 ? "Thanks! Glad that helped." : "Thanks. This helps Birdie get better.");
+  }
+
   function pickMode(m: Mode) {
     if (m !== "chat" && !course) { flash("Pick a course first"); return; }
     setMode(m);
@@ -363,6 +382,10 @@ export default function Birdie({ active }: { active: boolean }) {
                   {m.from === "bird" && (
                     <div className="mt-1.5 flex flex-wrap items-center gap-2 pl-1">
                       {settings.readAloud && <button onClick={() => void speak(m)} aria-label={speaking?.id === m.id ? "Stop reading" : "Read aloud"} className={`flex h-7 w-7 items-center justify-center rounded-lg active:bg-[var(--paper-dim)] ${speaking?.id === m.id ? "text-[var(--birdie)]" : "text-[var(--dim)]"}`}>{speaking?.id === m.id ? (speaking.loading ? <Loader2 size={14} className="animate-spin" /> : <Square size={12} fill="currentColor" />) : <Volume2 size={14} />}</button>}
+                      {live && m.meta && !m.actions?.some((a) => a.run === "retry") && <>
+                        <button onClick={() => void rate(m, 1)} aria-label="Good answer" aria-pressed={m.rating === 1} className={`flex h-7 w-7 items-center justify-center rounded-lg active:bg-[var(--paper-dim)] ${m.rating === 1 ? "text-[var(--birdie)]" : "text-[var(--dim)]"}`}><ThumbsUp size={14} fill={m.rating === 1 ? "currentColor" : "none"} /></button>
+                        <button onClick={() => setFbFor(m)} aria-label="Bad answer" aria-pressed={m.rating === -1} className={`flex h-7 w-7 items-center justify-center rounded-lg active:bg-[var(--paper-dim)] ${m.rating === -1 ? "text-[var(--help)]" : "text-[var(--dim)]"}`}><ThumbsDown size={14} fill={m.rating === -1 ? "currentColor" : "none"} /></button>
+                      </>}
                       {m.actions?.map((a) => (<button key={a.label} disabled={m.done && a.run !== "study" && a.run !== "writer" && a.run !== "topup" && a.run !== "brain" && a.run !== "plus"} onClick={() => runAction(m, a)} className="rounded-lg bg-[var(--ink)] px-3 py-1.5 text-[12px] font-semibold text-white transition active:scale-95 disabled:opacity-40">{m.done && a.run !== "study" && a.run !== "writer" && a.run !== "topup" && a.run !== "brain" && a.run !== "plus" ? "Done" : a.label}</button>))}
                     </div>
                   )}
@@ -450,6 +473,9 @@ export default function Birdie({ active }: { active: boolean }) {
         ))}
       </Sheet>
       {phone && voiceSys && createPortal(<VoiceChat system={voiceSys} title={course ? course.code : "General"} onClose={endVoice} />, phone)}
+      <Sheet open={!!fbFor} onClose={() => setFbFor(null)} title="What went wrong?">
+        {fbFor && <FeedbackForm key={fbFor.id} shareDefault={settings.improveBirdie} onSend={(f) => { if (f.share && !settings.improveBirdie) setSetting("improveBirdie", true); void rate(fbFor, -1, f); setFbFor(null); }} />}
+      </Sheet>
       {lesson && <VideoLesson course={course ?? null} onClose={() => setLesson(false)} />}
 
       <DemoControls active={active} title="Birdie: how it works right now">
@@ -586,5 +612,27 @@ function DrawnPicture({ path, onOpen }: { path: string; onOpen: () => void }) {
     <button onClick={onOpen} className="mt-1.5 block w-full max-w-[280px] overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--paper-dim)]" aria-label="Open picture">
       {url ? <img src={url} alt="Picture Birdie drew" className="block w-full" /> : <div className="flex aspect-square items-center justify-center text-[12px] text-[var(--dim)]">Loading picture...</div>}
     </button>
+  );
+}
+
+const REASONS = ["Wrong or inaccurate", "Didn't use my notes", "Too short or shallow", "Asked instead of explaining", "Confusing", "Off topic"];
+
+/** 👎 details: why, and (optionally) what the right answer is. Corrections are what Birdie's own model learns from. */
+function FeedbackForm({ shareDefault, onSend }: { shareDefault: boolean; onSend: (f: { reason?: string; correction?: string; share: boolean }) => void }) {
+  const [reason, setReason] = useState<string | null>(null);
+  const [correction, setCorrection] = useState("");
+  const [share, setShare] = useState(shareDefault);
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">{REASONS.map((r) => (
+        <button key={r} onClick={() => setReason(reason === r ? null : r)} className={`rounded-full px-3 py-1.5 text-[12.5px] font-semibold ${reason === r ? "bg-[var(--ink)] text-[var(--paper)]" : "bg-[var(--paper-dim)] text-[var(--text)]"}`}>{r}</button>
+      ))}</div>
+      <textarea value={correction} onChange={(e) => setCorrection(e.target.value)} rows={4} placeholder="What should the answer have been? (optional)" className="w-full resize-none rounded-2xl border-2 border-[var(--line)] bg-white p-3 text-[13.5px] outline-none focus:border-[var(--birdie)]" />
+      <label className="flex items-start gap-2.5 text-[12.5px] leading-snug text-[var(--dim)]">
+        <input type="checkbox" checked={share} onChange={(e) => setShare(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[var(--birdie)]" />
+        <span>Share my question and correction to help train Birdie. No name or email is attached, and you can delete it any time in Settings.</span>
+      </label>
+      <Btn variant="ink" disabled={!reason && !correction.trim()} onClick={() => onSend({ reason: reason ?? undefined, correction: correction.trim() || undefined, share })}>Send feedback</Btn>
+    </div>
   );
 }
