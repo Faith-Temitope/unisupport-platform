@@ -1,6 +1,6 @@
 "use client";
 
-import { CountryPicker, RegionPicker, SchoolPicker } from "./PlacePicker";
+import { CountryPicker, ProgramField, RegionPicker, SchoolPicker } from "./PlacePicker";
 import { PlusCard, PlusSheet } from "./Plus";
 import { Copy, CreditCard, Heart, MapPin, Share2 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -19,7 +19,7 @@ const TZ_COUNTRY: Record<string, string> = {
   "Africa/Johannesburg": "South Africa", "Africa/Cairo": "Egypt", "Africa/Casablanca": "Morocco",
   "Africa/Algiers": "Algeria", "Africa/Tunis": "Tunisia", "Africa/Addis_Ababa": "Ethiopia", "Africa/Kampala": "Uganda",
   "Africa/Dar_es_Salaam": "Tanzania", "Africa/Kigali": "Rwanda", "Africa/Khartoum": "Sudan", "Africa/Harare": "Zimbabwe",
-  "Africa/Lusaka": "Zambia", "Africa/Maputo": "Mozambique", "Africa/Dakar": "Senegal", "Africa/Abidjan": "Ivory Coast",
+  "Africa/Lusaka": "Zambia", "Africa/Maputo": "Mozambique", "Africa/Dakar": "Senegal", "Africa/Abidjan": "Côte d'Ivoire",
   "Africa/Freetown": "Sierra Leone", "Africa/Monrovia": "Liberia", "Africa/Bamako": "Mali", "Africa/Niamey": "Niger",
   "Africa/Douala": "Cameroon", "Africa/Libreville": "Gabon", "Africa/Kinshasa": "DR Congo", "Africa/Windhoek": "Namibia",
   "Africa/Gaborone": "Botswana", "Africa/Maseru": "Lesotho", "Africa/Mbabane": "Eswatini", "Africa/Tripoli": "Libya",
@@ -36,7 +36,7 @@ const TZ_COUNTRY: Record<string, string> = {
   "Asia/Dubai": "United Arab Emirates", "Asia/Riyadh": "Saudi Arabia", "Asia/Qatar": "Qatar", "Asia/Kuwait": "Kuwait",
   "Asia/Karachi": "Pakistan", "Asia/Kolkata": "India", "Asia/Dhaka": "Bangladesh", "Asia/Kathmandu": "Nepal",
   "Asia/Colombo": "Sri Lanka", "Asia/Bangkok": "Thailand", "Asia/Jakarta": "Indonesia", "Asia/Manila": "Philippines",
-  "Asia/Kuala_Lumpur": "Malaysia", "Asia/Singapore": "Singapore", "Asia/Hong_Kong": "Hong Kong", "Asia/Shanghai": "China",
+  "Asia/Kuala_Lumpur": "Malaysia", "Asia/Singapore": "Singapore", "Asia/Shanghai": "China",
   "Asia/Tokyo": "Japan", "Asia/Seoul": "South Korea", "Asia/Ho_Chi_Minh": "Vietnam",
   "Australia/Sydney": "Australia", "Australia/Melbourne": "Australia", "Australia/Perth": "Australia",
   "Pacific/Auckland": "New Zealand",
@@ -120,11 +120,11 @@ export default function Sheets() {
           <div className="space-y-3">
             <TextField value={f.name} onChange={(v) => setF({ ...f, name: v })} placeholder="What should we call you?" />
             <div><div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Your level</div><div className="flex flex-wrap gap-2">{LEVELS.map((l) => (<button key={l} onClick={() => setF({ ...f, level: l })} className={`rounded-full px-3.5 py-2 text-[13px] font-semibold transition active:scale-95 ${f.level === l ? "bg-[var(--ink)] text-[var(--paper)]" : "bg-[var(--paper-dim)] text-[var(--dim)]"}`}>{l}</button>))}</div></div>
-            <TextField value={f.program} onChange={(v) => setF({ ...f, program: v })} placeholder="What do you study? (optional)" />
-            <CountryPicker value={f.country} onChange={(v) => setF({ ...f, country: v, region: v === f.country ? f.region : "" })} />
+            <ProgramField value={f.program} onChange={(v) => setF({ ...f, program: v })} />
+            <CountryPicker z={95} value={f.country} onChange={(v) => setF({ ...f, country: v, region: v === f.country ? f.region : "" })} />
             {detected && f.country === detected && <div className="flex items-center gap-2 rounded-xl bg-[var(--birdie-soft)] px-3 py-2 text-[12px] text-[var(--birdie-text)]"><MapPin size={14} /> Detected from your device. Change it if it's wrong.</div>}
-            {f.country && <RegionPicker country={f.country} value={f.region} onChange={(v) => setF({ ...f, region: v })} />}
-            {f.country && <SchoolPicker country={f.country} region={f.region} value={f.institution} onChange={(v) => setF({ ...f, institution: v })} />}
+            {f.country && <RegionPicker z={95} country={f.country} value={f.region} onChange={(v) => setF({ ...f, region: v })} />}
+            {f.country && <SchoolPicker z={95} country={f.country} region={f.region} value={f.institution} onChange={(v) => setF({ ...f, institution: v })} />}
           </div>
           <Btn disabled={!f.name.trim() || !f.level} onClick={finish}>Get started</Btn>
         </div>

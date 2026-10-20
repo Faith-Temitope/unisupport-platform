@@ -3,18 +3,19 @@
 import { Check, ChevronDown, Plus, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
-import { COUNTRIES, REGIONS, sameSchool, schoolMatches } from "./places";
+import { COUNTRIES, PROGRAMS, REGIONS, sameSchool, schoolMatches } from "./places";
 import { useApp } from "./store";
 import { Sheet } from "./ui";
 
 type School = { id: string; name: string; state: string | null; pending: boolean };
 
 /** A field that opens a searchable list. Optionally lets you add something that isn't listed. */
-function PickField({ label, value, placeholder, options, onChange, onAdd, addLabel, loading, onQuery, matches }: {
+function PickField({ label, value, placeholder, options, onChange, onAdd, addLabel, loading, onQuery, matches, z }: {
   label: string; value: string; placeholder: string; options: { value: string; hint?: string }[]; onChange: (v: string) => void;
   onAdd?: (typed: string) => void; addLabel?: (typed: string) => string; loading?: boolean; onQuery?: (q: string) => void;
   /** How a typed search matches an option (schools also match acronyms and variations). */
   matches?: (option: string, q: string) => boolean;
+  z?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -26,7 +27,7 @@ function PickField({ label, value, placeholder, options, onChange, onAdd, addLab
       <button type="button" onClick={() => { setQ(""); setOpen(true); }} className="flex w-full items-center justify-between gap-2 rounded-2xl border border-[var(--line)] bg-white px-4 py-3.5 text-left text-[14.5px]">
         <span className={value ? "text-[var(--text)]" : "text-[#a99fb8]"}>{value || placeholder}</span><ChevronDown size={16} className="shrink-0 text-[var(--dim)]" />
       </button>
-      <Sheet open={open} onClose={() => setOpen(false)} title={label}>
+      <Sheet open={open} onClose={() => setOpen(false)} title={label} z={z}>
         <div className="mb-3 flex items-center gap-2 rounded-2xl bg-[var(--paper-dim)] px-3.5 py-3"><Search size={16} className="text-[var(--dim)]" /><input autoFocus value={q} onChange={(e) => { setQ(e.target.value); onQuery?.(e.target.value); }} placeholder="Search" className="min-w-0 flex-1 bg-transparent text-[14px] outline-none" /></div>
         <div className="max-h-[46vh] space-y-1 overflow-y-auto">
           {loading && <div className="py-3 text-center text-[12.5px] text-[var(--dim)]">Loading...</div>}
@@ -45,21 +46,21 @@ function PickField({ label, value, placeholder, options, onChange, onAdd, addLab
   );
 }
 
-export function CountryPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+export function CountryPicker({ value, onChange, z }: { value: string; onChange: (v: string) => void; z?: number }) {
   // Countries come only from the list, so everyone's spelling matches.
-  return <PickField label="Country" value={value} placeholder="Country" options={COUNTRIES.map((c) => ({ value: c }))} onChange={onChange} />;
+  return <PickField label="Country" value={value} placeholder="Country" options={COUNTRIES.map((c) => ({ value: c }))} onChange={onChange} z={z} />;
 }
 
-export function RegionPicker({ country, value, onChange }: { country: string; value: string; onChange: (v: string) => void }) {
+export function RegionPicker({ country, value, onChange, z }: { country: string; value: string; onChange: (v: string) => void; z?: number }) {
   const list = REGIONS[country];
   // Listed countries: pick only. Others: type it, tidied to Title Case.
   const tidy = (t: string) => t.trim().replace(/\s+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   return <PickField label={country === "Nigeria" ? "State" : "State or region"} value={value} placeholder={country === "Nigeria" ? "State" : "State or region"} options={(list ?? []).map((r) => ({ value: r }))} onChange={onChange}
-    onAdd={list ? undefined : (t) => onChange(tidy(t))} addLabel={(t) => `Use "${tidy(t)}"`} />;
+    onAdd={list ? undefined : (t) => onChange(tidy(t))} addLabel={(t) => `Use "${tidy(t)}"`} z={z} />;
 }
 
 /** Schools come from Birdie's shared list. If yours is missing, add it: you can use it straight away and the team approves it for everyone. */
-export function SchoolPicker({ country, region, value, onChange }: { country: string; region?: string; value: string; onChange: (v: string) => void }) {
+export function SchoolPicker({ country, region, value, onChange, z }: { country: string; region?: string; value: string; onChange: (v: string) => void; z?: number }) {
   const { flash, auth } = useApp();
   const [schools, setSchools] = useState<School[] | null>(null);
   useEffect(() => {
@@ -77,5 +78,30 @@ export function SchoolPicker({ country, region, value, onChange }: { country: st
     onChange(name);
     flash(error ? "Saved on your profile" : "Added. The Birdie team will check it for everyone.");
   }
-  return <PickField label="School" value={value} placeholder="School" loading={schools === null} options={sorted.map((s) => ({ value: s.name, hint: s.pending ? "(waiting for approval)" : s.state ?? undefined }))} onChange={onChange} matches={schoolMatches} onAdd={(t) => void add(t)} addLabel={(t) => `My school isn't listed: add "${t}"`} />;
+  return <PickField label="School" value={value} placeholder="School" loading={schools === null} options={sorted.map((s) => ({ value: s.name, hint: s.pending ? "(waiting for approval)" : s.state ?? undefined }))} onChange={onChange} matches={schoolMatches} onAdd={(t) => void add(t)} addLabel={(t) => `My school isn't listed: add "${t}"`} z={z} />;
+}
+
+/** "What do you study?": type freely, with matching courses offered right under the field as you type. */
+export function ProgramField({ value, onChange, placeholder = "What do you study? (optional)" }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const [focused, setFocused] = useState(false);
+  const q = value.trim().toLowerCase();
+  // Words can match in any order, so "eng comp" finds Computer Engineering.
+  const words = q.split(/\s+/).filter(Boolean);
+  const shown = q ? PROGRAMS.filter((p) => { const l = p.toLowerCase(); return l !== q && words.every((w) => l.includes(w)); })
+    .sort((a, b) => Number(b.toLowerCase().startsWith(q)) - Number(a.toLowerCase().startsWith(q)) || a.localeCompare(b)).slice(0, 6) : [];
+  return (
+    <div>
+      <input value={value} onChange={(e) => onChange(e.target.value)} onFocus={() => setFocused(true)} onBlur={() => setTimeout(() => setFocused(false), 150)}
+        placeholder={placeholder} autoComplete="off"
+        className="w-full rounded-2xl border-2 border-[var(--line)] bg-white p-3.5 text-[14px] text-[var(--text)] outline-none transition placeholder:text-[#a99fb8] focus:border-[var(--birdie)]" />
+      {focused && shown.length > 0 && (
+        <div className="mt-1.5 overflow-hidden rounded-2xl border border-[var(--line)] bg-white">
+          {shown.map((p) => (
+            <button key={p} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { onChange(p); setFocused(false); }}
+              className="block w-full border-b border-[var(--line)] px-4 py-2.5 text-left text-[14px] text-[var(--text)] last:border-b-0 active:bg-[var(--paper-dim)]">{p}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { CountryPicker, RegionPicker, SchoolPicker } from "./PlacePicker";
+import { CountryPicker, ProgramField, RegionPicker, SchoolPicker } from "./PlacePicker";
 import { PushToggle } from "./PushToggle";
 import Buddy, { SKINS } from "@/components/brand/Buddy";
 import { Downloads } from "./Downloads";
@@ -170,7 +170,7 @@ export default function Settings() {
           <TextField value={draft.name} onChange={(v) => setDraft({ ...draft, name: v })} placeholder="Full name" />
           <TextField value={draft.handle} onChange={(v) => setDraft({ ...draft, handle: v.toLowerCase().replace(/[^a-z0-9._]/g, "") })} placeholder="Handle" />
           <TextField value={draft.level} onChange={(v) => setDraft({ ...draft, level: v })} placeholder="Level, e.g. 300 Level or Year 2" />
-          <TextField value={draft.program} onChange={(v) => setDraft({ ...draft, program: v })} placeholder="Program, e.g. Computer Science" />
+          <ProgramField value={draft.program} onChange={(v) => setDraft({ ...draft, program: v })} placeholder="Program, e.g. Computer Science" />
           <CountryPicker value={draft.country} onChange={(v) => setDraft({ ...draft, country: v, region: v === draft.country ? draft.region : "" })} />
           <RegionPicker country={draft.country} value={draft.region ?? ""} onChange={(v) => setDraft({ ...draft, region: v })} />
           <SchoolPicker country={draft.country} region={draft.region} value={draft.institution} onChange={(v) => setDraft({ ...draft, institution: v })} />

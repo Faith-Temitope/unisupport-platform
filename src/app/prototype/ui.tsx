@@ -7,13 +7,13 @@ import { createPortal } from "react-dom";
 import { useApp } from "./store";
 
 /** Bottom sheet that always covers the whole phone screen (portalled into the phone). */
-export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title?: string; children: ReactNode }) {
+export function Sheet({ open, onClose, title, children, z = 70 }: { open: boolean; onClose: () => void; title?: string; children: ReactNode; /** Layer. Raise it when the sheet opens over a full screen with a higher layer. */ z?: number }) {
   const { phone } = useApp();
   if (!phone) return null;
   return createPortal(
     <AnimatePresence>
       {open && (
-        <motion.div className="absolute inset-0 z-[70] flex items-end bg-[#12121A]/60" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+        <motion.div className="absolute inset-0 flex items-end bg-[#12121A]/60" style={{ zIndex: z }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
           <motion.div
             className="no-scrollbar max-h-[90%] w-full overflow-y-auto rounded-t-[26px] bg-[var(--paper)] px-5 pb-8 pt-3"
             initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}

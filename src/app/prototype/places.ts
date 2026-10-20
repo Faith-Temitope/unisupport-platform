@@ -64,3 +64,29 @@ export function canonical(typed: string, list: string[]): string | undefined {
   const t = typed.trim().toLowerCase().replace(/[^a-z]/g, "");
   return list.find((x) => x.toLowerCase().replace(/[^a-z]/g, "") === t);
 }
+
+// Common degree courses, offered as suggestions while typing "What do you study?". Anything not here can still be typed.
+export const PROGRAMS = [
+  "Accounting", "Actuarial Science", "Adult Education", "Aerospace Engineering", "Agricultural Economics", "Agricultural Engineering",
+  "Agricultural Extension", "Agriculture", "Agronomy", "Anatomy", "Animal Science", "Anthropology",
+  "Applied Mathematics", "Arabic Studies", "Archaeology", "Architecture", "Art and Design", "Banking and Finance",
+  "Biochemistry", "Biology", "Biomedical Engineering", "Biotechnology", "Botany", "Building Technology",
+  "Business Administration", "Business Education", "Chemical Engineering", "Chemistry", "Christian Religious Studies", "Civil Engineering",
+  "Computer Engineering", "Computer Science", "Computer Science Education", "Criminology and Security Studies", "Cyber Security", "Data Science",
+  "Demography and Social Statistics", "Dentistry", "Early Childhood Education", "Economics", "Education and Biology", "Education and Chemistry",
+  "Education and Economics", "Education and English", "Education and Mathematics", "Education and Physics", "Educational Management", "Electrical and Electronics Engineering",
+  "Electronics Engineering", "English and Literary Studies", "English Language", "Entrepreneurship", "Environmental Management", "Environmental Science",
+  "Estate Management", "Fine and Applied Arts", "Fisheries and Aquaculture", "Food Science and Technology", "Forestry and Wildlife", "French",
+  "Geography", "Geology", "Geophysics", "Guidance and Counselling", "Hausa", "Health Education",
+  "History and International Studies", "Home Economics", "Hospitality and Tourism Management", "Human Kinetics", "Human Nutrition and Dietetics", "Igbo",
+  "Industrial Chemistry", "Industrial Mathematics", "Industrial Relations and Personnel Management", "Information Technology", "Insurance", "International Relations",
+  "Islamic Studies", "Journalism", "Law", "Library and Information Science", "Linguistics", "Marine Engineering",
+  "Marketing", "Mass Communication", "Mathematics", "Mechanical Engineering", "Mechatronics Engineering", "Medical Laboratory Science",
+  "Medicine and Surgery", "Metallurgical and Materials Engineering", "Microbiology", "Mining Engineering", "Music", "Nursing Science",
+  "Optometry", "Peace and Conflict Studies", "Petroleum Engineering", "Pharmacology", "Pharmacy", "Philosophy",
+  "Physics", "Physiology", "Physiotherapy", "Plant Science", "Political Science", "Psychology",
+  "Public Administration", "Public Health", "Quantity Surveying", "Radiography", "Religious Studies", "Social Work",
+  "Sociology", "Software Engineering", "Soil Science", "Statistics", "Surveying and Geoinformatics", "Systems Engineering",
+  "Taxation", "Teacher Education", "Theatre Arts", "Transport Management", "Urban and Regional Planning", "Veterinary Medicine",
+  "Yoruba", "Zoology",
+];
