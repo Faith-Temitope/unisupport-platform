@@ -13,6 +13,8 @@ const TIPS: Record<string, string[]> = {
   explore: ["Ooh, that video looks good.", "Follow someone whose videos help you.", "Share your course with your class!"],
   birdie: ["Ask me anything from your notes.", "Try Teach me step by step.", "Quiz yourself. I dare you."],
   help: ["Unisupport can help when I can't.", "Stuck? Message the help desk.", "Share a course in the chat so they see your notes."],
+  chats: ["Ask Birdie AI up top, or message a classmate.", "Stuck? Unisupport Help is pinned for you.", "Drop a giveaway in your class group. Everyone loves it!"],
+  me: ["Set a wallet PIN before you send money.", "Plus unlocks ChatGPT and Claude.", "Your Birdie ID is how classmates find you."],
   any: ["Time for some water?", "Stretch your shoulders for a sec.", "You're doing great, {name}."],
 };
 const BACK = ["I'm back! Did you miss me?", "Just went to get snacks.", "*sneaks back in*", "Okay, where were we?"];
@@ -157,7 +159,7 @@ export default function Mascot() {
     };
     const chat = () => {
       if (!alive) return;
-      if (free() && st.current.chatty && !offscreen.current) say(pick(Math.random() < 0.6 ? TIPS[st.current.tab] : TIPS.any).replace("{name}", st.current.name), 4200);
+      if (free() && st.current.chatty && !offscreen.current) say(pick(Math.random() < 0.6 ? TIPS[st.current.tab] ?? TIPS.any : TIPS.any).replace("{name}", st.current.name), 4200);
       later(chat, rand(38000, 62000));
     };
     later(wander, rand(6000, 11000)); later(chat, rand(25000, 40000));

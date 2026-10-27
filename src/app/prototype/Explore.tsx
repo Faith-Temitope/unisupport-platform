@@ -11,7 +11,7 @@ import { topInterests } from "./engine";
 import { logPostEvent } from "./live/recData";
 import PostCard, { initials } from "./PostCard";
 import { firstName, naira, nowTime, useApp, type SharedCourse } from "./store";
-import { Avatar, Btn, DemoControls, Empty, Label, Segmented, Sheet } from "./ui";
+import { Avatar, Btn, DemoControls, Empty, Label, Segmented, Sheet, scrollToEnd } from "./ui";
 import { ShareCourseForm } from "./ShareCourseForm";
 
 export default function Explore({ active }: { active: boolean }) {
@@ -177,7 +177,7 @@ export default function Explore({ active }: { active: boolean }) {
           <div className="space-y-3">
             <CertStrip active={active && seg === "courses"} />
             <SlotAd surface="courses" active={active && seg === "courses"} />
-            <Btn variant="ghost" onClick={() => (courses.length ? setShareOpen(true) : flash("Create a course in Study first"))}>Share one of my courses</Btn>
+            <Btn variant="ghost" onClick={() => (courses.length ? setShareOpen(true) : flash("Create a course in Courses first"))}>Share one of my courses</Btn>
             {filteredShared.length === 0 ? <Empty icon={<Users size={20} />} title="No shared courses yet" text="Students share their course libraries here. Add one to your Study and chat with everyone in it." /> : filteredShared.map((s) => {
               const joined = s.members.includes("me") || s.ownerId === "me";
               return (
@@ -222,7 +222,7 @@ function SharedDetail({ s, buying, onJoin, onOpen, onLeave, onSend, onProfile, p
   const owner = s.ownerId === "me";
   const joined = s.members.includes("me") || owner;
   const joinLabel = buying ? "Working..." : s.priceNgn ? `Buy for ${naira(s.priceNgn)}` : "Add to my Study and join chat";
-  useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth" }); }, [s.messages.length, tab]);
+  useEffect(() => { scrollToEnd(end.current); }, [s.messages.length, tab]);
   return (
     <div>
       <Segmented value={tab} onChange={setTab} options={[{ id: "about", label: "About" }, { id: "chat", label: `Chat (${s.messages.length})` }]} />

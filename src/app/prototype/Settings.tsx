@@ -224,7 +224,7 @@ export default function Settings() {
       <Sheet open={sheet === "about"} onClose={() => setSheet(null)} title="About Birdie">
         <div className="space-y-3 text-[13.5px] leading-relaxed text-[var(--dim)]">
           <p><b className="text-[var(--text)]">Birdie</b> turns your courses into a study partner that knows what you were taught: ask it questions, make flashcards, get quizzed, and it only answers from your own notes and files. Help is provided by <b className="text-[var(--text)]">Unisupport</b>, the company behind our writers and help desk.</p>
-          <p><b className="text-[var(--text)]">Study</b> holds your courses, notes, files and recordings. <b className="text-[var(--text)]">Explore</b> is where students share and follow each other. <b className="text-[var(--text)]">Birdie</b> is your AI study partner. <b className="text-[var(--text)]">Help</b> connects you to a real writer for mentoring or full write-ups.</p>
+          <p><b className="text-[var(--text)]">Courses</b> holds your courses, notes, files and recordings. <b className="text-[var(--text)]">Chats</b> is where you talk to Birdie AI, Unisupport Help, classmates, groups and verified accounts like your SUG. <b className="text-[var(--text)]">Discover</b> is where students share and follow each other. <b className="text-[var(--text)]">Me</b> has your wallet, Plus and settings.</p>
           <div className="flex items-center gap-2 text-[var(--uni-deep)]"><ShieldCheck size={16} /> Your recordings and notes stay private to you.</div>
           <div className="flex items-center gap-2 text-[var(--study)]"><UserRound size={16} /> You control who can see and message you.</div>
         </div>

@@ -155,3 +155,13 @@ export function Screen({ open, children, z = 60, fade }: { open: boolean; childr
     phone,
   );
 }
+
+/**
+ * Scroll a chat to its newest message. Unlike scrollIntoView, this only moves the chat's own list,
+ * never the screens around it (scrollIntoView also scrolls the phone frame and pushes headers off-screen).
+ */
+export function scrollToEnd(end: HTMLElement | null, smooth = true) {
+  let el = end?.parentElement ?? null;
+  while (el && !/(auto|scroll)/.test(getComputedStyle(el).overflowY)) el = el.parentElement;
+  el?.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+}

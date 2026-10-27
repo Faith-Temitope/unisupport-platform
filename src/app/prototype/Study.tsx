@@ -62,7 +62,7 @@ export default function Study() {
   return (
     <div className="flex h-full flex-col">
       <TopBar
-        title={<h2 className="disp text-[24px] font-bold text-[var(--text)]">Study</h2>}
+        title={<h2 className="disp text-[24px] font-bold text-[var(--text)]">Courses</h2>}
         right={<><IconBtn label="Search" onClick={() => setExtra("search")}><Search size={16} /></IconBtn><span className="relative"><IconBtn label="Notifications" onClick={() => setExtra("notices")}><Bell size={16} /></IconBtn>{notices.some((n) => !n.read) && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full border-2 border-[var(--paper)] bg-[var(--help)]" />}</span><button onClick={() => setSheet("menu")} className="flex items-center gap-1.5 rounded-xl bg-[var(--ink)] px-3.5 py-2 text-[13px] font-semibold text-[var(--paper)] active:scale-95"><Plus size={15} /> New</button></>}
       />
       <div className="no-scrollbar flex-1 space-y-4 overflow-y-auto px-5 pb-32">

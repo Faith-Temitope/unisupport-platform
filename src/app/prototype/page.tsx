@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { PocketDock } from "./Pocket";
 import { useOnline } from "./offline";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
-import { Check, Compass, FastForward, Headset, LayoutDashboard, LifeBuoy, PenLine, RotateCcw, BookOpen } from "lucide-react";
+import { Check, Compass, FastForward, Headset, LayoutDashboard, MessageCircle, PenLine, RotateCcw, BookOpen, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import Entry from "./Entry";
@@ -19,8 +19,8 @@ import { accentVars, useDark } from "./theme";
 
 // Screens load only when first opened, so a cheap phone downloads and runs less at startup.
 const Explore = dynamic(() => import("./Explore"), { ssr: false });
-const Birdie = dynamic(() => import("./Birdie"), { ssr: false });
-const Help = dynamic(() => import("./Help"), { ssr: false });
+const Chats = dynamic(() => import("./Chats"), { ssr: false });
+const Me = dynamic(() => import("./Me"), { ssr: false });
 const Overlays = dynamic(() => import("./Overlays"), { ssr: false });
 const Player = dynamic(() => import("./Player"), { ssr: false });
 const Recorder = dynamic(() => import("./Recorder"), { ssr: false });
@@ -37,12 +37,13 @@ function useEver(on: boolean) {
   return ever || on;
 }
 
-const NAV: [TabId, string, typeof Compass | null][] = [["study", "Study", BookOpen], ["explore", "Explore", Compass], ["birdie", "Birdie", null], ["help", "Help", LifeBuoy]];
+// WeChat-style: Courses, Chats, Discover, Me. Birdie AI and Unisupport Help are pinned at the top of Chats.
+const NAV: [TabId, string, typeof Compass][] = [["study", "Courses", BookOpen], ["chats", "Chats", MessageCircle], ["explore", "Discover", Compass], ["me", "Me", UserRound]];
 const ZOOM = { s: 0.92, m: 1, l: 1.1 } as const;
 
 function Shell() {
-  const { tab, setTab, toast, setPhone, setSlot, settings, resetAll, resetKey, skipHours, recommendation, flash, refreshWallet, setWalletOpen, barsHidden, auth, openByHandle, setAuthOpen, plus, setOverlay, profile, boot, setTourOpen, overlay, watching, tourOpen, recorderOpen, pocketOpen, viewFile } = useApp();
-  const seen = { explore: useEver(tab === "explore"), birdie: useEver(tab === "birdie"), help: useEver(tab === "help"), settings: useEver(overlay?.t === "settings"), overlays: useEver((!!overlay && overlay.t !== "settings") || !!watching), player: useEver(!!watching), tour: useEver(tourOpen), recorder: useEver(recorderOpen), pocket: useEver(pocketOpen), viewer: useEver(!!viewFile) };
+  const { tab, setTab, chatView, setChatView, chatBadge, toast, setPhone, setSlot, settings, resetAll, resetKey, skipHours, recommendation, flash, refreshWallet, setWalletOpen, barsHidden, auth, openByHandle, setAuthOpen, plus, setOverlay, profile, boot, setTourOpen, overlay, watching, tourOpen, recorderOpen, pocketOpen, viewFile } = useApp();
+  const seen = { explore: useEver(tab === "explore"), chats: useEver(tab === "chats" || auth.status === "in"), me: useEver(tab === "me"), settings: useEver(overlay?.t === "settings"), overlays: useEver((!!overlay && overlay.t !== "settings") || !!watching), player: useEver(!!watching), tour: useEver(tourOpen), recorder: useEver(recorderOpen), pocket: useEver(pocketOpen), viewer: useEver(!!viewFile) };
   const show = (id: TabId) => ({ display: tab === id ? "flex" : "none" });
   // Internal tools (staff app links, timer skip, reset) stay reachable at ?dev=1 for us; real
   // users, testers and Play Store reviewers never see them.
@@ -53,8 +54,9 @@ function Shell() {
   // Weak phones get calmer motion (fades instead of moving things), which keeps scrolling smooth.
   const [lowEnd] = useState(() => isLowEndDevice());
   const online = useOnline();
-  // Bottom nav slides away while scrolling down the Explore feed (same signal as its header).
-  const hideNav = barsHidden && (tab === "explore" || tab === "birdie");
+  // Bottom nav slides away while scrolling down the Discover feed, and inside any open chat (like WeChat).
+  const inChat = tab === "chats" && !!chatView;
+  const hideNav = inChat || (barsHidden && tab === "explore");
   const [navH, setNavH] = useState(0);
   const navRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -69,7 +71,7 @@ function Shell() {
   // without making the first screen wait for it.
   useEffect(() => {
     if (boot !== "done") return;
-    const warm = () => { void import("./Explore"); void import("./Birdie"); void import("./Help"); void import("./Settings"); void import("./Overlays"); };
+    const warm = () => { void import("./Explore"); void import("./Chats"); void import("./Birdie"); void import("./Me"); void import("./Settings"); void import("./Overlays"); };
     const w = window as Window & { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number };
     const t = setTimeout(() => (w.requestIdleCallback ? w.requestIdleCallback(warm, { timeout: 4000 }) : warm()), 1500);
     return () => clearTimeout(t);
@@ -83,17 +85,20 @@ function Shell() {
     return () => clearTimeout(t);
   }, [boot, profile.onboarded, setTourOpen]);
 
-  // Tapping a phone notification: /prototype?tab=help, ?chat=<person>, ?tab=study...
+  // Tapping a phone notification: ?tab=chats, ?dm=<thread>, ?group=<id>, ?oa=<account>, ?oa_inbox=<account>...
   const openLink = (href: string) => {
     const q = new URL(href, window.location.origin).searchParams;
     const t = q.get("tab"); const chat = q.get("chat"); const group = q.get("group");
-    if (group) setOverlay({ t: "group", id: group });
-    if (t === "study" || t === "explore" || t === "birdie" || t === "help") setTab(t);
+    if (t === "study" || t === "explore" || t === "chats" || t === "me" || t === "birdie" || t === "help") setTab(t);
+    if (group) setChatView({ k: "group", id: group });
+    if (q.get("dm")) setChatView({ k: "dm", id: q.get("dm")! });
+    if (q.get("oa")) setChatView({ k: "oa", id: q.get("oa")! });
+    if (q.get("oa_inbox")) setChatView({ k: "manage", id: q.get("oa_inbox")! });
     if (chat) setOverlay({ t: "thread", id: chat });
   };
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
-    if (q.get("tab") || q.get("chat") || q.get("group")) { const href = window.location.href; window.history.replaceState(null, "", window.location.pathname); openLink(href); }
+    if (["tab", "chat", "group", "dm", "oa", "oa_inbox"].some((k) => q.get(k))) { const href = window.location.href; window.history.replaceState(null, "", window.location.pathname); openLink(href); }
     const onMsg = (e: MessageEvent) => { if (e.data?.type === "open-link") openLink(e.data.url); };
     navigator.serviceWorker?.addEventListener("message", onMsg);
     return () => navigator.serviceWorker?.removeEventListener("message", onMsg);
@@ -148,18 +153,16 @@ function Shell() {
                 <div className="relative min-h-0 flex-1">
                   <div key={`s${resetKey}`} className="absolute inset-0 flex-col" style={show("study")}><Study /></div>
                   <div key={`e${resetKey}`} className="absolute inset-0 flex-col" style={show("explore")}>{seen.explore && <Explore active={tab === "explore"} />}</div>
-                  <div key={`b${resetKey}`} className="absolute inset-0 flex-col" style={show("birdie")}>{seen.birdie && <Birdie active={tab === "birdie"} />}</div>
-                  <div key={`h${resetKey}`} className="absolute inset-0 flex-col" style={show("help")}>{seen.help && <Help active={tab === "help"} />}</div>
+                  <div key={`c${resetKey}`} className="absolute inset-0 flex-col" style={show("chats")}>{seen.chats && <Chats active={tab === "chats"} />}</div>
+                  <div key={`m${resetKey}`} className="absolute inset-0 flex-col" style={show("me")}>{seen.me && <Me active={tab === "me"} />}</div>
                 </div>
                 <div ref={navRef} className="relative z-10 flex shrink-0 items-end justify-around bg-[var(--ink)] px-2.5 pb-5 pt-2.5 transition-[margin,transform] duration-200" style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))", marginBottom: hideNav ? -navH : 0, transform: hideNav ? "translateY(calc(100% + 24px))" : undefined }}>
                   {NAV.map(([id, label, Icon]) => {
                     const on = tab === id;
-                    if (!Icon) return (
-                      <button key={id} onClick={() => setTab(id)} className="-translate-y-4 flex flex-col items-center gap-1 text-[11px] font-semibold text-[var(--paper)]" aria-label="Birdie">
-                        <span className={`disp flex h-[52px] w-[52px] items-center justify-center rounded-full border-4 border-[var(--ink)] bg-gradient-to-br from-[#C05BD6] to-[#8A2FA3] text-[22px] font-bold text-white transition ${on ? "shadow-[0_8px_24px_-4px_rgba(192,91,214,0.95)]" : "shadow-[0_8px_20px_-6px_rgba(192,91,214,0.6)]"}`}>B</span>{label}
-                      </button>
-                    );
-                    return (<button key={id} onClick={() => setTab(id)} className={`relative flex flex-col items-center gap-1 px-3 py-1.5 text-[11px] font-semibold transition ${on ? "text-[var(--paper)]" : "text-white/45"}`}><Icon size={20} className={on ? "text-[#D68BE8]" : ""} />{label}{id === "study" && recommendation && tab !== "study" && <span className="absolute right-2 top-0.5 h-2 w-2 rounded-full bg-[var(--help)]" />}</button>);
+                    // Tapping Chats while already there goes back to the chat list.
+                    return (<button key={id} onClick={() => { if (id === "chats" && tab === "chats") setChatView(null); else setTab(id); }} className={`relative flex flex-col items-center gap-1 px-3 py-1.5 text-[11px] font-semibold transition ${on ? "text-[var(--paper)]" : "text-white/45"}`}><Icon size={20} className={on ? "text-[#D68BE8]" : ""} />{label}
+                      {id === "study" && recommendation && tab !== "study" && <span className="absolute right-2 top-0.5 h-2 w-2 rounded-full bg-[var(--help)]" />}
+                      {id === "chats" && chatBadge > 0 && <span className="absolute -top-0.5 right-0.5 min-w-[17px] rounded-full bg-[#E5484D] px-1 text-center text-[10px] font-bold leading-[17px] text-white">{chatBadge > 99 ? "99+" : chatBadge}</span>}</button>);
                   })}
                 </div>
               </div>

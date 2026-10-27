@@ -29,7 +29,7 @@ export function CourseShareSheet({ open, onClose, to, who, onShared }: { open: b
 
   return (
     <Sheet open={open} onClose={onClose} title="Share a course">
-      {courses.length === 0 ? <p className="text-[13.5px] text-[var(--dim)]">Create a course in Study first.</p> : (
+      {courses.length === 0 ? <p className="text-[13.5px] text-[var(--dim)]">Create a course in Courses first.</p> : (
         <div className="space-y-3">
           <div className="max-h-[34vh] space-y-2 overflow-y-auto">{courses.map((c) => (
             <button key={c.id} onClick={() => setPick(c.id)} className={`flex w-full items-center gap-3 rounded-2xl border-2 p-3 text-left ${pick === c.id ? "border-[var(--uni)] bg-[var(--uni-soft)]" : "border-[var(--line)] bg-white"}`}>

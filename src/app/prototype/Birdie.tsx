@@ -5,7 +5,7 @@ import { localNotify } from "./push";
 import { useViewState } from "./persist";
 import { VideoLesson } from "./VideoLesson";
 import { AnimatePresence, motion } from "framer-motion";
-import { AudioLines, Backpack, BookOpen, BookOpenCheck, Check, ChevronDown, Clapperboard, ClipboardCheck, FileQuestion, FlaskConical, Loader2, Menu, Mic, Palette, Paperclip, Plus, Send, Square, SquarePen, ThumbsDown, ThumbsUp, Volume2, X } from "lucide-react";
+import { ArrowLeft, AudioLines, Backpack, BookOpen, BookOpenCheck, Check, ChevronDown, Clapperboard, ClipboardCheck, FileQuestion, FlaskConical, Loader2, Menu, Mic, Palette, Paperclip, Plus, Send, Square, SquarePen, ThumbsDown, ThumbsUp, Volume2, X } from "lucide-react";
 import { Rich } from "./Rich";
 import { VoiceChat, primeVoiceAudio, type VoiceLine } from "./VoiceChat";
 import { ingestFiles } from "./ingest";
@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { answer, docsOf, flashcards, general, makeFree, makeQuiz, summarize, type FreeQ, type MCQ } from "./engine";
 import { firstName, nowTime, uid, useApp, type BAction, type BMsg, type Course } from "./store";
-import { Btn, DemoControls, Empty, Sheet } from "./ui";
+import { Btn, DemoControls, Empty, Sheet, scrollToEnd } from "./ui";
 import { createClient } from "@/lib/supabase";
 import { brainName } from "./BrainPicker";
 import { SponsoredCard, usePlacements } from "./Sponsored";
@@ -44,7 +44,7 @@ async function photoOf(f: File): Promise<Photo | null> {
 }
 
 function greeting(c: Course | null, name: string): BMsg {
-  if (!c) return bird(`Hi ${name}. This is a general chat, not tied to a course. Create a course in Study and I can learn from your slides and notes.`);
+  if (!c) return bird(`Hi ${name}. This is a general chat, not tied to a course. Create a course in Courses and I can learn from your slides and notes.`);
   const n = docsOf(c).length;
   const filesWithText = c.files.filter((f) => f.text).length;
   const recsWithText = c.recs.filter((r) => r.text).length;
@@ -70,7 +70,7 @@ function respond(text: string, c: Course | null, length: "short" | "normal" | "d
   return bird(`I couldn't find that in your ${c.code} material, and I won't guess. Add the note, file or recording that covers it, or talk to a writer who can walk you through it.`, { actions: [{ label: "Add material", run: "study" }, { label: "Talk to a writer", run: "writer" }] });
 }
 
-export default function Birdie({ active }: { active: boolean }) {
+export default function Birdie({ active, onBack }: { active: boolean; onBack?: () => void }) {
   const { courses, folders, profile, settings, chats, setChats, birdieIntent, clearBirdieIntent, applyQuiz, addNote, addFile, updateFile, openFile, openPlus, flash, setTab, goStudy, goHelp, phone, setOverlay, logChat, setBrainOpen, auth, setWalletOpen, setSetting, refreshWallet, loadRemoteCourseContent, sharedRemoteContent, setBarsHidden, pocketAdd } = useApp();
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [voiceSys, setVoiceSys] = useState<string | null>(null);
@@ -233,7 +233,7 @@ export default function Birdie({ active }: { active: boolean }) {
     clearBirdieIntent();
   }, [birdieIntent]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [thread.length, typing, ctx, mode]);
+  useEffect(() => { scrollToEnd(endRef.current); }, [thread.length, typing, ctx, mode]);
 
   function runAction(m: BMsg, a: BAction) {
     setChats((cs) => ({ ...cs, [ctx]: (cs[ctx] ?? []).map((x) => (x.id === m.id ? { ...x, done: true } : x)) }));
@@ -357,7 +357,7 @@ export default function Birdie({ active }: { active: boolean }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center justify-between px-5 pb-2 pt-2">
-        <button onClick={() => setDrawer(true)} aria-label="Chats" className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--paper-dim)] active:scale-90"><Menu size={17} /></button>
+        <span className="flex items-center gap-1.5">{onBack && <button onClick={onBack} aria-label="Back" className="flex h-9 w-9 items-center justify-center rounded-xl active:bg-[var(--paper-dim)]"><ArrowLeft size={19} /></button>}<button onClick={() => setDrawer(true)} aria-label="Birdie chats" className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--paper-dim)] active:scale-90"><Menu size={17} /></button></span>
         <button onClick={() => setBrainOpen(true)} aria-label="Choose Birdie's brain" className="flex flex-col items-center active:scale-95"><span className="flex items-center gap-2"><span className="disp flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#C05BD6] to-[#8A2FA3] text-[13px] font-bold text-white">B</span><span className="disp text-[19px] font-bold text-[var(--text)]">Birdie</span></span><span className="mt-0.5 rounded-full bg-[var(--birdie-soft)] px-2 py-0.5 text-[10.5px] font-bold text-[var(--birdie-text)]">{live ? brainName(settings.aiBrain, settings.aiTier) : "Offline preview"} ▾</span></button>
         <button onClick={() => { setChats((cs) => { const n = { ...cs }; delete n[ctx]; return n; }); setMode("chat"); }} aria-label="New chat" className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--paper-dim)] active:scale-90"><SquarePen size={16} /></button>
       </div>
@@ -371,7 +371,7 @@ export default function Birdie({ active }: { active: boolean }) {
       <div className="relative min-h-0 flex-1">
         {chatting ? (
           <div onScroll={onChatScroll} className="no-scrollbar absolute inset-0 space-y-3 overflow-y-auto px-5 pb-3">
-            {courses.length === 0 && <div className="rounded-2xl bg-[var(--birdie-soft)] p-3.5 text-[13px] leading-snug text-[var(--birdie-text)]">Birdie learns from your courses. <button onClick={() => setTab("study")} className="font-bold underline">Create one in Study</button> to get answers from your own material.</div>}
+            {courses.length === 0 && <div className="rounded-2xl bg-[var(--birdie-soft)] p-3.5 text-[13px] leading-snug text-[var(--birdie-text)]">Birdie learns from your courses. <button onClick={() => setTab("study")} className="font-bold underline">Create one in Courses</button> to get answers from your own material.</div>}
             {thread.map((m) => (
               <motion.div key={m.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`flex ${m.from === "me" ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-[88%] ${m.from === "me" ? "" : "w-full"}`}>
@@ -538,7 +538,7 @@ function Quiz({ course, docs, preset, onDone, onExit, onExplain, onAdd }: { cour
     const missed = qs.filter((q, k) => answers[k] !== q.answer);
     return (
       <div className="no-scrollbar absolute inset-0 space-y-3 overflow-y-auto px-5 pb-4">
-        <div className="rounded-[22px] bg-[var(--ink)] p-5 text-center text-[var(--paper)]"><div className="disp text-[44px] font-bold leading-none">{score}/{qs.length}</div><div className="mt-1 text-[13px] text-white/60">Progress updated in Study.</div></div>
+        <div className="rounded-[22px] bg-[var(--ink)] p-5 text-center text-[var(--paper)]"><div className="disp text-[44px] font-bold leading-none">{score}/{qs.length}</div><div className="mt-1 text-[13px] text-white/60">Progress updated in Courses.</div></div>
         {qs.map((q, k) => { const ok = answers[k] === q.answer; return (<div key={k} className="rounded-2xl border border-[var(--line)] bg-white p-3.5"><div className="flex items-start gap-2"><span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-white ${ok ? "bg-[#2FA36B]" : "bg-[var(--help)]"}`}>{ok ? <Check size={12} strokeWidth={3.5} /> : <X size={12} strokeWidth={3.5} />}</span><div className="text-[13.5px] font-semibold leading-snug">{q.q}</div></div>{!ok && <div className="mt-1.5 pl-7 text-[12.5px] text-[var(--dim)]">You said: {q.opts[answers[k]]}. Correct: <b className="text-[var(--text)]">{q.opts[q.answer]}</b></div>}<div className="mt-1 pl-7 text-[12px] italic text-[var(--dim)]">{q.why}</div></div>); })}
         <div className="space-y-2 pt-1">{missed.length > 0 && <Btn variant="birdie" onClick={() => onExplain(`Let's go back over what you missed:\n${missed.map((q) => `• ${q.why}`).join("\n")}`)}>Go over what I missed</Btn>}<Btn variant="ghost" onClick={onExit}>Back to chat</Btn></div>
       </div>

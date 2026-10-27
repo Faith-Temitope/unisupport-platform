@@ -20,7 +20,10 @@ import { fetchForYou, fetchMyTopics, logPostEvent, type Ranked } from "./live/re
 import { DEMO_PEOPLE, DEMO_POSTS, DEMO_SHARED, DEMO_REPLIES } from "./demo";
 import { BADGES, dayKey, streakOf, type Stats } from "./badges";
 
-export type TabId = "study" | "explore" | "birdie" | "help";
+export type TabId = "study" | "chats" | "explore" | "me";
+/** What's open inside the Chats tab (null = the chat list). Birdie AI and Unisupport Help live here now. */
+export type ChatView = null | { k: "birdie" } | { k: "help" } | { k: "dm"; id: string } | { k: "group"; id: string } | { k: "oa"; id: string }
+  | { k: "oaProfile"; key: string } | { k: "post"; id: string } | { k: "courses" } | { k: "verified" } | { k: "manage"; id: string };
 export type AuthStatus = "loading" | "out" | "guest" | "in";
 export type Boot = "splash" | "word" | "done";
 export type Emote = "happy" | "sad" | "love" | "say" | "angry";
@@ -103,7 +106,8 @@ interface AppCtx {
   signUp: (name: string, email: string, password: string) => Promise<{ error?: string; needsConfirm?: boolean }>;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>; continueAsGuest: () => void; resetPassword: (email: string) => Promise<{ error?: string }>;
-  tab: TabId; setTab: (t: TabId) => void;
+  tab: TabId; setTab: (t: TabId | "birdie" | "help") => void;
+  chatView: ChatView; setChatView: (v: ChatView) => void; openDm: (userId: string) => Promise<void>; chatBadge: number; setChatBadge: (n: number) => void;
   profile: Profile; setProfile: (p: Partial<Profile>) => void;
   settings: Settings; setSetting: <K extends keyof Settings>(k: K, v: Settings[K]) => void;
   courses: Course[]; folders: Folder[];
@@ -191,7 +195,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { void Promise.resolve().then(() => { try { if (sessionStorage.getItem("birdie-booted")) setBootState("done"); else if (isLowEndDevice()) setBootState("word"); } catch { /* ignore */ } }); }, []);
   const [auth, setAuth] = useState<{ status: AuthStatus; email?: string; userId?: string }>({ status: "loading" });
   const [authOpen, setAuthOpen] = useState(false);
-  const [tab, setTabState] = useViewState<TabId>("tab", "study");
+  const [tab, setTabState] = useViewState<TabId>("tab2", "study");
+  const [chatView, setChatViewState] = useViewState<ChatView>("chatView", null);
+  const [chatBadge, setChatBadge] = useState(0);
   const [profile, setProfileState] = useState<Profile>(emptyProfile);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -236,8 +242,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { void Promise.resolve().then(() => { try { const raw = localStorage.getItem("birdie-pocket"); if (raw) setPocket(JSON.parse(raw)); } catch { /* ignore */ } }); }, []);
   const savePocket = useCallback((next: PocketItem[]) => { setPocket(next); try { localStorage.setItem("birdie-pocket", JSON.stringify(next)); } catch { /* full */ } }, []);
   // Changing screen always brings the bottom nav back.
-  const setTab = useCallback((t: TabId) => { setBarsHidden(false); setTabState(t); }, [setTabState]);
-  const setOverlay = useCallback((o: Overlay) => { setBarsHidden(false); setOverlayState(o); }, [setOverlayState]);
+  // "birdie" and "help" were tabs; they're now pinned chats, so old links and buttons still land right.
+  const setTab = useCallback((t: TabId | "birdie" | "help") => {
+    setBarsHidden(false);
+    if (t === "birdie" || t === "help") { setTabState("chats"); setChatViewState({ k: t }); return; }
+    setTabState(t);
+  }, [setTabState, setChatViewState]);
+  const setChatView = useCallback((v: ChatView) => { setBarsHidden(false); setTabState("chats"); setChatViewState(v); }, [setTabState, setChatViewState]);
+  const openDm = useCallback(async (userId: string) => {
+    const { data, error } = await createClient().rpc("start_dm", { p_user: userId });
+    if (error || !data) { setToast("Couldn't open that chat"); setTimeout(() => setToast(null), 2400); return; }
+    setOverlayState(null); setChatView({ k: "dm", id: data as string });
+  }, [setChatView, setOverlayState]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The old Chats overlay, one-to-one threads and groups now open in the Chats tab.
+  const setOverlay = useCallback((o: Overlay) => {
+    setBarsHidden(false);
+    if (o?.t === "chats") { setOverlayState(null); setChatView(null); return; }
+    if (o?.t === "group") { setOverlayState(null); setChatView({ k: "group", id: o.id }); return; }
+    if (o?.t === "thread") { void openDm(o.id); return; }
+    setOverlayState(o);
+  }, [setOverlayState, setChatView, openDm]);
   const [watching, setWatching] = useViewState<{ id: string; mini: boolean } | null>("watching", null);
   const [phone, setPhone] = useState<HTMLElement | null>(null);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
@@ -590,7 +614,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // ---------- 12-hour recommendation ----------
   useEffect(() => {
-    if (!settings.recs12h || tab === "birdie") return;
+    if (!settings.recs12h || (tab === "chats" && chatView?.k === "birdie")) return;
     const t = now();
     if (t - lastRecAt < 12 * HOUR) return;
     const rec = recommend(chats, courses, lastRecAt, t);
@@ -654,7 +678,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try { const { error } = await createClient().auth.resetPasswordForEmail(email, { redirectTo: typeof window !== "undefined" ? `${window.location.origin}/prototype` : undefined }); return error ? { error: error.message } : {}; }
       catch (e) { return { error: (e as Error).message }; }
     },
-    tab, setTab, profile, setProfile: (p) => setProfileState((x) => ({ ...x, ...p })),
+    tab, setTab, chatView, setChatView, openDm, chatBadge, setChatBadge, profile, setProfile: (p) => setProfileState((x) => ({ ...x, ...p })),
     settings, setSetting: (k, v) => setSettings((s) => ({ ...s, [k]: v })),
     courses, folders,
     // A real UUID, not the short uid() used elsewhere -- this is what lets a course be shared
@@ -955,7 +979,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     resetKey, ready,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [boot, auth, authOpen, tab, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, refreshExamPass, isRep, refreshRep, plus, buyPlus, plusOpen, sharedIntent, printIntent, barsHidden, pocket, pocketOpen, tourOpen, viewFile, watching, forYou, loadForYou, topics, refreshTopics, refreshFeed, loadMoreFeed, searchFeed, loadChannel, loadPostsByIds, loadLiked, setPinned, toPost]);
+  }), [boot, auth, authOpen, tab, chatView, setChatView, openDm, chatBadge, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, refreshExamPass, isRep, refreshRep, plus, buyPlus, plusOpen, sharedIntent, printIntent, barsHidden, pocket, pocketOpen, tourOpen, viewFile, watching, forYou, loadForYou, topics, refreshTopics, refreshFeed, loadMoreFeed, searchFeed, loadChannel, loadPostsByIds, loadLiked, setPinned, toPost]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

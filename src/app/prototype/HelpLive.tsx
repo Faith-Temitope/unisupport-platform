@@ -16,14 +16,14 @@ import { logEvent } from "./live/analyticsData";
 import { InternshipCard, SlotAd, usePlacements } from "./Sponsored";
 import { TutorialsSection } from "./Tutorials";
 import { naira, uid, useApp } from "./store";
-import { Avatar, Btn, Sheet, TopBar } from "./ui";
+import { Avatar, Btn, Sheet, TopBar, scrollToEnd } from "./ui";
 
 const initials = (n: string) => n.split(" ").filter((x) => !/^dr\.?$/i.test(x)).map((x) => x[0]).join("").slice(0, 2).toUpperCase();
 const PALETTE = ["#A63FBD", "#4C6EF5", "#D9467E", "#7C4DDB"];
 const colorOf = (s: string) => PALETTE[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % PALETTE.length];
 const first = (n: string) => (n.startsWith("Dr.") ? n.split(" ")[1] : n.split(" ")[0]);
 
-export default function HelpLive({ active }: { active: boolean }) {
+export default function HelpLive({ active, onBack }: { active: boolean; onBack?: () => void }) {
   const { setWalletOpen, balance, flash, helpIntent, clearHelpIntent, refreshWallet, openPrint, grantCourseAccess } = useApp();
   const internships = usePlacements("internship", undefined, active);
   const [jobsOpen, setJobsOpen] = useState(false);
@@ -42,7 +42,7 @@ export default function HelpLive({ active }: { active: boolean }) {
 
   const s = sessions.find((x) => x.id === activeId) ?? null;
   const writer = s?.writers ?? null;
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length, view]);
+  useEffect(() => { scrollToEnd(endRef.current); }, [messages.length, view]);
 
   // One Unisupport chat: reopen the open help-desk conversation, or start one. The desk handles
   // everything from there (and connects you to a writer when you need one).
@@ -125,7 +125,7 @@ export default function HelpLive({ active }: { active: boolean }) {
     );
     return (
       <div className="flex h-full flex-col">
-        <TopBar title={<h2 className="disp text-[24px] font-bold text-[var(--text)]">Help</h2>} right={<button onClick={() => setWalletOpen(true)} className="flex items-center gap-2 rounded-full border border-[var(--line)] bg-white py-1.5 pl-2.5 pr-3.5 text-[13px] font-semibold active:scale-95"><Wallet size={15} className="text-[var(--birdie)]" />{naira(balance)}</button>} />
+        <TopBar left={onBack && <button onClick={onBack} aria-label="Back" className="flex h-9 w-9 items-center justify-center rounded-xl active:bg-[var(--paper-dim)]"><ArrowLeft size={19} /></button>} title={<h2 className="disp text-[22px] font-bold text-[var(--text)]">Unisupport Help</h2>} right={<button onClick={() => setWalletOpen(true)} className="flex items-center gap-2 rounded-full border border-[var(--line)] bg-white py-1.5 pl-2.5 pr-3.5 text-[13px] font-semibold active:scale-95"><Wallet size={15} className="text-[var(--birdie)]" />{naira(balance)}</button>} />
         <div className="no-scrollbar flex-1 space-y-5 overflow-y-auto px-5 pb-28">
           <section>
             <div className="overflow-hidden rounded-2xl border border-[var(--line)] bg-white">
