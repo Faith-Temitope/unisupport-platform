@@ -28,7 +28,7 @@ const S = 64, RIGHT = 10, BOTTOM = 232;
  * out a bed and naps if it's sulking), and covers its eyes while you type, though it might peek.
  */
 export default function Mascot() {
-  const { tab, phone, overlay, setOverlay, setRecorderOpen, mascotEvent, settings, profile, focusEndsAt, plus, pocket, setPocketOpen } = useApp();
+  const { tab, chatView, discoverView, phone, overlay, setOverlay, setRecorderOpen, mascotEvent, settings, profile, focusEndsAt, plus, pocket, setPocketOpen } = useApp();
   const x = useMotionValue(0), y = useMotionValue(0);
   const [mood, setMood] = useState<Mood>("idle");
   const [bubble, setBubble] = useState<{ text: string; id: number } | null>(null);
@@ -195,7 +195,7 @@ export default function Mascot() {
     ? [pocketItem, { label: "Chat", sub: "Talk to people you know", icon: MessageCircle, run: () => setOverlay({ t: "chats" }) }, { label: "Post", sub: "Upload or write for Explore", icon: PlusSquare, run: () => setOverlay({ t: "post" }) }]
     : [pocketItem, { label: "Record", sub: "Capture a lecture", icon: Mic, run: () => setRecorderOpen(true) }, { label: "Chat", sub: "Talk to people you know", icon: MessageCircle, run: () => setOverlay({ t: "chats" }) }];
 
-  if (overlay || !settings.mascotOn) return null;
+  if (overlay || !settings.mascotOn || (tab === "chats" && chatView) || (tab === "explore" && discoverView)) return null;
   const sleeping = activity === "bed";
   return (
     <motion.div

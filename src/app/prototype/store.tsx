@@ -24,6 +24,9 @@ export type TabId = "study" | "chats" | "explore" | "me";
 /** What's open inside the Chats tab (null = the chat list). Birdie AI and Unisupport Help live here now. */
 export type ChatView = null | { k: "birdie" } | { k: "help" } | { k: "dm"; id: string } | { k: "group"; id: string } | { k: "oa"; id: string }
   | { k: "oaProfile"; key: string } | { k: "post"; id: string } | { k: "courses" } | { k: "verified" } | { k: "manage"; id: string };
+/** What's open inside Discover (null = the Discover list). */
+export type DiscoverView = null | { k: "moments" } | { k: "userMoments"; id: string } | { k: "channels" } | { k: "scan" } | { k: "shake" } | { k: "stories" }
+  | { k: "search" } | { k: "school" } | { k: "mini" } | { k: "post"; id: string } | { k: "oaProfile"; key: string };
 export type AuthStatus = "loading" | "out" | "guest" | "in";
 export type Boot = "splash" | "word" | "done";
 export type Emote = "happy" | "sad" | "love" | "say" | "angry";
@@ -73,7 +76,7 @@ export interface Settings {
   /** Which study buddy you have, and whether it talks in bubbles or holds up a sign. */
   mascotSkin: "robot" | "bird" | "spider" | "me"; mascotBoard: boolean;
 }
-export type Overlay = null | { t: "chats" } | { t: "thread"; id: string } | { t: "settings" } | { t: "profile"; id: string } | { t: "source"; name: string } | { t: "group"; id: string } | { t: "post" };
+export type Overlay = null | { t: "contact"; id: string } | { t: "chats" } | { t: "thread"; id: string } | { t: "settings" } | { t: "profile"; id: string } | { t: "source"; name: string } | { t: "group"; id: string } | { t: "post" };
 export interface MascotEvent { id: string; kind: Emote; text?: string }
 
 export const COLORS = ["#7C4DDB", "#A63FBD", "#4C6EF5", "#1B8A85", "#D9467E", "#E2553F"];
@@ -108,6 +111,7 @@ interface AppCtx {
   signOut: () => Promise<void>; continueAsGuest: () => void; resetPassword: (email: string) => Promise<{ error?: string }>;
   tab: TabId; setTab: (t: TabId | "birdie" | "help") => void;
   chatView: ChatView; setChatView: (v: ChatView) => void; openDm: (userId: string) => Promise<void>; chatBadge: number; setChatBadge: (n: number) => void;
+  discoverView: DiscoverView; setDiscoverView: (v: DiscoverView) => void;
   profile: Profile; setProfile: (p: Partial<Profile>) => void;
   settings: Settings; setSetting: <K extends keyof Settings>(k: K, v: Settings[K]) => void;
   courses: Course[]; folders: Folder[];
@@ -198,6 +202,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [tab, setTabState] = useViewState<TabId>("tab2", "study");
   const [chatView, setChatViewState] = useViewState<ChatView>("chatView", null);
   const [chatBadge, setChatBadge] = useState(0);
+  const [discoverView, setDiscoverView] = useViewState<DiscoverView>("discoverView", null);
   const [profile, setProfileState] = useState<Profile>(emptyProfile);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -678,7 +683,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try { const { error } = await createClient().auth.resetPasswordForEmail(email, { redirectTo: typeof window !== "undefined" ? `${window.location.origin}/prototype` : undefined }); return error ? { error: error.message } : {}; }
       catch (e) { return { error: (e as Error).message }; }
     },
-    tab, setTab, chatView, setChatView, openDm, chatBadge, setChatBadge, profile, setProfile: (p) => setProfileState((x) => ({ ...x, ...p })),
+    tab, setTab, chatView, setChatView, openDm, chatBadge, setChatBadge, discoverView, setDiscoverView, profile, setProfile: (p) => setProfileState((x) => ({ ...x, ...p })),
     settings, setSetting: (k, v) => setSettings((s) => ({ ...s, [k]: v })),
     courses, folders,
     // A real UUID, not the short uid() used elsewhere -- this is what lets a course be shared
@@ -979,7 +984,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     resetKey, ready,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [boot, auth, authOpen, tab, chatView, setChatView, openDm, chatBadge, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, refreshExamPass, isRep, refreshRep, plus, buyPlus, plusOpen, sharedIntent, printIntent, barsHidden, pocket, pocketOpen, tourOpen, viewFile, watching, forYou, loadForYou, topics, refreshTopics, refreshFeed, loadMoreFeed, searchFeed, loadChannel, loadPostsByIds, loadLiked, setPinned, toPost]);
+  }), [boot, auth, authOpen, tab, chatView, setChatView, openDm, chatBadge, discoverView, setDiscoverView, profile, settings, courses, folders, chats, recommendation, deadlines, activity, streak, todayCount, stats, unlocked, notices, focusEndsAt, mascotEvent, balance, txs, people, contacts, following, blocked, convos, posts, shared, demoOn, walletOpen, brainOpen, overlay, recorderOpen, toast, birdieIntent, studyIntent, helpIntent, phone, slot, resetKey, ready, flash, emote, notify, logActivity, walletLive, refreshWallet, examPassUntil, buyExamPass, refreshExamPass, isRep, refreshRep, plus, buyPlus, plusOpen, sharedIntent, printIntent, barsHidden, pocket, pocketOpen, tourOpen, viewFile, watching, forYou, loadForYou, topics, refreshTopics, refreshFeed, loadMoreFeed, searchFeed, loadChannel, loadPostsByIds, loadLiked, setPinned, toPost]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

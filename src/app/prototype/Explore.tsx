@@ -2,7 +2,7 @@
 
 import { whileVisible } from "./perf";
 import { useViewState } from "./persist";
-import { BadgeCheck, BookmarkPlus, Search, Send, Users } from "lucide-react";
+import { BadgeCheck, BookmarkPlus, ChevronLeft, Search, Send, Users } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { FeedAd, SlotAd, usePlacements } from "./Sponsored";
 import { CampusDeals } from "./CampusDeals";
@@ -14,7 +14,8 @@ import { firstName, naira, nowTime, useApp, type SharedCourse } from "./store";
 import { Avatar, Btn, DemoControls, Empty, Label, Segmented, Sheet, scrollToEnd } from "./ui";
 import { ShareCourseForm } from "./ShareCourseForm";
 
-export default function Explore({ active }: { active: boolean }) {
+// Shown as Discover > Channels: videos, posts, shared courses and campus deals.
+export default function Explore({ active, onBack }: { active: boolean; onBack?: () => void }) {
   const { posts, courses, chats, settings, following, blocked, shared, setOverlay, setTab, goStudy, joinShared, leaveShared, sendShared, loadSharedDetail, personById, profile, flash, setWalletOpen, refreshFeed, loadMoreFeed, searchFeed, sharedIntent, clearSharedIntent, forYou, loadForYou, topics, refreshTopics } = useApp();
   const [buying, setBuying] = useState(false);
   async function join(s: SharedCourse) {
@@ -147,7 +148,8 @@ export default function Explore({ active }: { active: boolean }) {
         {/* Header slides away while scrolling down and returns on the way up, so videos get the screen. */}
         <div className={`sticky top-0 z-20 bg-[var(--paper)] pb-2 transition-transform duration-200 ${hideHead ? "-translate-y-full" : ""}`}>
           <div className="flex items-center gap-2 px-4 pt-2">
-            <h2 className="disp flex-1 text-[21px] font-bold text-[var(--text)]">Explore</h2>
+            {onBack && <button onClick={onBack} aria-label="Back" className="-ml-2 flex h-9 w-9 items-center justify-center"><ChevronLeft size={26} /></button>}
+            <h2 className="disp flex-1 text-[21px] font-bold text-[var(--text)]">Channels</h2>
             <button onClick={() => setSearchOpen((o) => !o)} aria-label="Search" className="flex h-9 w-9 items-center justify-center rounded-full active:bg-[var(--paper-dim)]"><Search size={19} /></button>
             <button onClick={() => setOverlay({ t: "profile", id: "me" })} aria-label="My channel" className="active:scale-95"><Avatar initials={initials(profile.name || "Me")} color="#A63FBD" size={30} /></button>
           </div>

@@ -6,14 +6,21 @@ import { createClient } from "@/lib/supabase";
 // Everything goes through server functions that check membership; nothing is trusted from the phone.
 
 export interface ChatPerson { id: string; name: string; handle: string | null; color: string }
-export type MsgKind = "text" | "image" | "voice" | "file" | "location" | "contact" | "course" | "transfer" | "packet" | "recalled" | "system";
+export type MsgKind = "text" | "image" | "voice" | "file" | "location" | "contact" | "course" | "transfer" | "packet" | "recalled" | "system" | "sticker";
 export interface ChatMsg {
   id: string; kind: MsgKind; body: string; meta: Record<string, unknown>; created_at: string; mine: boolean; sender_id: string | null;
   reply: { id: string; mine: boolean; text: string; name?: string } | null;
   /** groups only */ system?: boolean; name?: string; color?: string; handle?: string | null;
 }
 export interface DmRow { id: string; other: ChatPerson; pinned: boolean; muted: boolean; last_at: string; last: string; unread: number }
-export interface GroupRow { id: string; name: string; about: string | null; role: "owner" | "admin" | "member"; muted: boolean; invite_code: string | null; members: number; last: string | null; last_at: string | null; unread: number }
+export interface GroupRow {
+  id: string; name: string; about: string | null; role: "owner" | "admin" | "member"; muted: boolean; invite_code: string | null; members: number; last: string | null; last_at: string | null; unread: number;
+  pinned: boolean; remark: string | null; alias: string | null; is_course: boolean; shared_id: string | null; avatars: { name: string; color: string }[];
+}
+export interface CourseChat {
+  group_id: string; shared_id: string; course_id: string | null; code: string; name: string; owner: ChatPerson; mine: boolean; members: number; muted: boolean; pinned: boolean;
+  last: string | null; last_at: string; unread: number; notice: { body: string; created_at: string; pinned: boolean } | null;
+}
 export interface OAccount { id: string; handle: string; name: string; about: string | null; category: string; logo_url: string | null; color: string; school: string | null; menu: OMenu[]; verified: true }
 export interface OMenu { label: string; kind?: "link" | "reply"; value?: string; items?: { label: string; kind: "link" | "reply"; value: string }[] }
 export interface OARow extends OAccount { pinned: boolean; muted: boolean; last_at: string; last: string | null; unread: number; window_open: boolean }
@@ -39,7 +46,11 @@ async function call<T>(fn: string, args: Record<string, unknown> = {}): Promise<
 
 // ---------- lists
 export const myDms = async () => (await call<DmRow[]>("my_dms")).data ?? [];
-export const myGroups = async () => (await call<GroupRow[]>("my_groups")).data ?? [];
+export const myGroups = async () => (await call<GroupRow[]>("my_groups2")).data ?? [];
+export const myCourseChats = async () => (await call<CourseChat[]>("my_course_chats")).data ?? [];
+export const courseGroupId = async (shared: string) => (await call<string>("course_group_id", { p_shared: shared })).data;
+export const groupSetMe = (id: string, p: { pinned?: boolean; alias?: string; remark?: string }) => call("group_set_me", { p_group: id, p_pinned: p.pinned ?? null, p_alias: p.alias ?? null, p_remark: p.remark ?? null });
+export const searchChat = async (scope: Scope, id: string, q: string) => (await call<{ id: string; body: string; created_at: string; mine: boolean; name: string }[]>("search_chat", { p_scope: scope, p_id: id, p_q: q })).data ?? [];
 export const myOfficials = async () => (await call<OARow[]>("my_officials")).data ?? [];
 export const myCourseFeed = async () => (await call<CourseFeedRow[]>("my_course_feed")).data ?? [];
 export const courseFeedRead = (shared: string) => call("course_feed_read", { p_shared: shared });
@@ -186,3 +197,75 @@ export function listTime(t: string | null | undefined): string {
   if (days < 7) return d.toLocaleDateString([], { weekday: "short" });
   return d.toLocaleDateString([], { day: "numeric", month: "short", year: d.getFullYear() === now.getFullYear() ? undefined : "2-digit" });
 }
+
+/** Forwarding a photo, voice note or file: the server copies it into the other chat's folder. */
+export async function forwardMedia(path: string, scope: Scope, id: string): Promise<string | null> {
+  try {
+    const r = await fetch("/api/chat/media", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ from: path, scope, id }) });
+    if (!r.ok) return null;
+    return (await r.json()).path as string;
+  } catch { return null; }
+}
+/** Your own sticker images (kept in stickers/<you>/). */
+export async function uploadSticker(file: Blob): Promise<{ path?: string; error?: string }> {
+  try {
+    const r = await fetch("/api/chat/media", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope: "sticker", id: "me", name: "sticker.png", size: file.size, type: file.type }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return { error: "Couldn't add the sticker" };
+    const up = await sb().storage.from("chat-media").uploadToSignedUrl(j.path, j.token, file, { contentType: file.type || "image/png" });
+    return up.error ? { error: "Couldn't add the sticker" } : { path: j.path as string };
+  } catch { return { error: "Couldn't add the sticker" }; }
+}
+
+// ---------- people: friends, remarks, privacy
+export interface ContactInfo extends ChatPerson {
+  display_name: string; remark: string | null; school: string | null; region: string; level: string | null; program: string | null; bio: string | null;
+  is_me: boolean; is_friend: boolean; thread: string | null; prefs: { chats_only: boolean; hide_my_posts: boolean; hide_their_posts: boolean };
+  moments: string[]; moments_count: number; videos: { id: string; title: string; youtube_id: string | null; video_path: string | null }[];
+}
+export const contactInfo = async (id: string) => (await call<ContactInfo>("contact_info", { p_user: id })).data;
+export const setContactPrefs = (id: string, p: { chatsOnly?: boolean; hideMine?: boolean; hideTheirs?: boolean; remark?: string }) =>
+  call("set_contact_prefs", { p_user: id, p_chats_only: p.chatsOnly ?? null, p_hide_my: p.hideMine ?? null, p_hide_their: p.hideTheirs ?? null, p_remark: p.remark ?? null });
+
+// ---------- Moments
+export interface Moment {
+  id: string; author: ChatPerson; body: string; images: string[]; location: string | null; created_at: string; mine: boolean; liked: boolean;
+  likes: { id: string; name: string }[]; comments: { id: string; mine: boolean; body: string; created_at: string; user: { id: string; name: string }; reply_to: { id: string; name: string } | null }[];
+}
+export const momentsFeed = async (before?: string) => (await call<Moment[]>("moments_feed", { p_before: before ?? null })).data ?? [];
+export const userMoments = async (user: string, before?: string) => (await call<Moment[]>("user_moments", { p_user: user, p_before: before ?? null })).data ?? [];
+export const momentsHeader = async (user?: string) => (await call<{ person: ChatPerson; cover: string | null; can_see: boolean }>("moments_header", { p_user: user ?? null })).data;
+export const postMoment = (body: string, images: string[], location: string | null) => call<Moment>("post_moment", { p_body: body, p_images: images, p_location: location });
+export const deleteMoment = (id: string) => call("delete_moment", { p_id: id });
+export const likeMoment = (id: string, on: boolean) => call<Moment>("like_moment", { p_id: id, p_on: on });
+export const commentMoment = (id: string, body: string, replyTo?: string | null) => call<Moment>("comment_moment", { p_id: id, p_body: body, p_reply_to: replyTo ?? null });
+export const deleteMomentComment = (id: string) => call("delete_moment_comment", { p_id: id });
+export const setMomentsCover = (path: string) => call("set_moments_cover", { p_path: path });
+export async function uploadMomentPhoto(file: Blob): Promise<{ path?: string; error?: string }> {
+  try {
+    const r = await fetch("/api/moments/media", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ size: file.size, type: file.type }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return { error: j.error === "too_large" ? "That photo is too big" : "Couldn't upload" };
+    const up = await sb().storage.from("moments").uploadToSignedUrl(j.path, j.token, file, { contentType: file.type || "image/jpeg" });
+    return up.error ? { error: "Couldn't upload" } : { path: j.path as string };
+  } catch { return { error: "Couldn't upload. Check your connection." }; }
+}
+const momentUrls = new Map<string, { url: string; at: number }>();
+export async function momentMediaUrl(path: string): Promise<string | null> {
+  const hit = momentUrls.get(path);
+  if (hit && Date.now() - hit.at < 4 * 60_000) return hit.url;
+  try {
+    const r = await fetch(`/api/moments/media?path=${encodeURIComponent(path)}`);
+    if (!r.ok) return null;
+    const { url } = await r.json();
+    momentUrls.set(path, { url, at: Date.now() });
+    return url as string;
+  } catch { return null; }
+}
+
+// ---------- Discover
+export type ArticleCard = OAPostCard & { account: OAccount; following?: boolean };
+export const topStories = async (before?: string) => (await call<ArticleCard[]>("top_stories", { p_before: before ?? null })).data ?? [];
+export const searchAll = async (q: string) => (await call<{ people: (ChatPerson & { school: string | null; is_friend: boolean })[]; accounts: OAccount[]; articles: ArticleCard[] }>("search_all", { p_q: q })).data ?? { people: [], accounts: [], articles: [] };
+export const peopleAtSchool = async () => (await call<(ChatPerson & { school: string | null; program: string | null; level: string | null; is_friend: boolean })[]>("people_at_school")).data ?? [];
+export const shake = async () => (await call<(ChatPerson & { school: string | null; is_friend: boolean }) | null>("shake")).data;

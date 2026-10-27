@@ -59,6 +59,10 @@ html:has(.proto-root) { font-size: 16px; }
   --uni: #A63FBD; --uni-deep: #7B2A91; --uni-soft: #F5E8FA;
   --study: #7C4DDB; --study-soft: #EDE6FB;
   --help: #FF6F59; --help-soft: #FFE9E4;
+  /* WeChat-style surfaces for Chats, Discover and Me (Birdie purple where WeChat uses green) */
+  --we-bg: #EDEDED; --we-cell: #FFFFFF; --we-sep: #E5E5E5; --we-text: #191919; --we-sub: #7F7F7F; --we-hint: #B2B2B2;
+  --we-chat: #EDEDED; --we-bar: #F7F7F7; --we-input: #FFFFFF; --we-bubble: #FFFFFF; --we-mine: #C9A5E0; --we-mine-text: #191919;
+  --we-link: #576B95; --we-pinned: #F2F2F2; --we-pop: #4C4C4C; --we-red: #FA5151; --we-accent: var(--uni);
 }
 .proto-root .disp { font-family: var(--font-display), system-ui, sans-serif; }
 .no-scrollbar { scrollbar-width: none; }
@@ -76,6 +80,9 @@ html:has(.proto-root) { font-size: 16px; }
   --birdie-text: color-mix(in srgb, var(--birdie) 45%, #fff);
   --uni-deep: color-mix(in srgb, var(--uni) 45%, #fff);
   --help-soft: color-mix(in srgb, var(--help) 22%, #110C17);
+  --we-bg: #111111; --we-cell: #191919; --we-sep: #2B2B2B; --we-text: #D5D5D5; --we-sub: #8A8A8A; --we-hint: #5F5F5F;
+  --we-chat: #111111; --we-bar: #1E1E1E; --we-input: #2C2C2C; --we-bubble: #2C2C2C; --we-mine: #8E5BB0; --we-mine-text: #F4ECF8;
+  --we-link: #7D90A9; --we-pinned: #232323; --we-pop: #2C2C2C;
   color-scheme: dark;
 }
 .theme-dark .bg-white { background-color: var(--card); }
@@ -88,3 +95,8 @@ html:has(.proto-root) { font-size: 16px; }
 .theme-dark :is(input, textarea)::placeholder { color: var(--dim); }
 /* Selected chips and primary dark buttons flip to light-on-dark, like YouTube's dark mode. */
 .theme-dark .bg-\[var\(--ink\)\].text-\[var\(--paper\)\] { background-color: var(--text); color: var(--paper); }
+
+/* Discover > Scan: the line sweeping the viewfinder. Discover > Shake: the phone wiggle. */
+@keyframes scanline { from { top: 4%; } to { top: 94%; } }
+.scanline { animation: scanline 2.2s ease-in-out infinite alternate; }
+@keyframes wiggle { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-14deg); } 75% { transform: rotate(14deg); } }

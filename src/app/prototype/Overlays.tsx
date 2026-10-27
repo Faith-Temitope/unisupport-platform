@@ -1,5 +1,6 @@
 "use client";
 
+import Contact from "./Contact";
 import { reportThing } from "./live/socialData";
 import { ProfileBadges } from "./ProfileBadges";
 import { ArrowLeft, Flag, Link2, Plus, Settings as Cog, Video } from "lucide-react";
@@ -16,6 +17,7 @@ export default function Overlays() {
   const close = () => setOverlay(null);
   return (
     <>
+      <Screen open={overlay?.t === "contact"} z={62}>{overlay?.t === "contact" && <Contact key={overlay.id} id={overlay.id} onBack={close} />}</Screen>
       <Screen open={overlay?.t === "profile"} z={62}>{overlay?.t === "profile" && <ProfileScreen id={overlay.id} onBack={close} />}</Screen>
       <Screen open={overlay?.t === "source"} z={62}>{overlay?.t === "source" && <SourceScreen name={overlay.name} onBack={close} />}</Screen>
       <Screen open={overlay?.t === "post"} z={62}><Composer onClose={close} /></Screen>
