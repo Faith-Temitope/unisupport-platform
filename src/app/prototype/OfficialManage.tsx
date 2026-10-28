@@ -2,6 +2,11 @@
 
 // Running a verified account from your phone: the inbox (with the 7-day reply window), publishing
 // articles and videos, the welcome message, auto-replies, keyword replies, the bottom menu, and the team.
+import { addSchoolDoc, deleteSchoolDoc, schoolDocsList } from "./live/campusData";
+import { extractText } from "./extract";
+import { scannable } from "./ingest";
+import { readScan } from "./aiClient";
+import { safeName, uploadTo } from "./live/helpData";
 import { ArrowLeft, Clock, ImagePlus, Plus, Send, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OALogo, Tick } from "./Official";
@@ -9,10 +14,10 @@ import { Rich } from "./Rich";
 import { whileVisible } from "./perf";
 import { initials } from "./PostCard";
 import { listTime, oaAddAdmin, oaAdminInfo, oaConversation, oaDeletePost, oaInbox, oaPublish, oaRemoveAdmin, oaReply, oaUpdate, officialProfile, uploadOfficialMedia, type OAAdminInfo, type OAInboxRow, type OAMsg, type OAPostCard, type OMenu } from "./live/chatData";
-import { useApp } from "./store";
+import { uid, useApp } from "./store";
 import { Avatar, Btn, Empty, Segmented, Sheet, TextField, scrollToEnd } from "./ui";
 
-type Tab = "inbox" | "post" | "settings" | "team";
+type Tab = "inbox" | "post" | "knowledge" | "settings" | "team";
 
 export default function OfficialManage({ id, onBack, onPost }: { id: string; onBack: () => void; onPost: (id: string) => void }) {
   const { flash } = useApp();
@@ -27,10 +32,11 @@ export default function OfficialManage({ id, onBack, onPost }: { id: string; onB
         {info && <OALogo a={info} size={34} />}
         <div className="min-w-0 flex-1"><div className="flex items-center gap-1 text-[15px] font-bold"><span className="truncate">{info?.name ?? ""}</span><Tick /></div><div className="text-[11.5px] text-[var(--dim)]">{info ? `${info.followers} follower${info.followers === 1 ? "" : "s"} · you're ${info.role === "owner" ? "the owner" : "an admin"}` : ""}</div></div>
       </div>
-      <div className="px-4 pb-2"><Segmented value={tab} onChange={setTab} options={[{ id: "inbox", label: "Inbox" }, { id: "post", label: "Post" }, { id: "settings", label: "Settings" }, { id: "team", label: "Team" }]} /></div>
+      <div className="px-4 pb-2"><Segmented value={tab} onChange={setTab} options={[{ id: "inbox", label: "Inbox" }, { id: "post", label: "Post" }, { id: "knowledge", label: "Knowledge" }, { id: "settings", label: "Settings" }, { id: "team", label: "Team" }]} /></div>
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-1">
         {info && tab === "inbox" && <Inbox id={id} />}
         {info && tab === "post" && <Publish info={info} onPost={onPost} onChanged={loadInfo} />}
+        {info && tab === "knowledge" && <Knowledge oa={id} />}
         {info && tab === "settings" && <SettingsForm info={info} onSaved={setInfo} />}
         {info && tab === "team" && <Team info={info} onChanged={loadInfo} />}
       </div>
@@ -246,6 +252,57 @@ function Team({ info, onChanged }: { info: OAAdminInfo; onChanged: () => void })
           <button onClick={async () => { const r = await oaAddAdmin(info.id, handle); if (r.error) flash(r.error === "no_such_user" ? "No one has that username" : "Couldn't add"); else { setHandle(""); onChanged(); flash("Added"); } }} disabled={handle.trim().length < 2} className="rounded-xl bg-[var(--ink)] px-4 text-[13px] font-semibold text-[var(--paper)] disabled:opacity-40">Add</button></div>
       ) : <p className="text-[12.5px] text-[var(--dim)]">Only the owner can add or remove admins.</p>}
       <p className="text-[11.5px] leading-snug text-[var(--dim)]">Admins can reply to chats, publish, and edit the menu and auto-replies.</p>
+    </div>
+  );
+}
+
+/** The handbook, policies and notices students can ask Birdie about ("where do I do clearance?"). */
+function Knowledge({ oa }: { oa: string }) {
+  const { flash, auth } = useApp();
+  const [docs, setDocs] = useState<Awaited<ReturnType<typeof schoolDocsList>> | null>(null);
+  const [title, setTitle] = useState(""); const [text, setText] = useState(""); const [busy, setBusy] = useState<string | null>(null);
+  const fileIn = useRef<HTMLInputElement>(null);
+  const load = useCallback(() => void schoolDocsList(oa).then(setDocs), [oa]);
+  useEffect(() => { void Promise.resolve().then(load); }, [load]);
+  async function fromFile(f?: File) {
+    if (!f) return;
+    setBusy(`Reading ${f.name}...`);
+    let t = await extractText(f);
+    if ((!t || t.trim().length < 40) && scannable(f.name)) {
+      // A scan or photo: read it with Birdie (the same way course files are read).
+      const path = `${auth.userId}/school/${uid()}-${safeName(f.name)}`;
+      const err = await uploadTo("study-files", path, f);
+      if (!err) { const r = await readScan(path); if (r.ok) t = r.text; }
+    }
+    setBusy(null);
+    if (!t || t.trim().length < 40) return flash("Couldn't find text in that file. Paste it instead.");
+    setText(t); if (!title) setTitle(f.name.replace(/\.[^.]+$/, ""));
+  }
+  async function save() {
+    setBusy("Saving...");
+    const r = await addSchoolDoc(oa, title.trim(), text);
+    setBusy(null);
+    if (r.error) return flash(r.error === "no_school" ? "Set the account's school in Settings first" : r.error === "too_long" ? "That's very long. Split it into parts." : "Couldn't save it");
+    flash("Saved. Students can ask Birdie about it now."); setTitle(""); setText(""); load();
+  }
+  return (
+    <div className="space-y-3">
+      <p className="text-[13px] leading-snug text-[var(--dim)]">Add your student handbook, policies, fees, clearance steps and notices. Students at your school ask Birdie (&quot;where do I do clearance?&quot;) and it answers from these, naming the document.</p>
+      <div className="rounded-2xl border border-[var(--line)] bg-white p-3">
+        <TextField value={title} onChange={setTitle} placeholder="Title, e.g. Student Handbook 2026" />
+        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder="Paste the text here, or pick a file" className="mt-2 w-full resize-none rounded-xl border-2 border-[var(--line)] p-3 text-[14px] outline-none" />
+        <input ref={fileIn} type="file" accept=".pdf,.docx,.txt,.md,image/*" hidden onChange={(e) => { void fromFile(e.target.files?.[0]); e.target.value = ""; }} />
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <Btn variant="ghost" onClick={() => fileIn.current?.click()}>Pick a file</Btn>
+          <Btn disabled={!!busy || title.trim().length < 2 || text.trim().length < 40} onClick={() => void save()}>{busy ?? "Save"}</Btn>
+        </div>
+      </div>
+      {docs === null ? <p className="text-[13px] text-[var(--dim)]">Loading...</p> : docs.length === 0 ? <p className="text-[13px] text-[var(--dim)]">Nothing added yet.</p> : docs.map((d) => (
+        <div key={d.id} className="flex items-center gap-3 rounded-2xl border border-[var(--line)] bg-white p-3">
+          <span className="min-w-0 flex-1"><span className="block truncate text-[14px] font-semibold">{d.title}</span><span className="block text-[12px] text-[var(--dim)]">{Math.max(1, Math.round(d.chars / 1000))}k characters · {new Date(d.created_at).toLocaleDateString()}</span></span>
+          <button onClick={async () => { if (!confirm(`Remove "${d.title}"?`)) return; await deleteSchoolDoc(d.id); load(); }} className="text-[13px] font-semibold text-[var(--help)]">Remove</button>
+        </div>
+      ))}
     </div>
   );
 }

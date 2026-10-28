@@ -3,12 +3,13 @@
 import { navBack, useBackLayer } from "./nav";
 import { PlusCircle, SqAvatar, VoiceCircle, WeHeader } from "./we";
 import { BirdieSettings, CompanionAvatar, companionOf } from "./Companions";
+import { schoolKnowledge } from "./live/campusData";
 import { whileVisible } from "./perf";
 import { localNotify } from "./push";
 import { useViewState } from "./persist";
 import { VideoLesson } from "./VideoLesson";
 import { motion } from "framer-motion";
-import { ChevronLeft, Search, AudioLines, Backpack, BookOpen, BookOpenCheck, Check, ChevronDown, Clapperboard, ClipboardCheck, FileQuestion, FlaskConical, Loader2, Mic, Palette, Paperclip, Square, SquarePen, ThumbsDown, ThumbsUp, Volume2, X } from "lucide-react";
+import { ChevronLeft, School, Search, AudioLines, Backpack, BookOpen, BookOpenCheck, Check, ChevronDown, Clapperboard, ClipboardCheck, FileQuestion, FlaskConical, Loader2, Mic, Palette, Paperclip, Square, SquarePen, ThumbsDown, ThumbsUp, Volume2, X } from "lucide-react";
 import { Rich } from "./Rich";
 import { VoiceChat, primeVoiceAudio, type VoiceLine } from "./VoiceChat";
 import { ingestFiles } from "./ingest";
@@ -98,8 +99,8 @@ export default function Birdie({ active, onBack }: { active: boolean; onBack?: (
   const name = firstName(profile);
   // Each conversation has its own key: "<course id or general>~<id>". The course is the part before "~".
   const base = ctx.split("~")[0];
-  const course = base === "general" ? null : courses.find((c) => c.id === base) ?? null;
-  useEffect(() => { if (base !== "general" && !courses.some((c) => c.id === base)) setCtx("general"); }, [courses, base]); // eslint-disable-line react-hooks/exhaustive-deps
+  const course = base === "general" || base === "campus" ? null : courses.find((c) => c.id === base) ?? null;
+  useEffect(() => { if (base !== "general" && base !== "campus" && !courses.some((c) => c.id === base)) setCtx("general"); }, [courses, base]); // eslint-disable-line react-hooks/exhaustive-deps
   const fresh = (b: string) => `${b}~${Date.now().toString(36)}`;
   // Opening Birdie from Chats shows its home (new chat box, courses, earlier chats); a chat opens on top.
   const [home, setHome] = useState(true);
@@ -172,6 +173,15 @@ export default function Birdie({ active, onBack }: { active: boolean; onBack?: (
     const everywhere = c ? [] : courses.flatMap((x) => docsOf(x).map((d) => ({ ...d, source: `${x.code}: ${d.source}` })));
     const info = c ? contextFor(cdocs, cards || summary || guide ? "" : text, budget) : contextFor(everywhere, text, 30000, { onlyRelevant: true });
     let system = chatSystem({ name, level: profile.level, program: profile.program, course: c ? `${c.code} ${c.name}` : null, material: info.text, length: settings.answerLength, library: libraryOutline(folders, courses) });
+    // "My School": answer from the school's own handbook, policies and notices, and the latest Campus Updates.
+    if (key.split("~")[0] === "campus") {
+      const k = await schoolKnowledge(text);
+      const docs = [...k.passages.map((p) => ({ source: p.title, text: p.text, title: p.title })), ...k.updates.map((u) => ({ source: `${u.account}: ${u.title}`, text: u.text, title: u.title }))];
+      info.used = docs as unknown as typeof info.used;
+      const material = docs.map((d) => `[${d.source}]\n${d.text}`).join("\n\n---\n\n");
+      system = chatSystem({ name, level: profile.level, program: profile.program, course: null, material, length: settings.answerLength })
+        + `\n\nYou are answering a question about the student's school (${profile.institution || k.school || "their school"}). Use ONLY the school documents and campus updates above for facts about the school: rules, fees, deadlines, offices, locations, policies. Name the document you used in [brackets]. If they don't cover it, say you couldn't find it in what the school has shared on Birdie, give general advice clearly marked as general, and suggest who to ask (for example the faculty office or Student Affairs). Never invent a school rule, date, fee or office.${k.docs === 0 ? " The school hasn't added any documents to Birdie yet; say so briefly." : ""}`;
+    }
     let messages: { role: "user" | "assistant"; content: string }[];
     if (cards) { system = CARDS_SYSTEM(info.text, 6); messages = [{ role: "user", content: "Make the flashcards now." }]; }
     else if (summary) messages = [{ role: "user", content: "Summarise ALL of this course material, every file, note and recording, topic by topic, as revision notes: headings per topic, the key points, definitions and formulas under each, and a short recap at the end." }];
@@ -384,7 +394,7 @@ export default function Birdie({ active, onBack }: { active: boolean; onBack?: (
           {onBack && <button onClick={navBack} aria-label="Back" className="flex h-10 w-9 items-center justify-center"><ChevronLeft size={26} /></button>}
           <button onClick={() => setSettingsOpen(true)} aria-label="Birdie settings" className="ml-0.5 active:scale-95"><CompanionAvatar id={settings.aiBrain} size={32} /></button>
         </span>
-        <span className="pointer-events-none absolute inset-x-24 truncate text-center text-[16.5px] font-semibold">{course ? `${course.code} · ${course.name}` : companionOf(settings.aiBrain).name}</span>
+        <span className="pointer-events-none absolute inset-x-24 truncate text-center text-[16.5px] font-semibold">{course ? `${course.code} · ${course.name}` : base === "campus" ? "My School" : companionOf(settings.aiBrain).name}</span>
         <button onClick={() => { setCtx(fresh(base)); setMode("chat"); }} aria-label="New chat" className="flex h-10 w-10 items-center justify-center"><SquarePen size={20} /></button>
       </div>
 
@@ -664,7 +674,7 @@ function BirdieHome({ courses, chats, onBack, onSettings, companion, onOpen, onN
   const [draft, setDraft] = useState("");
   const [q, setQ] = useState("");
   const [searching, setSearching] = useState(false);
-  const label = (b: string) => { const c = courses.find((x) => x.id === b); return c ? `${c.code} · ${c.name}` : "General"; };
+  const label = (b: string) => { const c = courses.find((x) => x.id === b); return c ? `${c.code} · ${c.name}` : b === "campus" ? "My School" : "General"; };
   const threads = Object.entries(chats)
     .filter(([, ms]) => ms.some((m) => m.from === "me"))
     .map(([k, ms]) => ({ k, base: k.split("~")[0], first: ms.find((m) => m.from === "me")?.text ?? "", last: ms[ms.length - 1], n: ms.length }))
@@ -672,7 +682,9 @@ function BirdieHome({ courses, chats, onBack, onSettings, companion, onOpen, onN
     .sort((a, b) => (b.last.at ?? 0) - (a.last.at ?? 0));
   const go = () => { const t = draft.trim(); if (!t) return; setDraft(""); onNew("general", t); };
   const Circle = ({ id, code, size = 52 }: { id: string; code: string; size?: number }) => (
-    id === "general"
+    id === "campus"
+      ? <span className="flex shrink-0 items-center justify-center rounded-full bg-[#1B8A85] text-white" style={{ width: size, height: size }}><School size={size * 0.48} /></span>
+      : id === "general"
       ? <span className="flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#C05BD6] to-[#8A2FA3] font-bold text-white" style={{ width: size, height: size, fontSize: size * 0.4 }}>B</span>
       : <span className="flex shrink-0 items-center justify-center rounded-full font-semibold text-white" style={{ width: size, height: size, background: colorOf(code), fontSize: size * 0.28 }}>{code.replace(/\s+/g, "").slice(0, 4) || "?"}</span>
   );
@@ -688,10 +700,10 @@ function BirdieHome({ courses, chats, onBack, onSettings, companion, onOpen, onN
           <div className="px-4 pt-2">
             <div className="mb-3 text-[13px] text-[var(--we-sub)]">Ask about</div>
             <div className="no-scrollbar -mx-4 flex gap-4 overflow-x-auto px-4 pb-1">
-              {[{ id: "general", code: "General" }, ...courses.map((c) => ({ id: c.id, code: c.code }))].map((c) => (
+              {[{ id: "general", code: "General" }, { id: "campus", code: "School" }, ...courses.map((c) => ({ id: c.id, code: c.code }))].map((c) => (
                 <button key={c.id} onClick={() => onNew(c.id)} className="flex w-[60px] shrink-0 flex-col items-center gap-1.5">
                   <Circle id={c.id} code={c.code} />
-                  <span className="max-w-full truncate text-[12px] text-[var(--we-sub)]">{c.id === "general" ? "Anything" : c.code}</span>
+                  <span className="max-w-full truncate text-[12px] text-[var(--we-sub)]">{c.id === "general" ? "Anything" : c.id === "campus" ? "My School" : c.code}</span>
                 </button>
               ))}
             </div>

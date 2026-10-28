@@ -227,7 +227,7 @@ export function MyProfilePage({ onBack, onQr }: { onBack: () => void; onQr: () =
         <Cell label="Name" value={profile.name || "Not set"} onClick={() => setOverlay({ t: "settings" })} />
         <Cell label="Birdie ID" value={profile.handle || "Not set"} chevron={false} />
         <Cell label="My QR Code" right={<QrCode size={18} className="text-[var(--we-sub)]" />} onClick={onQr} />
-        <Cell label="More Info" value={[profile.level && `${profile.level}L`, profile.institution].filter(Boolean).join(" · ") || undefined} onClick={() => setOverlay({ t: "settings" })} />
+        <Cell label="More Info" value={[profile.level && (/level/i.test(profile.level) ? profile.level : `${profile.level} Level`), profile.institution].filter(Boolean).join(" · ") || undefined} onClick={() => setOverlay({ t: "settings" })} />
       </CellGroup>
       <CellGroup>
         <Cell label="My Channel" sub="Your videos, posts and shared courses" onClick={() => setOverlay({ t: "profile", id: "me" })} />

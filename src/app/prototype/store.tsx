@@ -64,7 +64,10 @@ export type PrintIntent = { kind: "print" | "handwrite" | "orders"; file?: { nam
 export type NewPost ={ kind: "video" | "text"; title: string; body?: string; field: string; tags: string[]; durationSeconds?: number; file?: File };
 export interface SharedCourse { id: string; ownerId: string; ownerName?: string; code: string; name: string; school?: string; field: string; description: string; files: string[]; members: string[]; messages: { id: string; authorId: string; text: string; t: string }[]; demo?: boolean; sourceCourseId?: string; priceNgn?: number; itemCounts?: { notes: number; files: number; recs: number } }
 
-export interface Profile { name: string; handle: string; level: string; program: string; institution: string; country: string; region?: string; links?: Link[]; bio: string; onboarded: boolean }
+export interface CvEntry { title: string; org: string; when: string; desc: string; link: string; final?: boolean }
+export interface Profile { name: string; handle: string; level: string; program: string; institution: string; country: string; region?: string; links?: Link[]; bio: string; onboarded: boolean;
+  /** Me > My CV: what the student adds on top of what Birdie already knows. */
+  cv?: { summary: string; projects: CvEntry[]; experience: CvEntry[]; skills: string[] } }
 export interface Settings {
   autoplay: boolean; personalTags: boolean; recs12h: boolean; readAloud: boolean; answerLength: "short" | "normal" | "detailed"; /** Opted in to sharing questions + corrections to train Birdie. */ improveBirdie: boolean;
   notifChat: boolean; notifRec: boolean; notifSession: boolean; notifExplore: boolean;

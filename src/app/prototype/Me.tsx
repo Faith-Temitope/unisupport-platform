@@ -3,12 +3,13 @@
 // Me, laid out like WeChat's: you (name, Birdie ID, QR code), then Services (Money, Wallet, campus
 // services), Favorites, My Posts, Cards & Offers, Sticker Gallery and Settings. Nothing that already
 // lives in Chats or Discover.
-import { ChevronRight, CreditCard, Crown, Images, QrCode, Settings as Cog, Smile, Star, Trash2, CircleCheckBig } from "lucide-react";
+import { ChevronRight, CreditCard, FileText, Crown, Images, QrCode, Settings as Cog, Smile, Star, Trash2, CircleCheckBig } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { favText, readFavs, writeFavs, type Fav } from "./ChatRoom";
 import { chatMediaUrl, hasPin, setPin } from "./live/chatData";
 import { MyProfilePage, MyQrPage, ServicesPage } from "./MeServices";
 import MomentsScreen from "./Moments";
+import { MyCvPage } from "./MyCv";
 import { useBackLayer } from "./nav";
 import { useApp } from "./store";
 import { Btn, Sheet } from "./ui";
@@ -19,6 +20,7 @@ const ic = (n: ReactNode, color: string) => <span className="flex h-6 w-6 items-
 export default function Me({ active }: { active: boolean }) {
   const { profile, auth, plus, openPlus, setOverlay, setAuthOpen, refreshWallet } = useApp();
   const [pinOpen, setPinOpen] = useState(false);
+  const [cvOpen, setCvOpen] = useState(false);
   const [sub, setSub] = useState<null | "favorites" | "stickers" | "services" | "profile" | "qr" | "posts">(null);
   useBackLayer(!!sub, () => setSub(null));
   useBackLayer(sub === "qr", () => setSub("profile")); // QR code opens on top of My Profile
@@ -54,6 +56,7 @@ export default function Me({ active }: { active: boolean }) {
       <CellGroup>
         <Cell icon={ic(<Star size={22} />, "#F5A623")} label="Favorites" onClick={() => setSub("favorites")} />
         <Cell icon={ic(<Images size={22} />, "#3D83F7")} label="My Posts" onClick={need(() => setSub("posts"))} />
+        <Cell icon={ic(<FileText size={22} />, "#576B95")} label="My CV" sub="Built from what you do on Birdie" onClick={need(() => setCvOpen(true))} />
         <Cell icon={ic(<CreditCard size={22} />, "#1B8A85")} label="Cards & Offers" sub={plus ? "Birdie Plus is on" : "Birdie Plus, Exam Pass and student offers"} onClick={() => openPlus(plus ? "You're on Birdie Plus." : "Get more from Birdie.")} />
         <Cell icon={ic(<Smile size={22} />, "#F5C518")} label="Sticker Gallery" onClick={() => setSub("stickers")} />
       </CellGroup>
@@ -61,6 +64,7 @@ export default function Me({ active }: { active: boolean }) {
         <Cell icon={ic(<Cog size={22} />, "#3D83F7")} label="Settings" onClick={() => setOverlay({ t: "settings" })} />
       </CellGroup>
       <ChangePin open={pinOpen} onClose={() => setPinOpen(false)} />
+      <MyCvPage open={cvOpen} onClose={() => setCvOpen(false)} />
     </div>
   );
 }

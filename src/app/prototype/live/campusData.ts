@@ -42,3 +42,20 @@ export const campusLike = (id: string, on: boolean) => call<CampusPost>("campus_
 export const campusComment = (id: string, body: string) => call<CampusPost>("campus_comment", { p_id: id, p_body: body });
 export const campusComments = async (id: string) => (await call<CampusComment[]>("campus_comments", { p_id: id })).data ?? [];
 export const deleteCampusComment = (id: string) => call("delete_campus_comment", { p_id: id });
+
+// ---------- Campus assistant (Birdie's "My School" chat)
+export interface SchoolKnowledge { school: string | null; docs: number; passages: { title: string; account: string; text: string }[]; updates: { title: string; account: string; text: string; at: string; important: boolean }[] }
+export const schoolKnowledge = async (q: string) => (await call<SchoolKnowledge>("school_knowledge", { p_q: q })).data ?? { school: null, docs: 0, passages: [], updates: [] };
+export const schoolDocsList = async (oa: string) => (await call<{ id: string; title: string; created_at: string; chars: number }[]>("school_docs_list", { p_oa: oa })).data ?? [];
+export const addSchoolDoc = (oa: string, title: string, text: string) => call<string>("add_school_doc", { p_oa: oa, p_title: title, p_chunks: chunkText(text) });
+export const deleteSchoolDoc = (id: string) => call("delete_school_doc", { p_id: id });
+/** Split a long document into passages of about 1,200 characters, at paragraph or sentence breaks. */
+export function chunkText(text: string, size = 1200): string[] {
+  const out: string[] = []; let cur = "";
+  for (const para of text.replace(/\r/g, "").split(/\n{2,}/).map((p) => p.trim()).filter(Boolean)) {
+    const parts = para.length > size ? para.match(new RegExp(`[^.!?]{1,${size}}[.!?]*\s*`, "g")) ?? [para] : [para];
+    for (const p of parts) { if ((cur + "\n\n" + p).length > size && cur) { out.push(cur); cur = p.trim(); } else cur = cur ? `${cur}\n\n${p.trim()}` : p.trim(); }
+  }
+  if (cur) out.push(cur);
+  return out.slice(0, 400);
+}
