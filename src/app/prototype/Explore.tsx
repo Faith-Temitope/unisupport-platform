@@ -14,8 +14,8 @@ import { firstName, naira, nowTime, useApp, type SharedCourse } from "./store";
 import { Avatar, Btn, DemoControls, Empty, Label, Segmented, Sheet, scrollToEnd } from "./ui";
 import { ShareCourseForm } from "./ShareCourseForm";
 
-// Shown as Discover > Channels: videos, posts, shared courses and campus deals.
-export default function Explore({ active, onBack }: { active: boolean; onBack?: () => void }) {
+// Discover > Channels (videos and posts), Discover > Shared Courses and Discover > Campus Deals.
+export default function Explore({ active, onBack, section = "feed" }: { active: boolean; onBack?: () => void; section?: "feed" | "courses" | "deals" }) {
   const { posts, courses, chats, settings, following, blocked, shared, setOverlay, setTab, goStudy, joinShared, leaveShared, sendShared, loadSharedDetail, personById, profile, flash, setWalletOpen, refreshFeed, loadMoreFeed, searchFeed, sharedIntent, clearSharedIntent, forYou, loadForYou, topics, refreshTopics } = useApp();
   const [buying, setBuying] = useState(false);
   async function join(s: SharedCourse) {
@@ -28,7 +28,7 @@ export default function Explore({ active, onBack }: { active: boolean; onBack?: 
     if (r.error === "not_available_to_you") return flash("This course is only open to students from a certain country, region or school");
     flash("Couldn't add that course. Try again.");
   }
-  const [seg, setSeg] = useViewState<"feed" | "courses" | "deals">("explore.seg", "feed");
+  const seg = section;
   const campus = usePlacements("campus", undefined, seg === "deals");
   const deals = usePlacements("deal", undefined, seg === "deals");
   const feedCards = usePlacements("card", "explore", active);
@@ -82,9 +82,9 @@ export default function Explore({ active, onBack }: { active: boolean; onBack?: 
   // Draw 16 videos at a time; more are drawn (then fetched) as you scroll.
   const [shown, setShown] = useState(16);
   useEffect(() => {
-    if (!sharedIntent) return;
-    setSeg("courses"); setDetail(sharedIntent); clearSharedIntent(); // eslint-disable-line react-hooks/set-state-in-effect
-  }, [sharedIntent, clearSharedIntent]);
+    if (!sharedIntent || seg !== "courses") return;
+    setDetail(sharedIntent); clearSharedIntent(); // eslint-disable-line react-hooks/set-state-in-effect
+  }, [sharedIntent, clearSharedIntent, seg]);
 
   // Topic chips: what you watch, like and search most, then the biggest topics on Birdie.
   // Until the server has topics, fall back to what you study and chat about with Birdie.
@@ -149,14 +149,12 @@ export default function Explore({ active, onBack }: { active: boolean; onBack?: 
         <div className={`sticky top-0 z-20 bg-[var(--paper)] pb-2 transition-transform duration-200 ${hideHead ? "-translate-y-full" : ""}`}>
           <div className="flex items-center gap-2 px-4 pt-2">
             {onBack && <button onClick={onBack} aria-label="Back" className="-ml-2 flex h-9 w-9 items-center justify-center"><ChevronLeft size={26} /></button>}
-            <h2 className="disp flex-1 text-[21px] font-bold text-[var(--text)]">Channels</h2>
+            <h2 className="disp flex-1 text-[21px] font-bold text-[var(--text)]">{seg === "feed" ? "Channels" : seg === "courses" ? "Shared Courses" : "Campus Deals"}</h2>
             <button onClick={() => setSearchOpen((o) => !o)} aria-label="Search" className="flex h-9 w-9 items-center justify-center rounded-full active:bg-[var(--paper-dim)]"><Search size={19} /></button>
             <button onClick={() => setOverlay({ t: "profile", id: "me" })} aria-label="My channel" className="active:scale-95"><Avatar initials={initials(profile.name || "Me")} color="#A63FBD" size={30} /></button>
           </div>
           {(searchOpen || q) && <div className="mx-4 mt-2 flex items-center gap-2 rounded-full bg-[var(--paper-dim)] px-3.5 py-2.5"><Search size={15} className="text-[var(--dim)]" /><input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search videos, posts, courses..." className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-[#a99fb8]" />{q && <button onClick={() => { setQ(""); setSearchOpen(false); }} className="text-[12px] font-semibold text-[var(--dim)]">Clear</button>}</div>}
           <div className="no-scrollbar mt-2 flex gap-2 overflow-x-auto px-4">
-            {([["feed", "Videos"], ["courses", "Courses"], ["deals", "Campus & deals"]] as const).map(([id, label]) => (<button key={id} onClick={() => setSeg(id)} className={chip(seg === id)}>{label}</button>))}
-            {seg === "feed" && <span className="my-1 w-px shrink-0 bg-[var(--line)]" />}
             {seg === "feed" && tags.map((t) => (<button key={t} onClick={() => setTag(t)} className={`${chip(tag === t)} capitalize`}>{t}</button>))}
           </div>
         </div>

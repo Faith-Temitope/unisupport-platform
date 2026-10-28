@@ -77,12 +77,12 @@ export function PinSheet({ open, title, sub, onClose, onPin }: { open: boolean; 
 
 // ---------------------------------------------------------------- transfer
 
-export function TransferSheet({ open, onClose, thread, to, onSent }: { open: boolean; onClose: () => void; thread: string; to: { name: string; handle: string | null; color: string }; onSent: (m: ChatMsg) => void }) {
+export function TransferSheet({ open, onClose, thread, to, onSent, amount: preset }: { open: boolean; onClose: () => void; thread: string; to: { name: string; handle: string | null; color: string }; onSent: (m: ChatMsg) => void; amount?: number }) {
   const { balance, refreshWallet, setWalletOpen, flash } = useApp();
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [pin, setPinOpen] = useState(false);
-  useEffect(() => { if (open) void Promise.resolve().then(() => { setAmount(""); setNote(""); void refreshWallet(); }); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (open) void Promise.resolve().then(() => { setAmount(preset ? String(preset) : ""); setNote(""); void refreshWallet(); }); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const n = Number(amount || 0);
   function key(k: string) { setAmount((a) => (k === "del" ? a.slice(0, -1) : (a + k).replace(/^0+/, "").slice(0, 6))); }
   return (

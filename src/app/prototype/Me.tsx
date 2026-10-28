@@ -1,96 +1,64 @@
 "use client";
 
-// Me, laid out like WeChat's: you (with your Birdie ID and QR code), then Services (wallet), Favorites,
-// Moments, your channel, Stickers, verified accounts, and Settings.
-import { useBackLayer } from "./nav";
-import QRCode from "qrcode";
-import { BadgeCheck, ChevronRight, Crown, HelpCircle, Images, KeyRound, QrCode, Settings as Cog, ShieldCheck, Smile, Star, Trash2, Tv, Wallet } from "lucide-react";
+// Me, laid out like WeChat's: you (name, Birdie ID, QR code), then Services (Money, Wallet, campus
+// services), Favorites, My Posts, Cards & Offers, Sticker Gallery and Settings. Nothing that already
+// lives in Chats or Discover.
+import { ChevronRight, CreditCard, Crown, Images, QrCode, Settings as Cog, Smile, Star, Trash2, CircleCheckBig } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { favText, readFavs, writeFavs, type Fav } from "./ChatRoom";
-import { ApplyVerifiedSheet, OALogo, Tick } from "./Official";
-import { chatMediaUrl, hasPin, myManagedOfficials, setPin, type OAManaged } from "./live/chatData";
-import { naira, useApp } from "./store";
+import { chatMediaUrl, hasPin, setPin } from "./live/chatData";
+import { MyProfilePage, MyQrPage, ServicesPage } from "./MeServices";
+import { useBackLayer } from "./nav";
+import { useApp } from "./store";
 import { Btn, Sheet } from "./ui";
-import { Badge, Cell, CellGroup, SqAvatar, WeHeader } from "./we";
+import { Cell, CellGroup, SqAvatar, WeHeader } from "./we";
 
 const ic = (n: ReactNode, color: string) => <span className="flex h-6 w-6 items-center justify-center" style={{ color }}>{n}</span>;
 
 export default function Me({ active }: { active: boolean }) {
-  const { profile, auth, balance, plus, setWalletOpen, openPlus, setOverlay, setTourOpen, setAuthOpen, setChatView, setTab, setDiscoverView, refreshWallet } = useApp();
-  const [managed, setManaged] = useState<OAManaged[]>([]);
-  const [apply, setApply] = useState(false);
+  const { profile, auth, plus, openPlus, setOverlay, setAuthOpen, setTab, setDiscoverView, refreshWallet } = useApp();
   const [pinOpen, setPinOpen] = useState(false);
-  const [qrOpen, setQrOpen] = useState(false);
-  const [sub, setSub] = useState<null | "favorites" | "stickers">(null);
+  const [sub, setSub] = useState<null | "favorites" | "stickers" | "services" | "profile" | "qr">(null);
   useBackLayer(!!sub, () => setSub(null));
+  useBackLayer(sub === "qr", () => setSub("profile")); // QR code opens on top of My Profile
   const signedIn = auth.status === "in";
-  const load = useCallback(() => { if (signedIn) void myManagedOfficials().then(setManaged); }, [signedIn]);
-  useEffect(() => { if (active) void Promise.resolve().then(() => { load(); if (signedIn) void refreshWallet(); }); }, [active, load]); // eslint-disable-line react-hooks/exhaustive-deps
+  const load = useCallback(() => { if (signedIn) void refreshWallet(); }, [signedIn, refreshWallet]);
+  useEffect(() => { if (active) void Promise.resolve().then(load); }, [active, load]);
   const need = (f: () => void) => () => (signedIn ? f() : setAuthOpen(true));
 
   if (sub === "favorites") return <Favorites onBack={() => setSub(null)} />;
   if (sub === "stickers") return <Stickers onBack={() => setSub(null)} />;
+  if (sub === "services") return <><ServicesPage onBack={() => setSub(null)} onPin={() => setPinOpen(true)} /><ChangePin open={pinOpen} onClose={() => setPinOpen(false)} /></>;
+  if (sub === "profile") return <MyProfilePage onBack={() => setSub(null)} onQr={() => setSub("qr")} />;
+  if (sub === "qr") return <MyQrPage onBack={() => setSub("profile")} />;
 
   return (
     <div className="no-scrollbar flex h-full flex-col overflow-y-auto bg-[var(--we-bg)] pb-28">
       <div className="flex items-center gap-4 bg-[var(--we-cell)] px-6 pb-8 pt-14">
-        <button onClick={() => (signedIn ? setOverlay({ t: "profile", id: "me" }) : setAuthOpen(true))} className="flex min-w-0 flex-1 items-center gap-4 text-left">
+        <button onClick={() => (signedIn ? setSub("profile") : setAuthOpen(true))} className="flex min-w-0 flex-1 items-center gap-4 text-left">
           <SqAvatar name={profile.name || "Me"} color="#8A2FA3" size={64} />
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-1.5 text-[21px] font-semibold text-[var(--we-text)]"><span className="truncate">{profile.name || (signedIn ? "Your profile" : "Sign in")}</span>{plus && <Crown size={16} className="shrink-0 text-[#E3A008]" aria-label="Birdie Plus" />}</span>
             <span className="mt-1 block truncate text-[14px] text-[var(--we-sub)]">{signedIn ? (profile.handle ? `Birdie ID: ${profile.handle}` : "Setting up your Birdie ID...") : "Keep your work safe and chat with classmates"}</span>
-            {profile.institution && <span className="mt-0.5 block truncate text-[13px] text-[var(--we-hint)]">{profile.institution}</span>}
           </span>
         </button>
-        {signedIn && profile.handle && <button onClick={() => setQrOpen(true)} aria-label="My QR code" className="flex items-center gap-1 text-[var(--we-sub)]"><QrCode size={18} /><ChevronRight size={18} className="text-[var(--we-hint)]" /></button>}
+        {signedIn && <button onClick={() => setSub(profile.handle ? "qr" : "profile")} aria-label="My QR code" className="flex items-center gap-1 text-[var(--we-sub)]"><QrCode size={18} /><ChevronRight size={18} className="text-[var(--we-hint)]" /></button>}
       </div>
 
       <CellGroup>
-        <Cell icon={ic(<Wallet size={22} />, "#07C160")} label="Services" value={signedIn ? naira(balance) : undefined} onClick={() => setWalletOpen(true)} />
+        <Cell icon={ic(<CircleCheckBig size={22} />, "#2AAE67")} label="Services" onClick={() => setSub("services")} />
       </CellGroup>
       <CellGroup>
         <Cell icon={ic(<Star size={22} />, "#F5A623")} label="Favorites" onClick={() => setSub("favorites")} />
-        <Cell icon={ic(<Images size={22} />, "#3D83F7")} label="Moments" onClick={need(() => { setTab("explore"); setDiscoverView(auth.userId ? { k: "userMoments", id: auth.userId } : { k: "moments" }); })} />
-        <Cell icon={ic(<Tv size={22} />, "#FA9D3B")} label="My Channel" onClick={need(() => setOverlay({ t: "profile", id: "me" }))} />
-        <Cell icon={ic(<Smile size={22} />, "#F5C518")} label="Stickers" onClick={() => setSub("stickers")} />
+        <Cell icon={ic(<Images size={22} />, "#3D83F7")} label="My Posts" onClick={need(() => { setTab("explore"); setDiscoverView(auth.userId ? { k: "userMoments", id: auth.userId } : { k: "moments" }); })} />
+        <Cell icon={ic(<CreditCard size={22} />, "#1B8A85")} label="Cards & Offers" sub={plus ? "Birdie Plus is on" : "Birdie Plus, Exam Pass and student offers"} onClick={() => openPlus(plus ? "You're on Birdie Plus." : "Get more from Birdie.")} />
+        <Cell icon={ic(<Smile size={22} />, "#F5C518")} label="Sticker Gallery" onClick={() => setSub("stickers")} />
       </CellGroup>
       <CellGroup>
-        <Cell icon={ic(<Crown size={22} />, "#E3A008")} label="Birdie Plus" value={plus ? "On" : undefined} onClick={() => openPlus(plus ? "You're on Birdie Plus." : "Get more from Birdie.")} />
-        {signedIn && <Cell icon={ic(<KeyRound size={22} />, "#576B95")} label="Wallet PIN" onClick={() => setPinOpen(true)} />}
-      </CellGroup>
-      {signedIn && (
-        <CellGroup>
-          <Cell icon={ic(<BadgeCheck size={22} />, "#3D83F7")} label="Verified Accounts" onClick={() => { setTab("chats"); setChatView({ k: "verified" }); }} />
-          {managed.map((m) => (
-            <Cell key={m.id} icon={<OALogo a={m} size={24} />} label={<span className="flex items-center gap-1"><span className="truncate">{m.name}</span><Tick /></span>}
-              right={m.unread > 0 ? <Badge n={m.unread} /> : undefined} onClick={() => { setTab("chats"); setChatView({ k: "manage", id: m.id }); }} />
-          ))}
-          {managed.length === 0 && <Cell icon={ic(<ShieldCheck size={22} />, "#07C160")} label="Get a Verified Account" onClick={() => setApply(true)} />}
-        </CellGroup>
-      )}
-      <CellGroup>
-        <Cell icon={ic(<HelpCircle size={22} />, "#576B95")} label="How Birdie Works" onClick={() => setTourOpen(true)} />
         <Cell icon={ic(<Cog size={22} />, "#3D83F7")} label="Settings" onClick={() => setOverlay({ t: "settings" })} />
       </CellGroup>
-      <ApplyVerifiedSheet open={apply} onClose={() => setApply(false)} />
       <ChangePin open={pinOpen} onClose={() => setPinOpen(false)} />
-      <MyQr open={qrOpen} onClose={() => setQrOpen(false)} />
     </div>
-  );
-}
-
-function MyQr({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { profile } = useApp();
-  const [img, setImg] = useState<string | null>(null);
-  useEffect(() => { if (open && profile.handle) void QRCode.toDataURL(`${window.location.origin}/u/${profile.handle}`, { margin: 1, width: 520 }).then(setImg); }, [open, profile.handle]);
-  return (
-    <Sheet open={open} onClose={onClose} title="My QR Code">
-      <div className="flex flex-col items-center pb-2">
-        <div className="flex w-full items-center gap-3"><SqAvatar name={profile.name || "Me"} color="#8A2FA3" size={48} /><span className="min-w-0"><span className="block truncate text-[16px] font-semibold">{profile.name}</span><span className="block truncate text-[13px] text-[var(--we-sub)]">{profile.institution}</span></span></div>
-        {img && <img src={img} alt="My Birdie QR code" className="mt-4 h-60 w-60" />}
-        <p className="mt-3 text-center text-[13px] text-[var(--we-sub)]">Scan the QR code in Discover &gt; Scan to add me</p>
-      </div>
-    </Sheet>
   );
 }
 

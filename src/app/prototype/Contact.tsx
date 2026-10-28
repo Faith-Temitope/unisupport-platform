@@ -3,9 +3,9 @@
 // A person's profile, WeChat style: name, Birdie ID, region; Edit Contact (remark), Privacy (Chats,
 // Moments, etc. / Chats Only, Hide My Posts, Hide Their Posts), Moments, Channels, More, Send Message.
 import { useBackLayer } from "./nav";
-import { Check, MessageCircle } from "lucide-react";
+import { Check, MessageCircle, UserPlus } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { contactInfo, momentMediaUrl, setContactPrefs, type ContactInfo } from "./live/chatData";
+import { contactInfo, friendRequest, momentMediaUrl, setContactPrefs, type ContactInfo } from "./live/chatData";
 import { reportThing } from "./live/socialData";
 import { useApp } from "./store";
 import { Cell, CellGroup, SqAvatar, Switch, WeHeader } from "./we";
@@ -71,12 +71,20 @@ export default function Contact({ id, onBack }: { id: string; onBack: () => void
             onClick={() => setOverlay({ t: "profile", id: c.is_me ? "me" : c.id })} />
           <Cell label="More" onClick={() => setSub("more")} />
         </CellGroup>
+        {!c.is_me && !c.is_friend && c.friend_status && c.friend_status !== "friends" && (
+          <CellGroup>
+            <button disabled={c.friend_status === "sent"} onClick={async () => { const r = await friendRequest(c.id); flash(r.data === "accepted" ? `You and ${c.display_name} are now friends` : r.error ? "Couldn't send the request" : "Friend request sent"); void load(); }}
+              className="flex w-full items-center justify-center gap-2 py-4 text-[16px] font-medium text-[var(--we-link)] active:bg-black/5 disabled:text-[var(--we-sub)]">
+              <UserPlus size={20} /> {c.friend_status === "sent" ? "Friend Request Sent" : c.friend_status === "received" ? "Accept Friend Request" : "Add Friend"}
+            </button>
+          </CellGroup>
+        )}
         {!c.is_me && (
           <CellGroup>
             <button onClick={() => void openDm(c.id)} className="flex w-full items-center justify-center gap-2 py-4 text-[16px] font-medium text-[var(--we-link)] active:bg-black/5"><MessageCircle size={20} /> Send Message</button>
           </CellGroup>
         )}
-        {!c.is_me && !c.is_friend && <p className="px-6 pt-3 text-center text-[12.5px] leading-snug text-[var(--we-sub)]">You become friends once you&apos;ve both sent a message. Friends see each other&apos;s Moments.</p>}
+        {!c.is_me && !c.is_friend && <p className="px-6 pt-3 text-center text-[12.5px] leading-snug text-[var(--we-sub)]">Friends see each other&apos;s Moments. Add them, or you become friends once you&apos;ve both sent a message.</p>}
       </div>
     </div>
   );

@@ -3,7 +3,7 @@
 // Discover, laid out like WeChat's: Moments, Channels, Scan, Shake, Top Stories, Search, People at your
 // school and Mini Programs. Each opens full screen (the bottom bar hides) and Back returns to the list.
 import jsQR from "jsqr";
-import { BookOpen, Bot, Briefcase, Camera, ImagePlus, LayoutGrid, Package, Plus, ScanLine, PenLine, Presentation, Printer, Search, Smartphone, Zap } from "lucide-react";
+import { BookOpen, Bot, Briefcase, Camera, QrCode, Tag, ImagePlus, LayoutGrid, Plus, ScanLine, Search, Smartphone, Zap } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Head, ListRow } from "./Chats";
 import Explore from "./Explore";
@@ -11,10 +11,10 @@ import MomentsScreen, { hasNewMomentNotices } from "./Moments";
 import { OALogo, OAPostView, OAProfileView } from "./Official";
 import { momentsFeed, peopleAtSchool, searchAll, shake, topStories, type ArticleCard, type ChatPerson, type Moment } from "./live/chatData";
 import { JustDoIt } from "./JustDoIt";
+import { payTo } from "./MeServices";
 import { groupPreview, joinGroup } from "./live/groupData";
 import { navBack, useBackLayer } from "./nav";
 import { InternshipCard, usePlacements } from "./Sponsored";
-import { TutorialsSection } from "./Tutorials";
 import { useApp } from "./store";
 import { Badge, Cell, CellGroup, ChannelsIcon, MiniProgramsIcon, MomentsIcon, PeopleNearbyIcon, ScanIcon, SearchSparkIcon, ShakeIcon, SqAvatar, TopStoriesIcon, WeHeader } from "./we";
 import { ago } from "./Moments";
@@ -22,7 +22,9 @@ import { ago } from "./Moments";
 const SEEN_KEY = "birdie-moments-seen";
 
 export default function Discover({ active }: { active: boolean }) {
-  const { discoverView: view, setDiscoverView: go, auth, setAuthOpen } = useApp();
+  const { discoverView: view, setDiscoverView: go, auth, setAuthOpen, sharedIntent } = useApp();
+  // A shared course opened from somewhere else (a link, a chat) shows in Shared Courses.
+  useEffect(() => { if (sharedIntent && view?.k !== "sharedCourses") go({ k: "sharedCourses" }); }, [sharedIntent]); // eslint-disable-line react-hooks/exhaustive-deps
   const [latest, setLatest] = useState<Moment | null>(null);
   const [seenAt, setSeenAt] = useState("");
   const [notices, setNotices] = useState(false);
@@ -36,7 +38,7 @@ export default function Discover({ active }: { active: boolean }) {
     try { void Promise.resolve().then(() => setSeenAt(localStorage.getItem(SEEN_KEY) ?? "")); } catch { /* ignore */ }
   }, [active, view, signedIn]);
   const open = (v: NonNullable<typeof view>) => {
-    if (!signedIn && v.k !== "channels" && v.k !== "mini") { setAuthOpen(true); return; }
+    if (!signedIn && !["channels", "sharedCourses", "deals", "mini"].includes(v.k)) { setAuthOpen(true); return; }
     if (v.k === "moments" && latest) { try { localStorage.setItem(SEEN_KEY, latest.created_at); } catch { /* ignore */ } setSeenAt(latest.created_at); }
     go(v);
   };
@@ -48,6 +50,8 @@ export default function Discover({ active }: { active: boolean }) {
       {view.k === "moments" && <MomentsScreen onBack={back} />}
       {view.k === "userMoments" && <MomentsScreen key={view.id} userId={view.id} onBack={back} />}
       {view.k === "channels" && <Explore active={active} onBack={back} />}
+      {view.k === "sharedCourses" && <Explore active={active} onBack={back} section="courses" />}
+      {view.k === "deals" && <Explore active={active} onBack={back} section="deals" />}
       {view.k === "scan" && <Scan onBack={back} />}
       {view.k === "shake" && <Shake onBack={back} />}
       {view.k === "stories" && <Stories onBack={back} onOpen={(id) => go({ k: "post", id })} />}
@@ -87,6 +91,10 @@ export default function Discover({ active }: { active: boolean }) {
         </CellGroup>
         <CellGroup>
           <Cell icon={icon(<ChannelsIcon />)} label="Channels" onClick={() => open({ k: "channels" })} />
+        </CellGroup>
+        <CellGroup>
+          <Cell icon={icon(<BookOpen size={22} className="text-[#2F9E5B]" />)} label="Shared Courses" onClick={() => open({ k: "sharedCourses" })} />
+          <Cell icon={icon(<Tag size={22} className="text-[#FA9D3B]" />)} label="Campus Deals" onClick={() => open({ k: "deals" })} />
         </CellGroup>
         <CellGroup>
           <Cell icon={icon(<ScanIcon />)} label="Scan" onClick={() => open({ k: "scan" })} />
@@ -134,7 +142,7 @@ async function decode(det: Detector | null, src: HTMLVideoElement | HTMLImageEle
 }
 
 function Scan({ onBack }: { onBack: () => void }) {
-  const { openByHandle, flash, setChatView, setDiscoverView } = useApp();
+  const { openByHandle, flash, setChatView, setDiscoverView, setTab } = useApp();
   const video = useRef<HTMLVideoElement>(null);
   const photo = useRef<HTMLInputElement>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -152,6 +160,8 @@ function Scan({ onBack }: { onBack: () => void }) {
       try { u = new URL(text, window.location.origin); } catch { u = null; }
       const ours = !!u && /^https?:$/.test(u.protocol) && (u.host === window.location.host || BIRDIE_HOSTS.includes(u.host));
       if (u && ours) {
+        const payee = u.pathname.match(/^\/pay-me\/([\w.]+)/)?.[1] ?? u.searchParams.get("payto");
+        if (payee) { setDiscoverView(null); payTo(payee, Number(u.searchParams.get("amount") ?? 0) || undefined); return; }
         const user = u.pathname.match(/^\/u\/([\w.]+)/)?.[1] ?? u.searchParams.get("u");
         if (user) { const ok = await openByHandle(user); if (ok) { setDiscoverView(null); return; } flash(`No one on Birdie is called @${user}`); setPaused(false); return; }
         const code = u.pathname.match(/^\/g\/([A-Za-z0-9]+)/)?.[1] ?? u.searchParams.get("join");
@@ -206,9 +216,10 @@ function Scan({ onBack }: { onBack: () => void }) {
           {["left-0 top-0 border-l-[3px] border-t-[3px]", "right-0 top-0 border-r-[3px] border-t-[3px]", "bottom-0 left-0 border-b-[3px] border-l-[3px]", "bottom-0 right-0 border-b-[3px] border-r-[3px]"].map((c) => <span key={c} className={`absolute h-6 w-6 border-[var(--we-accent)] ${c}`} />)}
           {!paused && <span className="scanline absolute inset-x-3 h-0.5 bg-[var(--we-accent)] shadow-[0_0_12px_var(--we-accent)]" />}
         </span>
-        <p className="mt-6 px-10 text-center text-[14px] text-white/80">{err ?? "Scan a classmate's Birdie QR code or a group invite"}</p>
+        <p className="mt-6 px-10 text-center text-[14px] text-white/80">{err ?? "Scan a classmate's code, a group invite or a Receive Money code"}</p>
       </div>
-      <div className="absolute inset-x-0 bottom-10 flex justify-center">
+      <div className="absolute inset-x-0 bottom-10 flex justify-between px-8">
+        <button onClick={() => { setDiscoverView(null); setTab("me"); }} className="flex flex-col items-center gap-1.5 text-[12px] text-white/90"><span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15"><QrCode size={22} /></span>My QR Code</button>
         <button onClick={() => photo.current?.click()} className="flex flex-col items-center gap-1.5 text-[12px] text-white/90"><span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15"><ImagePlus size={22} /></span>Album</button>
       </div>
       <input ref={photo} type="file" accept="image/*" hidden onChange={(e) => { void fromPhoto(e.target.files?.[0]); e.target.value = ""; }} />
@@ -357,43 +368,24 @@ function School({ onBack }: { onBack: () => void }) {
   );
 }
 
-type MiniSub = null | "tutorials" | "print" | "internships" | "jdi";
+type MiniSub = null | "internships" | "jdi";
 
-/** Birdie's tools. Tutorials, printing, internships and Just Do It used to sit inside Unisupport Help. */
+/** Birdie's tools. (Printing and tutorials are in Me > Services.) */
 function Mini({ onBack }: { onBack: () => void }) {
-  const { openPrint, goBirdie, setDiscoverView: go, setTab, auth, setAuthOpen } = useApp();
+  const { goBirdie, setDiscoverView: go, setTab, auth, setAuthOpen } = useApp();
   const [sub, setSub] = useState<MiniSub>(null);
   useBackLayer(!!sub, () => setSub(null));
   const need = (f: () => void) => () => (auth.status === "in" ? f() : setAuthOpen(true));
   const close = () => setSub(null);
 
   if (sub === "jdi") return <JustDoIt onBack={close} />;
-  if (sub === "tutorials") return (
-    <div className="flex min-h-0 flex-1 flex-col bg-[var(--paper)]">
-      <WeHeader onBack={close} title="Tutorials" />
-      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pb-24 pt-2"><TutorialsSection active /></div>
-    </div>
-  );
-  if (sub === "print") return (
-    <div className="flex min-h-0 flex-1 flex-col bg-[var(--we-bg)]">
-      <WeHeader onBack={close} title="Print & Deliver" />
-      <CellGroup gap={false}>
-        <Cell icon={<Printer size={22} className="text-[#3D83F7]" />} label="Print a Document" sub="We print it and deliver it to you" onClick={need(() => openPrint({ kind: "print" }))} />
-        <Cell icon={<PenLine size={22} className="text-[#E2553F]" />} label="Handwrite My Work" sub="A real person writes it out by hand" onClick={need(() => openPrint({ kind: "handwrite" }))} />
-        <Cell icon={<Package size={22} className="text-[#F5A623]" />} label="My Orders" onClick={need(() => openPrint({ kind: "orders" }))} />
-      </CellGroup>
-      <a href="/partner" className="mt-5 block text-center text-[13px] text-[var(--we-link)]">Own a print shop? Become a Birdie print partner</a>
-    </div>
-  );
   if (sub === "internships") return <Internships onBack={close} />;
 
   const apps: { label: string; color: string; icon: ReactNode; run: () => void }[] = [
-    { label: "Tutorials", color: "#1B8A85", icon: <Presentation size={26} />, run: () => setSub("tutorials") },
-    { label: "Print & Deliver", color: "#3D83F7", icon: <Printer size={26} />, run: () => setSub("print") },
     { label: "Internships & SIWES", color: "#7C4DDB", icon: <Briefcase size={26} />, run: () => setSub("internships") },
     { label: "Just Do It", color: "#E2553F", icon: <Zap size={26} />, run: need(() => setSub("jdi")) },
     { label: "Birdie AI", color: "#8A2FA3", icon: <Bot size={26} />, run: () => goBirdie({ courseId: "general" }) },
-    { label: "Shared Courses", color: "#2F9E5B", icon: <BookOpen size={26} />, run: () => go({ k: "channels" }) },
+    { label: "Shared Courses", color: "#2F9E5B", icon: <BookOpen size={26} />, run: () => go({ k: "sharedCourses" }) },
     { label: "My Courses", color: "#D9467E", icon: <BookOpen size={26} />, run: () => { go(null); setTab("study"); } },
   ];
   return (

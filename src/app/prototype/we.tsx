@@ -41,11 +41,13 @@ export function GridAvatar({ avatars, size = 48 }: { avatars: { name: string; co
 }
 
 export function WeHeader({ title, onBack, right, transparent }: { title?: ReactNode; onBack?: () => void; right?: ReactNode; transparent?: boolean }) {
+  // A transparent header takes its colour from what it sits on (white over a photo, the camera, Money's green).
+  const ink = transparent ? "" : "text-[var(--we-text)]";
   return (
     <div className={`relative flex h-12 shrink-0 items-center justify-between px-2 ${transparent ? "" : "bg-[var(--we-bg)]"}`}>
-      <div className="z-10 flex w-24 items-center">{onBack && <button onClick={onBack} aria-label="Back" className="flex h-10 w-10 items-center justify-center text-[var(--we-text)]"><ChevronLeft size={26} strokeWidth={2} /></button>}</div>
-      <div className="pointer-events-none absolute inset-x-24 text-center text-[16.5px] font-semibold text-[var(--we-text)]"><div className="truncate">{title}</div></div>
-      <div className="z-10 flex w-24 items-center justify-end gap-1 text-[var(--we-text)]">{right}</div>
+      <div className="z-10 flex w-24 items-center">{onBack && <button onClick={onBack} aria-label="Back" className={`flex h-10 w-10 items-center justify-center ${ink}`}><ChevronLeft size={26} strokeWidth={2} /></button>}</div>
+      <div className={`pointer-events-none absolute inset-x-24 text-center text-[16.5px] font-semibold ${ink}`}><div className="truncate">{title}</div></div>
+      <div className={`z-10 flex w-24 items-center justify-end gap-1 ${ink}`}>{right}</div>
     </div>
   );
 }

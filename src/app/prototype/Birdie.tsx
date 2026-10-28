@@ -1,13 +1,14 @@
 "use client";
 
 import { navBack, useBackLayer } from "./nav";
-import { PlusCircle, WeHeader } from "./we";
+import { PlusCircle, SqAvatar, VoiceCircle, WeHeader } from "./we";
+import { BirdieSettings, CompanionAvatar, companionOf } from "./Companions";
 import { whileVisible } from "./perf";
 import { localNotify } from "./push";
 import { useViewState } from "./persist";
 import { VideoLesson } from "./VideoLesson";
-import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Search, AudioLines, Backpack, BookOpen, BookOpenCheck, Check, ChevronDown, Clapperboard, ClipboardCheck, FileQuestion, FlaskConical, Loader2, Menu, Mic, Palette, Paperclip, Plus, Send, Square, SquarePen, ThumbsDown, ThumbsUp, Volume2, X } from "lucide-react";
+import { motion } from "framer-motion";
+import { ChevronLeft, Search, AudioLines, Backpack, BookOpen, BookOpenCheck, Check, ChevronDown, Clapperboard, ClipboardCheck, FileQuestion, FlaskConical, Loader2, Mic, Palette, Paperclip, Square, SquarePen, ThumbsDown, ThumbsUp, Volume2, X } from "lucide-react";
 import { Rich } from "./Rich";
 import { VoiceChat, primeVoiceAudio, type VoiceLine } from "./VoiceChat";
 import { ingestFiles } from "./ingest";
@@ -18,7 +19,6 @@ import { answer, docsOf, flashcards, general, makeFree, makeQuiz, summarize, typ
 import { firstName, nowTime, uid, useApp, type BAction, type BMsg, type Course } from "./store";
 import { Btn, DemoControls, Empty, Sheet, scrollToEnd } from "./ui";
 import { createClient } from "@/lib/supabase";
-import { brainName } from "./BrainPicker";
 import { SponsoredCard, usePlacements } from "./Sponsored";
 import { brainById } from "@/lib/ai/registry";
 import { CARDS_SYSTEM, GRADE_SYSTEM, QUIZ_SYSTEM, askAI, chatSystem, libraryOutline, contextFor, makePicture, parseJson, sanitizeDeep, speechUrl, stripMarkdown, type AiFail } from "./aiClient";
@@ -73,7 +73,7 @@ function respond(text: string, c: Course | null, length: "short" | "normal" | "d
 }
 
 export default function Birdie({ active, onBack }: { active: boolean; onBack?: () => void }) {
-  const { courses, folders, profile, settings, chats, setChats, birdieIntent, clearBirdieIntent, applyQuiz, addNote, addFile, updateFile, openFile, openPlus, flash, setTab, goStudy, goHelp, phone, setOverlay, logChat, setBrainOpen, auth, setWalletOpen, setSetting, refreshWallet, loadRemoteCourseContent, sharedRemoteContent, setBarsHidden, pocketAdd } = useApp();
+  const { courses, folders, profile, settings, chats, setChats, birdieIntent, clearBirdieIntent, applyQuiz, addNote, addFile, updateFile, openFile, openPlus, flash, setTab, goStudy, goHelp, phone, logChat, auth, setWalletOpen, setSetting, refreshWallet, loadRemoteCourseContent, sharedRemoteContent, setBarsHidden, pocketAdd } = useApp();
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [voiceSys, setVoiceSys] = useState<string | null>(null);
   const [speaking, setSpeaking] = useState<{ id: string; loading: boolean } | null>(null);
@@ -83,7 +83,6 @@ export default function Birdie({ active, onBack }: { active: boolean; onBack?: (
   const [typing, setTyping] = useState(false);
   const [mode, setMode] = useViewState<Mode>("birdie.mode", "chat");
   const [draft, setDraft] = useState("");
-  const [drawer, setDrawer] = useState(false);
   const [attach, setAttach] = useState(false);
   const [lesson, setLesson] = useState(false);
   const [holdPick, setHoldPick] = useState(false);
@@ -104,6 +103,9 @@ export default function Birdie({ active, onBack }: { active: boolean; onBack?: (
   const fresh = (b: string) => `${b}~${Date.now().toString(36)}`;
   // Opening Birdie from Chats shows its home (new chat box, courses, earlier chats); a chat opens on top.
   const [home, setHome] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  useBackLayer(settingsOpen, () => setSettingsOpen(false));
+  useBackLayer(attach, () => setAttach(false));
   useBackLayer(!home, () => setHome(true));
   const wasActive = useRef(active);
   useEffect(() => {
@@ -254,7 +256,7 @@ export default function Birdie({ active, onBack }: { active: boolean; onBack?: (
     if (a.run === "plus") { openPlus("Birdie Plus"); return; }
     if (a.run === "retry") { void send(a.payload ?? ""); return; }
     if (a.run === "spark") { setSetting("aiBrain", "spark"); flash("Switched to Spark (free)"); return; }
-    if (a.run === "brain") { setBrainOpen(true); return; }
+    if (a.run === "brain") { setSettingsOpen(true); return; }
     if (a.run === "writer") { goHelp({ mode: "mentor", courseId: course?.id ?? null }); return; }
     if (a.run === "study" && course) { goStudy({ courseId: course.id, tab: "notes" }); return; }
     if (!course) return;
@@ -367,8 +369,9 @@ export default function Birdie({ active, onBack }: { active: boolean; onBack?: (
   };
   const sponsor = birdieCards.length ? birdieCards[(ctx.length + thread.length) % birdieCards.length] : null;
 
+  if (settingsOpen) return <BirdieSettings onBack={() => setSettingsOpen(false)} />;
   if (home) return (
-    <BirdieHome courses={courses} chats={chats} onBack={onBack}
+    <BirdieHome courses={courses} chats={chats} onBack={onBack} onSettings={() => setSettingsOpen(true)} companion={settings.aiBrain}
       onOpen={(k) => { setCtx(k); setMode("chat"); setHome(false); }}
       onNew={(b, text) => { const k = fresh(b); setCtx(k); setMode("chat"); setHome(false); if (text) void send(text, k, b === "general" ? null : courses.find((c) => c.id === b) ?? null); }}
       onDelete={(k) => setChats((cs) => { const n = { ...cs }; delete n[k]; return n; })} />
@@ -376,46 +379,47 @@ export default function Birdie({ active, onBack }: { active: boolean; onBack?: (
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex shrink-0 items-center justify-between px-5 pb-2 pt-2">
-        <span className="flex items-center gap-1.5">{onBack && <button onClick={navBack} aria-label="Back" className="flex h-9 w-9 items-center justify-center rounded-xl active:bg-[var(--paper-dim)]"><ArrowLeft size={19} /></button>}<button onClick={() => setDrawer(true)} aria-label="Birdie chats" className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--paper-dim)] active:scale-90"><Menu size={17} /></button></span>
-        <button onClick={() => setBrainOpen(true)} aria-label="Choose Birdie's brain" className="flex flex-col items-center active:scale-95"><span className="flex items-center gap-2"><span className="disp flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#C05BD6] to-[#8A2FA3] text-[13px] font-bold text-white">B</span><span className="disp text-[19px] font-bold text-[var(--text)]">Birdie</span></span><span className="mt-0.5 rounded-full bg-[var(--birdie-soft)] px-2 py-0.5 text-[10.5px] font-bold text-[var(--birdie-text)]">{live ? brainName(settings.aiBrain, settings.aiTier) : "Offline preview"} ▾</span></button>
-        <button onClick={() => { setCtx(fresh(base)); setMode("chat"); }} aria-label="New chat" className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--paper-dim)] active:scale-90"><SquarePen size={16} /></button>
-      </div>
-
-      <div className="no-scrollbar flex shrink-0 gap-2 overflow-x-auto px-5 pb-2">
-        {[...courses.map((c) => ({ id: c.id, label: c.code })), { id: "general", label: "General" }].map((c) => (
-          <button key={c.id} onClick={() => { if (base !== c.id) setCtx(fresh(c.id)); setMode("chat"); }} className={`shrink-0 rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition active:scale-95 ${base === c.id ? "bg-[var(--birdie)] text-white" : "bg-[var(--birdie-soft)] text-[var(--birdie-text)]"}`}>{c.label}</button>
-        ))}
+      <div className="relative flex h-12 shrink-0 items-center justify-between bg-[var(--we-bg)] px-1 text-[var(--we-text)]">
+        <span className="flex items-center">
+          {onBack && <button onClick={navBack} aria-label="Back" className="flex h-10 w-9 items-center justify-center"><ChevronLeft size={26} /></button>}
+          <button onClick={() => setSettingsOpen(true)} aria-label="Birdie settings" className="ml-0.5 active:scale-95"><CompanionAvatar id={settings.aiBrain} size={32} /></button>
+        </span>
+        <span className="pointer-events-none absolute inset-x-24 truncate text-center text-[16.5px] font-semibold">{course ? `${course.code} · ${course.name}` : companionOf(settings.aiBrain).name}</span>
+        <button onClick={() => { setCtx(fresh(base)); setMode("chat"); }} aria-label="New chat" className="flex h-10 w-10 items-center justify-center"><SquarePen size={20} /></button>
       </div>
 
       <div className="relative min-h-0 flex-1">
         {chatting ? (
-          <div onScroll={onChatScroll} className="no-scrollbar absolute inset-0 space-y-3 overflow-y-auto px-5 pb-3">
-            {courses.length === 0 && <div className="rounded-2xl bg-[var(--birdie-soft)] p-3.5 text-[13px] leading-snug text-[var(--birdie-text)]">Birdie learns from your courses. <button onClick={() => setTab("study")} className="font-bold underline">Create one in Courses</button> to get answers from your own material.</div>}
+          <div onScroll={onChatScroll} onClick={() => setAttach(false)} className="no-scrollbar absolute inset-0 space-y-4 overflow-y-auto bg-[var(--we-chat)] px-3 py-3">
+            {courses.length === 0 && <div className="mx-auto w-fit max-w-[85%] rounded-[4px] bg-black/10 px-2.5 py-1 text-center text-[12.5px] leading-snug text-[var(--we-sub)]">Birdie learns from your courses. <button onClick={() => setTab("study")} className="font-bold underline">Create one in Courses</button> to get answers from your own material.</div>}
             {thread.map((m) => (
-              <motion.div key={m.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`flex ${m.from === "me" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[88%] ${m.from === "me" ? "" : "w-full"}`}>
-                  {m.photo && <img src={m.photo} alt="Your photo" className="mb-1 ml-auto block max-h-40 rounded-2xl" />}
-                  <div className={`rounded-2xl px-3.5 py-2.5 text-[14px] leading-snug ${m.from === "me" ? "ml-auto w-fit whitespace-pre-line rounded-br-md bg-[var(--ink)] text-[var(--paper)]" : "w-fit max-w-full rounded-bl-md border border-[var(--line)] bg-white text-[var(--text)]"}`}>{m.from === "bird" ? <Rich text={m.text} /> : m.text}</div>
+              <motion.div key={m.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`flex items-start gap-2.5 ${m.from === "me" ? "flex-row-reverse" : ""}`}>
+                {m.from === "me" ? <SqAvatar name={profile.name || "Me"} color="#8A2FA3" size={40} /> : <CompanionAvatar id={settings.aiBrain} size={40} />}
+                <div className={`flex min-w-0 max-w-[78%] flex-col ${m.from === "me" ? "items-end" : "items-start"}`}>
+                  {m.photo && <img src={m.photo} alt="Your photo" className="mb-1 block max-h-40 rounded-[4px]" />}
+                  <div className={`relative rounded-[4px] px-3 py-[9px] text-[16px] leading-[1.45] ${m.from === "me" ? "whitespace-pre-line bg-[var(--we-mine)] text-[var(--we-mine-text)]" : "max-w-full bg-[var(--we-bubble)] text-[var(--we-text)]"}`}>
+                    <span className={`absolute top-[13px] h-2.5 w-2.5 rotate-45 ${m.from === "me" ? "-right-1 bg-[var(--we-mine)]" : "-left-1 bg-[var(--we-bubble)]"}`} />
+                    <div className="relative">{m.from === "bird" ? <Rich text={m.text} /> : m.text}</div>
+                  </div>
                   {m.img && <DrawnPicture path={m.img} onOpen={() => openFile({ name: "Birdie picture.png", path: m.img })} />}
                   {m.cite && <Sources cite={m.cite} />}
-                  {m.meta && <div className="mt-0.5 pl-1 text-[10.5px] text-[var(--dim)]">{m.meta}</div>}
+                  {m.meta && <div className="mt-0.5 pl-1 text-[11px] text-[var(--we-hint)]">{m.meta}</div>}
                   {m.cards && <Flashcards cards={m.cards} />}
                   {m.from === "bird" && (
-                    <div className="mt-1.5 flex flex-wrap items-center gap-2 pl-1">
-                      {settings.readAloud && <button onClick={() => void speak(m)} aria-label={speaking?.id === m.id ? "Stop reading" : "Read aloud"} className={`flex h-7 w-7 items-center justify-center rounded-lg active:bg-[var(--paper-dim)] ${speaking?.id === m.id ? "text-[var(--birdie)]" : "text-[var(--dim)]"}`}>{speaking?.id === m.id ? (speaking.loading ? <Loader2 size={14} className="animate-spin" /> : <Square size={12} fill="currentColor" />) : <Volume2 size={14} />}</button>}
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      {settings.readAloud && <button onClick={() => void speak(m)} aria-label={speaking?.id === m.id ? "Stop reading" : "Read aloud"} className={`flex h-7 w-7 items-center justify-center rounded-full ${speaking?.id === m.id ? "text-[var(--we-accent)]" : "text-[var(--we-hint)]"}`}>{speaking?.id === m.id ? (speaking.loading ? <Loader2 size={14} className="animate-spin" /> : <Square size={12} fill="currentColor" />) : <Volume2 size={15} />}</button>}
                       {live && m.meta && !m.actions?.some((a) => a.run === "retry") && <>
-                        <button onClick={() => void rate(m, 1)} aria-label="Good answer" aria-pressed={m.rating === 1} className={`flex h-7 w-7 items-center justify-center rounded-lg active:bg-[var(--paper-dim)] ${m.rating === 1 ? "text-[var(--birdie)]" : "text-[var(--dim)]"}`}><ThumbsUp size={14} fill={m.rating === 1 ? "currentColor" : "none"} /></button>
-                        <button onClick={() => setFbFor(m)} aria-label="Bad answer" aria-pressed={m.rating === -1} className={`flex h-7 w-7 items-center justify-center rounded-lg active:bg-[var(--paper-dim)] ${m.rating === -1 ? "text-[var(--help)]" : "text-[var(--dim)]"}`}><ThumbsDown size={14} fill={m.rating === -1 ? "currentColor" : "none"} /></button>
+                        <button onClick={() => void rate(m, 1)} aria-label="Good answer" aria-pressed={m.rating === 1} className={`flex h-7 w-7 items-center justify-center rounded-full ${m.rating === 1 ? "text-[var(--we-accent)]" : "text-[var(--we-hint)]"}`}><ThumbsUp size={14} fill={m.rating === 1 ? "currentColor" : "none"} /></button>
+                        <button onClick={() => setFbFor(m)} aria-label="Bad answer" aria-pressed={m.rating === -1} className={`flex h-7 w-7 items-center justify-center rounded-full ${m.rating === -1 ? "text-[var(--we-red)]" : "text-[var(--we-hint)]"}`}><ThumbsDown size={14} fill={m.rating === -1 ? "currentColor" : "none"} /></button>
                       </>}
-                      {m.actions?.map((a) => (<button key={a.label} disabled={m.done && a.run !== "study" && a.run !== "writer" && a.run !== "topup" && a.run !== "brain" && a.run !== "plus"} onClick={() => runAction(m, a)} className="rounded-lg bg-[var(--ink)] px-3 py-1.5 text-[12px] font-semibold text-white transition active:scale-95 disabled:opacity-40">{m.done && a.run !== "study" && a.run !== "writer" && a.run !== "topup" && a.run !== "brain" && a.run !== "plus" ? "Done" : a.label}</button>))}
+                      {m.actions?.map((a) => (<button key={a.label} disabled={m.done && a.run !== "study" && a.run !== "writer" && a.run !== "topup" && a.run !== "brain" && a.run !== "plus"} onClick={() => runAction(m, a)} className="rounded-[4px] bg-[var(--we-cell)] px-3 py-1.5 text-[13px] text-[var(--we-link)] active:opacity-70 disabled:opacity-40">{m.done && a.run !== "study" && a.run !== "writer" && a.run !== "topup" && a.run !== "brain" && a.run !== "plus" ? "Done" : a.label}</button>))}
                     </div>
                   )}
                 </div>
               </motion.div>
             ))}
             {sponsor && thread.length <= 1 && !typing && <SponsoredCard p={sponsor} />}
-            {typing && (<div className="flex"><div className="flex gap-1 rounded-2xl rounded-bl-md border border-[var(--line)] bg-white px-4 py-3">{[0, 1, 2].map((i) => (<motion.span key={i} className="h-1.5 w-1.5 rounded-full bg-[#a99fb8]" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15 }} />))}</div></div>)}
+            {typing && (<div className="flex items-start gap-2.5"><CompanionAvatar id={settings.aiBrain} size={40} /><div className="flex gap-1 rounded-[4px] bg-[var(--we-bubble)] px-4 py-4">{[0, 1, 2].map((i) => (<motion.span key={i} className="h-1.5 w-1.5 rounded-full bg-[#a99fb8]" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15 }} />))}</div></div>)}
             <div ref={endRef} />
           </div>
         ) : mode === "test" && course && aiQuiz?.loading ? (
@@ -428,41 +432,27 @@ export default function Birdie({ active, onBack }: { active: boolean; onBack?: (
       </div>
 
       {chatting && focusSrc && course && (
-        <div className="mx-4 mb-1 flex items-center gap-2 rounded-xl bg-[var(--study-soft)] px-3 py-2 text-[12.5px] font-semibold text-[var(--study)]"><Paperclip size={14} /><span className="min-w-0 flex-1 truncate">Answering from: {focusSrc.replace(/^Note: /, "")}</span><button onClick={() => setFocusSrc(null)} aria-label="Stop using this file"><X size={14} /></button></div>
+        <div className="flex shrink-0 items-center gap-2 bg-[var(--we-bar)] px-3 pt-2 text-[12.5px] text-[var(--we-sub)]"><Paperclip size={14} /><span className="min-w-0 flex-1 truncate">Answering from: {focusSrc.replace(/^Note: /, "")}</span><button onClick={() => setFocusSrc(null)} aria-label="Stop using this file"><X size={14} /></button></div>
       )}
-      {chatting && thread.length <= 2 && (<div className="no-scrollbar flex shrink-0 gap-2 overflow-x-auto px-5 pb-2 pt-1">{chips.map((c) => (<button key={c} onClick={() => sendChip(c)} className="shrink-0 rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[var(--text)] active:scale-95">{c}</button>))}</div>)}
+      {chatting && thread.length <= 2 && (<div className="no-scrollbar flex shrink-0 gap-2 overflow-x-auto bg-[var(--we-chat)] px-3 pb-2 pt-1">{chips.map((c) => (<button key={c} onClick={() => sendChip(c)} className="shrink-0 rounded-full bg-[var(--we-cell)] px-3 py-1.5 text-[13px] text-[var(--we-text)] active:opacity-70">{c}</button>))}</div>)}
 
       {chatting && photo && (
-        <div className="mx-4 mb-1 flex items-center gap-2.5 rounded-xl bg-[var(--paper-dim)] p-2"><img src={photo.thumb} alt="" className="h-11 w-11 rounded-lg object-cover" /><span className="min-w-0 flex-1 text-[12.5px] font-semibold text-[var(--dim)]">Photo attached. Ask about it, or just send.</span><button onClick={() => setPhoto(null)} aria-label="Remove photo" className="p-1 text-[var(--dim)]"><X size={15} /></button></div>
+        <div className="flex shrink-0 items-center gap-2.5 bg-[var(--we-bar)] px-3 pt-2"><img src={photo.thumb} alt="" className="h-11 w-11 rounded-[4px] object-cover" /><span className="min-w-0 flex-1 text-[12.5px] text-[var(--we-sub)]">Photo attached. Ask about it, or just send.</span><button onClick={() => setPhoto(null)} aria-label="Remove photo" className="p-1 text-[var(--dim)]"><X size={15} /></button></div>
       )}
-      {!chatting && <div className="flex shrink-0 items-center justify-between border-t border-[var(--line)] px-5 py-2 text-[12.5px]"><span className="font-bold capitalize">{mode} mode</span><button onClick={() => setMode("chat")} className="font-semibold text-[var(--birdie-text)]">Back to chat</button></div>}
-      <div className="flex shrink-0 items-center gap-2 px-4 pb-3 pt-2">
+      {!chatting && <div className="flex shrink-0 items-center justify-between border-t border-[var(--we-sep)] bg-[var(--we-bar)] px-4 py-2 text-[13px] text-[var(--we-text)]"><span className="capitalize">{mode} mode</span><button onClick={() => setMode("chat")} className="text-[var(--we-link)]">Back to chat</button></div>}
+      <div className="flex shrink-0 items-end gap-2 border-t border-[var(--we-sep)] bg-[var(--we-bar)] px-2 pb-2 pt-2 text-[var(--we-text)]">
         <input ref={fileIn} type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; void onPick(f); }} />
-        <button onClick={() => setAttach(true)} aria-label="More tools" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--paper-dim)] text-[var(--dim)] active:scale-90"><Plus size={19} /></button>
-        <input value={draft} disabled={!chatting} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} placeholder={!chatting ? `${mode} mode` : listening ? "Listening..." : course ? `Ask about ${course.code}...` : "Talk to Birdie..."} className="min-w-0 flex-1 rounded-full bg-[var(--paper-dim)] px-4 py-3 text-[14px] outline-none placeholder:text-[#a99fb8] disabled:opacity-50" />
-        <button onClick={dictate} aria-label="Dictate" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:scale-90 ${listening ? "bg-[var(--help)] text-white" : "bg-[var(--paper-dim)] text-[var(--dim)]"}`}><Mic size={17} /></button>
-        {draft.trim() || photo || !chatting
-          ? <button onClick={submit} disabled={(!draft.trim() && !photo) || !chatting} aria-label="Send" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--birdie)] text-white transition active:scale-90 disabled:opacity-40"><Send size={17} /></button>
-          : <button onClick={startVoice} aria-label="Voice chat" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--birdie)] text-white transition active:scale-90"><AudioLines size={18} /></button>}
+        <button onClick={startVoice} aria-label="Voice chat" className="mb-[3px] shrink-0 active:opacity-60"><VoiceCircle /></button>
+        <textarea value={draft} disabled={!chatting} onChange={(e) => setDraft(e.target.value)} onFocus={() => setAttach(false)} rows={1} aria-label="Ask Birdie"
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
+          placeholder={!chatting ? `${mode} mode` : listening ? "Listening..." : ""}
+          className="max-h-28 min-h-9 min-w-0 flex-1 resize-none rounded-[4px] bg-[var(--we-input)] px-2.5 py-[7px] text-[16px] leading-snug text-[var(--we-text)] outline-none placeholder:text-[var(--we-hint)]" />
+        <button onClick={dictate} aria-label="Dictate" className={`mb-[3px] shrink-0 active:opacity-60 ${listening ? "text-[var(--we-red)]" : ""}`}><span className="flex h-[30px] w-[30px] items-center justify-center rounded-full border-[1.6px] border-current"><Mic size={16} /></span></button>
+        {draft.trim() || photo
+          ? <button onClick={submit} disabled={!chatting} className="mb-[2px] h-8 shrink-0 rounded-[4px] bg-[var(--we-accent)] px-3 text-[14px] font-medium text-white disabled:opacity-40">Send</button>
+          : <button onClick={() => setAttach((a) => !a)} aria-label="More tools" className="mb-[3px] shrink-0 active:opacity-60"><PlusCircle /></button>}
       </div>
-
-      {phone && createPortal(
-        <AnimatePresence>
-          {drawer && (
-            <motion.div className="absolute inset-0 z-[65] bg-[#12121A]/55" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDrawer(false)}>
-              <motion.div className="flex h-full w-[82%] flex-col bg-[var(--ink)] p-4 pt-14 text-[var(--paper)]" initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }} transition={{ type: "spring", damping: 32, stiffness: 320 }} onClick={(e) => e.stopPropagation()}>
-                <div className="mb-4 flex items-center justify-between"><div className="disp text-[16px] font-bold">Your chats</div><button onClick={() => setDrawer(false)} aria-label="Close" className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10"><X size={15} /></button></div>
-                <div className="no-scrollbar flex-1 space-y-1 overflow-y-auto">
-                  {[...courses.map((c) => ({ id: c.id, title: `${c.code} · ${c.name}` })), { id: "general", title: "General chat" }].map((c) => { const last = (chats[c.id] ?? []).slice(-1)[0]; return (<button key={c.id} onClick={() => { setCtx(c.id); setMode("chat"); setDrawer(false); }} className={`w-full rounded-xl px-3 py-2.5 text-left ${ctx === c.id ? "bg-white/10" : ""}`}><div className="text-[13.5px] font-semibold">{c.title}</div><div className="truncate text-[11.5px] text-white/45">{last ? last.text : "No messages yet"}</div></button>); })}
-                </div>
-                <button onClick={() => { setDrawer(false); setOverlay({ t: "settings" }); }} className="mt-3 flex items-center gap-3 border-t border-white/10 pt-3 text-left"><span className="disp flex h-9 w-9 items-center justify-center rounded-full bg-[var(--birdie)] text-[15px] font-bold text-white">{(name[0] ?? "B").toUpperCase()}</span><span><div className="text-[13.5px] font-bold">{profile.name || "Your account"}</div><div className="text-[11.5px] text-white/50">Settings and account</div></span></button>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>, phone)}
-
-      <Sheet open={attach} onClose={() => setAttach(false)} title={course ? `Tools for ${course.code}` : "Tools"}>
-        <div className="grid grid-cols-2 gap-2">
+      {attach && <div className="no-scrollbar max-h-[300px] shrink-0 overflow-y-auto border-t border-[var(--we-sep)] bg-[var(--we-bar)] p-3"><div className="grid grid-cols-2 gap-2">
           <Tool label="Teach me step by step" sub="Birdie guides you with questions" Icon={BookOpenCheck} onClick={toolTeach} />
           <Tool label="Video lesson" sub="A narrated explainer from your notes" Icon={Clapperboard} onClick={toolLesson} />
           <Tool label="Quiz me" sub="Multiple choice from your notes" Icon={ClipboardCheck} onClick={() => toolMode("test")} />
@@ -474,7 +464,11 @@ export default function Birdie({ active, onBack }: { active: boolean; onBack?: (
           <Tool label="Ask about a course file" sub="Use a file already in this course, no re-upload" Icon={FileQuestion} onClick={() => { setAttach(false); if (!course) { flash("Pick a course first"); return; } setFocusPick(true); }} />
           <Tool label="Hold a file for me" sub="Your buddy keeps it handy while you learn" Icon={Backpack} onClick={() => { setAttach(false); if (!course) { flash("Pick a course first"); return; } setHoldPick(true); }} />
         </div>
-      </Sheet>
+      </div>}
+
+
+
+
 
       <Sheet open={focusPick} onClose={() => setFocusPick(false)} title={course ? `Ask about a file in ${course.code}` : "Ask about a file"}>
         {course && (() => {
@@ -611,7 +605,7 @@ function FreeResponse({ q, onGrade, onExit, onAdd }: { q: FreeQ | null; onGrade?
 }
 
 function Tool({ label, sub, Icon, onClick }: { label: string; sub: string; Icon: typeof Paperclip; onClick: () => void }) {
-  return <button onClick={onClick} className="rounded-2xl border border-[var(--line)] bg-white p-3 text-left active:scale-[0.98]"><Icon size={18} className="text-[var(--birdie)]" /><div className="mt-1.5 text-[13.5px] font-bold leading-tight">{label}</div><div className="text-[11.5px] leading-snug text-[var(--dim)]">{sub}</div></button>;
+  return <button onClick={onClick} className="rounded-[8px] bg-[var(--we-cell)] p-3 text-left active:opacity-70"><Icon size={20} strokeWidth={1.6} className="text-[var(--we-text)]" /><div className="mt-1.5 text-[14px] leading-tight text-[var(--we-text)]">{label}</div><div className="text-[11.5px] leading-snug text-[var(--dim)]">{sub}</div></button>;
 }
 
 /** "From your notes" sources, folded away until tapped. */
@@ -664,8 +658,8 @@ const colorOf = (t: string) => PALETTE[[...t].reduce((a, ch) => a + ch.charCodeA
 
 /** Birdie's home, laid out like the Courses folder: start a chat about a course (circles), pick up an
  *  earlier chat (cards), or just type at the bottom, which always starts a new chat. */
-function BirdieHome({ courses, chats, onBack, onOpen, onNew, onDelete }: {
-  courses: Course[]; chats: Record<string, BMsg[]>; onBack?: () => void; onOpen: (key: string) => void; onNew: (base: string, text?: string) => void; onDelete: (key: string) => void;
+function BirdieHome({ courses, chats, onBack, onSettings, companion, onOpen, onNew, onDelete }: {
+  courses: Course[]; chats: Record<string, BMsg[]>; onBack?: () => void; onSettings: () => void; companion: string; onOpen: (key: string) => void; onNew: (base: string, text?: string) => void; onDelete: (key: string) => void;
 }) {
   const [draft, setDraft] = useState("");
   const [q, setQ] = useState("");
@@ -684,7 +678,10 @@ function BirdieHome({ courses, chats, onBack, onOpen, onNew, onDelete }: {
   );
   return (
     <div className="flex h-full min-h-0 flex-col bg-[var(--we-bg)]">
-      <WeHeader onBack={onBack ? navBack : undefined} title="Birdie AI" right={<button onClick={() => setSearching((x) => !x)} aria-label="Search chats" className="flex h-10 w-10 items-center justify-center"><Search size={21} /></button>} />
+      <WeHeader onBack={onBack ? navBack : undefined} title="Birdie AI" right={<>
+        <button onClick={() => setSearching((x) => !x)} aria-label="Search chats" className="flex h-10 w-10 items-center justify-center"><Search size={21} /></button>
+        <button onClick={onSettings} aria-label="Birdie settings" className="mr-1.5 active:scale-95"><CompanionAvatar id={companion} size={30} /></button>
+      </>} />
       {searching && <div className="px-3 pb-2"><div className="flex items-center gap-2 rounded-[6px] bg-[var(--we-cell)] px-3 py-2"><Search size={16} className="text-[var(--we-sub)]" /><input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search your Birdie chats" className="min-w-0 flex-1 bg-transparent text-[15px] text-[var(--we-text)] outline-none" /></div></div>}
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-4">
         {!q && (

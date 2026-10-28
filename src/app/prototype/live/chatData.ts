@@ -224,7 +224,7 @@ export async function uploadSticker(file: Blob): Promise<{ path?: string; error?
 // ---------- people: friends, remarks, privacy
 export interface ContactInfo extends ChatPerson {
   display_name: string; remark: string | null; school: string | null; region: string; level: string | null; program: string | null; bio: string | null;
-  is_me: boolean; is_friend: boolean; thread: string | null; prefs: { chats_only: boolean; hide_my_posts: boolean; hide_their_posts: boolean };
+  is_me: boolean; is_friend: boolean; friend_status?: "me" | "friends" | "sent" | "received" | "none"; thread: string | null; prefs: { chats_only: boolean; hide_my_posts: boolean; hide_their_posts: boolean };
   moments: string[]; moments_count: number; videos: { id: string; title: string; youtube_id: string | null; video_path: string | null }[];
 }
 export const contactInfo = async (id: string) => (await call<ContactInfo>("contact_info", { p_user: id })).data;
@@ -234,7 +234,7 @@ export const setContactPrefs = (id: string, p: { chatsOnly?: boolean; hideMine?:
 // ---------- Moments
 export interface Moment {
   id: string; author: ChatPerson; body: string; images: string[]; location: string | null; created_at: string; mine: boolean; liked: boolean;
-  video?: MomentVideo | null; link?: MomentLink | null; visibility?: "friends" | "private";
+  video?: MomentVideo | null; link?: MomentLink | null; visibility?: "friends" | "private"; comments_scope?: "all" | "friends";
   likes: { id: string; name: string }[]; comments: { id: string; mine: boolean; body: string; created_at: string; user: { id: string; name: string }; reply_to: { id: string; name: string } | null }[];
 }
 export const momentsFeed = async (before?: string) => (await call<Moment[]>("moments_feed", { p_before: before ?? null })).data ?? [];
@@ -243,14 +243,22 @@ export const momentsHeader = async (user?: string) => (await call<{ person: Chat
 export interface MomentVideo { path: string; poster: string | null; seconds: number }
 export interface MomentLink { url: string; title: string; thumb: string | null; source: string | null }
 export interface MomentNotice { kind: "like" | "comment" | "reply"; at: string; moment_id: string; user: ChatPerson; body: string | null; moment: { body: string; image: string | null; video: string | null } }
-export const postMoment = (body: string, o: { images?: string[]; location?: string | null; video?: MomentVideo | null; link?: MomentLink | null; visibility?: "friends" | "private" } = {}) =>
-  call<Moment>("post_moment2", { p_body: body, p_images: o.images ?? [], p_location: o.location ?? null, p_video: o.video ?? null, p_link: o.link ?? null, p_visibility: o.visibility ?? "friends" });
+export const postMoment = (body: string, o: { images?: string[]; location?: string | null; video?: MomentVideo | null; link?: MomentLink | null; visibility?: "friends" | "private"; comments?: "all" | "friends" } = {}) =>
+  call<Moment>("post_moment2", { p_body: body, p_images: o.images ?? [], p_location: o.location ?? null, p_video: o.video ?? null, p_link: o.link ?? null, p_visibility: o.visibility ?? "friends", p_comments: o.comments ?? "all" });
+/** Who sees a post's likes and comments: everyone who can see the post (default), or only mutual friends. */
+export const setMomentComments = (id: string, scope: "all" | "friends") => call<Moment>("set_moment_comments", { p_id: id, p_scope: scope });
 export const momentsInbox = async () => (await call<MomentNotice[]>("moments_inbox", { p_limit: 50 })).data ?? [];
 export const momentGet = async (id: string) => (await call<Moment | null>("moment_get", { p_id: id })).data;
 export const deleteMoment = (id: string) => call("delete_moment", { p_id: id });
 export const likeMoment = (id: string, on: boolean) => call<Moment>("like_moment", { p_id: id, p_on: on });
 export const commentMoment = (id: string, body: string, replyTo?: string | null) => call<Moment>("comment_moment", { p_id: id, p_body: body, p_reply_to: replyTo ?? null });
 export const deleteMomentComment = (id: string) => call("delete_moment_comment", { p_id: id });
+// ---------- Friends (friend requests; people who've both written in a chat are friends too)
+export interface FriendRequest { user: ChatPerson; at: string; school: string | null; group: string | null }
+export const friendRequest = (user: string) => call<"requested" | "accepted" | "already">("friend_request", { p_user: user });
+export const friendRequestGroup = (group: string) => call<number>("friend_request_group", { p_group: group });
+export const friendRespond = (user: string, accept: boolean) => call("friend_respond", { p_user: user, p_accept: accept });
+export const friendRequests = async () => (await call<FriendRequest[]>("friend_requests")).data ?? [];
 export const setMomentsCover = (path: string) => call("set_moments_cover", { p_path: path });
 /** Photos, videos (up to 50 MB) and video covers for Moments. */
 export async function uploadMomentPhoto(file: Blob): Promise<{ path?: string; error?: string }> {

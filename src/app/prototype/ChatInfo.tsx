@@ -10,7 +10,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { shrink } from "./ChatRoom";
 import { reportThing } from "./live/socialData";
 import { createGroup, groupAdd, groupLeave, groupLink, groupMembers, groupUpdate, type GroupMember } from "./live/groupData";
-import { dmSet, groupDisband, groupSetMe, searchChat, type ChatPerson, type GroupRow, type Scope } from "./live/chatData";
+import { dmSet, friendRequestGroup, groupDisband, groupSetMe, searchChat, type ChatPerson, type GroupRow, type Scope } from "./live/chatData";
 import { useApp, type Person } from "./store";
 import { Cell, CellGroup, SqAvatar, Switch, WeHeader } from "./we";
 
@@ -128,6 +128,11 @@ export default function ChatInfo({ scope, id, other, dmState, group, onClose, on
         )}
         {group?.is_course && (group.shared_id || group.course_key) && onOpenCourse && <CellGroup><Cell label="Course" value="Open notes and files" onClick={() => onOpenCourse((group.shared_id ?? group.course_key)!)} /></CellGroup>}
         <CellGroup><Cell label="Search Chat History" onClick={() => setSub("search")} /></CellGroup>
+        {scope === "group" && <CellGroup><Cell label="Add Everyone as Friends" sub="Send a friend request to everyone here you're not friends with yet" onClick={async () => {
+          if (!confirm(`Send a friend request to everyone in "${group?.name}" you're not friends with yet?`)) return;
+          const r = await friendRequestGroup(id);
+          flash(r.error ? "Couldn't send the requests" : r.data ? `Sent ${r.data} friend request${r.data === 1 ? "" : "s"}` : "You're already friends with everyone here");
+        }} /></CellGroup>}
         <CellGroup>
           {scope === "dm"
             ? <><Cell label="Mute Notifications" right={<Switch on={dmState.muted} onChange={async (v) => { await dmSet(id, { muted: v }); onChanged(); }} label="Mute notifications" />} />

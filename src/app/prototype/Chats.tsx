@@ -5,7 +5,7 @@
 // Unisupport Help are pinned on top. Courses sit in their own folder, like WeChat's Subscriptions.
 import { useHelpData } from "./live/helpData";
 import { navBack, useBackLayer } from "./nav";
-import { groupDisband, syncCourseChats } from "./live/chatData";
+import { friendRequests, friendRespond, groupDisband, syncCourseChats, type FriendRequest } from "./live/chatData";
 import { AnimatePresence, motion } from "framer-motion";
 import { BadgeCheck, BellOff, Hash, Plus, ScanLine, Search, UserPlus, Users } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -18,7 +18,7 @@ import { createGroup, joinGroup } from "./live/groupData";
 import { dmSet, listTime, myCourseChats, myDms, myGroups, myOfficials, oaSet, searchAll, type CourseChat, type DmRow, type GroupRow, type OARow } from "./live/chatData";
 import { useApp, type ChatView, type Person } from "./store";
 import { Sheet } from "./ui";
-import { Badge, CoursesFolderIcon, GridAvatar, SqAvatar } from "./we";
+import { Badge, CoursesFolderIcon, GridAvatar, SqAvatar, WeHeader } from "./we";
 
 const Birdie = dynamic(() => import("./Birdie"), { ssr: false });
 const Help = dynamic(() => import("./Help"), { ssr: false });
@@ -34,6 +34,7 @@ export default function Chats({ active }: { active: boolean }) {
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [oas, setOas] = useState<OARow[]>([]);
   const [courseChats, setCourseChats] = useState<CourseChat[]>([]);
+  const [requests, setRequests] = useState<FriendRequest[]>([]);
   const [loaded, setLoaded] = useState(false);
   // Writers the Unisupport desk handed you to: each is its own chat, like any other.
   const { sessions } = useHelpData(null, signedIn);
@@ -45,8 +46,8 @@ export default function Chats({ active }: { active: boolean }) {
 
   const load = useCallback(async () => {
     if (!signedIn) return;
-    const [d, g, o, c] = await Promise.all([myDms(), myGroups(), myOfficials(), myCourseChats()]);
-    setDms(d); setGroups(g); setOas(o); setCourseChats(c); setLoaded(true);
+    const [d, g, o, c, fr] = await Promise.all([myDms(), myGroups(), myOfficials(), myCourseChats(), friendRequests()]);
+    setDms(d); setGroups(g); setOas(o); setCourseChats(c); setRequests(fr); setLoaded(true);
   }, [signedIn]);
   useEffect(() => {
     void Promise.resolve().then(load);
@@ -110,16 +111,17 @@ export default function Chats({ active }: { active: boolean }) {
           {view.k === "post" && <OAPostView key={view.id} id={view.id} onBack={back} onProfile={(key) => go({ k: "oaProfile", key })} />}
           {view.k === "courses" && <CourseFolder rows={liveCourseChats} onBack={back} onOpen={(gid) => go({ k: "group", id: gid })} />}
           {view.k === "verified" && <VerifiedDirectory onBack={back} onProfile={(key) => go({ k: "oaProfile", key })} />}
+          {view.k === "friends" && <NewFriends list={requests} onBack={back} onDone={() => void load()} />}
           {view.k === "manage" && <OfficialManage id={view.id} onBack={back} onPost={(id) => go({ k: "post", id })} />}
         </div>
       )}
-      <ChatList rows={rows} courseRow={courseRow} helpLast={helpLast} loaded={loaded} signedIn={signedIn} birdieLast={birdieLast} open={go} onSignIn={() => setAuthOpen(true)} reload={load} />
+      <ChatList rows={rows} courseRow={courseRow} requests={requests.length} helpLast={helpLast} loaded={loaded} signedIn={signedIn} birdieLast={birdieLast} open={go} onSignIn={() => setAuthOpen(true)} reload={load} />
     </div>
   );
 }
 
-function ChatList({ rows, courseRow, helpLast, loaded, signedIn, birdieLast, open, onSignIn, reload }: {
-  rows: Row[]; courseRow: Row | null; helpLast: string; loaded: boolean; signedIn: boolean; birdieLast: string; open: (v: ChatView) => void; onSignIn: () => void; reload: () => void;
+function ChatList({ rows, courseRow, requests, helpLast, loaded, signedIn, birdieLast, open, onSignIn, reload }: {
+  rows: Row[]; courseRow: Row | null; requests: number; helpLast: string; loaded: boolean; signedIn: boolean; birdieLast: string; open: (v: ChatView) => void; onSignIn: () => void; reload: () => void;
 }) {
   const { flash, setTab, setDiscoverView } = useApp();
   const [menu, setMenu] = useState(false);
@@ -184,6 +186,8 @@ function ChatList({ rows, courseRow, helpLast, loaded, signedIn, birdieLast, ope
           name="Birdie AI" tick last={birdieLast} onClick={() => open({ k: "birdie" })} />
         <ListRow pinned avatar={<span className="flex h-12 w-12 items-center justify-center rounded-[6px] bg-[#1F1A2B] text-[18px] font-bold text-[#E6B3F2]">U</span>}
           name="Unisupport Help" tick last={helpLast} onClick={() => (signedIn ? open({ k: "help" }) : onSignIn())} />
+        {requests > 0 && <ListRow pinned avatar={<span className="flex h-12 w-12 items-center justify-center rounded-[6px] bg-[#FA9D3B] text-white"><UserPlus size={26} /></span>}
+          name="New Friends" last={`${requests} friend request${requests === 1 ? "" : "s"}`} unread={requests} onClick={() => open({ k: "friends" })} />}
         {courseRow && <ListRow pinned avatar={courseRow.avatar} name="Courses" last={courseRow.last} time={listTime(courseRow.at)} dot={courseRow.dot} onClick={() => open(courseRow.view)} />}
         {!signedIn ? (
           <div className="px-8 py-16 text-center">
@@ -301,6 +305,37 @@ function JoinByCode({ onJoined, onError }: { onJoined: (id: string) => void; onE
     <div className="space-y-3">
       <input value={code} onChange={(e) => setCode(e.target.value.trim().replace(/^.*\/g\//, ""))} placeholder="Paste the invite link or code" className="w-full rounded-[6px] bg-[var(--we-bg)] px-3.5 py-3 text-[15.5px] outline-none" />
       <button disabled={code.length < 4} onClick={async () => { const r = await joinGroup(code); if (r.error || !r.id) onError("That code doesn't work. Ask for a new link."); else onJoined(r.id); }} className="w-full rounded-[6px] bg-[var(--we-accent)] py-3 text-[16px] font-medium text-white disabled:opacity-40">Join</button>
+    </div>
+  );
+}
+
+/** Friend requests waiting for you: accept to see each other's Moments. */
+function NewFriends({ list, onBack, onDone }: { list: FriendRequest[]; onBack: () => void; onDone: () => void }) {
+  const { setOverlay, flash } = useApp();
+  const [done, setDone] = useState<Record<string, "accepted" | "ignored">>({});
+  async function respond(id: string, accept: boolean) {
+    const r = await friendRespond(id, accept);
+    if (r.error) return flash("Couldn't do that");
+    setDone((d) => ({ ...d, [id]: accept ? "accepted" : "ignored" })); onDone();
+  }
+  return (
+    <div className="flex min-h-0 flex-1 flex-col bg-[var(--we-bg)]">
+      <WeHeader onBack={onBack} title="New Friends" />
+      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto bg-[var(--we-cell)]">
+        {list.length === 0 ? <p className="py-16 text-center text-[14px] text-[var(--we-sub)]">No friend requests</p> : list.map((r) => (
+          <div key={r.user.id} className="flex items-center gap-3 border-b border-[var(--we-sep)] px-4 py-3">
+            <SqAvatar name={r.user.name} color={r.user.color} size={46} onClick={() => setOverlay({ t: "contact", id: r.user.id })} />
+            <button onClick={() => setOverlay({ t: "contact", id: r.user.id })} className="min-w-0 flex-1 text-left">
+              <span className="block truncate text-[16px] text-[var(--we-text)]">{r.user.name}</span>
+              <span className="block truncate text-[13px] text-[var(--we-sub)]">{r.group ? `From the group ${r.group}` : r.school ?? "Wants to add you as a friend"}</span>
+            </button>
+            {done[r.user.id] ? <span className="text-[14px] text-[var(--we-sub)]">{done[r.user.id] === "accepted" ? "Added" : "Ignored"}</span> : <>
+              <button onClick={() => void respond(r.user.id, false)} className="text-[14px] text-[var(--we-sub)]">Ignore</button>
+              <button onClick={() => void respond(r.user.id, true)} className="rounded-[4px] bg-[var(--we-accent)] px-3 py-1.5 text-[14px] font-medium text-white">Accept</button>
+            </>}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

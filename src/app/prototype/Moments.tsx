@@ -2,14 +2,15 @@
 
 // Moments, like WeChat's: a cover photo with your name and avatar, then your friends' posts newest first
 // (no algorithm). A post is text with up to 9 photos, one video, or a shared link, plus a place.
-// Likes and comments are semi-private: you only see them from people who are your friends too.
-// Tap the camera to post photos or a video; hold it to post text only. At most two sponsored posts a day.
+// Likes and comments are seen by everyone who can see the post; the author can make them friends-only
+// (then you only see likes and comments from people who are your friends too).
+// Tap the camera to post photos or a video; hold it to post text only. At most five sponsored posts a day.
 import { AnimatePresence, motion } from "framer-motion";
 import { Camera, ChevronLeft, ChevronRight, Heart, Lock, MapPin, MessageSquare, Play, Plus, Smile, Users, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shrink } from "./ChatRoom";
 import { MomentThumb } from "./Contact";
-import { commentMoment, deleteMoment, deleteMomentComment, likeMoment, momentGet, momentMediaUrl, momentsFeed, momentsHeader, momentsInbox, postMoment, setMomentsCover, uploadMomentPhoto, userMoments,
+import { commentMoment, deleteMoment, deleteMomentComment, likeMoment, momentGet, momentMediaUrl, momentsFeed, momentsHeader, momentsInbox, postMoment, setMomentComments, setMomentsCover, uploadMomentPhoto, userMoments,
   type Moment, type MomentLink, type MomentNotice, type MomentVideo } from "./live/chatData";
 import { useBackLayer } from "./nav";
 import { MomentAd, usePlacements } from "./Sponsored";
@@ -28,6 +29,7 @@ export function ago(t: string) {
 const SHARE_KEY = "birdie-moment-share";
 const INBOX_SEEN = "birdie-moments-inbox-seen";
 const ADS_KEY = "birdie-moments-ads";
+const AD_LIMIT = 5;
 const EMOJIS = "😀 😂 🤣 😊 😍 😘 😎 🤩 🥳 😇 🙂 😉 😋 😜 🤔 🙄 😏 😬 😴 😱 😭 😢 😤 😡 🥺 😳 🤗 🙏 👍 👏 🙌 💪 🤝 👌 ✌️ 🤞 👀 💯 🔥 ✨ 🎉 ❤️ 💜 💙 💚 💛 🌹 🎓 📚 ✏️ 🍕 🍔 🥤 ☕ 💸 🎁 🐐 🦅".split(" ");
 
 /** Share an article, post or video into your Moments: opens the Moments composer with it attached. */
@@ -108,7 +110,7 @@ function Viewer({ paths, start, onClose }: { paths: string[]; start: number; onC
 
 type PostActions = {
   pop: string | null; setPop: (id: string | null) => void; onLike: (m: Moment) => void; onComment: (id: string, replyTo?: { id: string; name: string }) => void;
-  onDelete: (m: Moment) => void; onDeleteComment: (id: string) => void; onPhotos: (paths: string[], i: number) => void; onProfile: (id: string) => void;
+  onDelete: (m: Moment) => void; onScope: (m: Moment) => void; onDeleteComment: (id: string) => void; onPhotos: (paths: string[], i: number) => void; onProfile: (id: string) => void;
 };
 
 /** One post: name, text, photos / video / link, place, time, the "••" Like/Comment menu, and the likes and comments box. */
@@ -133,6 +135,7 @@ function Post({ m, a }: { m: Moment; a: PostActions }) {
           {m.link?.source && <span>{m.link.source}</span>}
           {m.visibility === "private" && <Lock size={12} aria-label="Only you can see this" />}
           {m.mine && <button onClick={() => a.onDelete(m)} className="text-[var(--we-link)]">Delete</button>}
+          {m.mine && <button onClick={() => a.onScope(m)} aria-label="Who sees likes and comments" className="text-[var(--we-link)]">{m.comments_scope === "friends" ? "Comments: Friends" : "Comments: All"}</button>}
           <button onClick={(e) => { e.stopPropagation(); a.setPop(a.pop === m.id ? null : m.id); }} aria-label="Like or comment" className="ml-auto flex h-5 w-8 items-center justify-center rounded-[3px] bg-[var(--we-bg)] text-[var(--we-link)]">••</button>
           <AnimatePresence>
             {a.pop === m.id && (
@@ -210,13 +213,13 @@ export default function MomentsScreen({ userId, onBack }: { userId?: string; onB
   const fresh = inbox.filter((n) => n.at > seenAt);
   const openInbox = () => { const at = inbox[0]?.at ?? new Date().toISOString(); try { localStorage.setItem(INBOX_SEEN, at); } catch { /* ignore */ } setSeenAt(at); setView({ k: "inbox" }); };
 
-  // Sponsored posts: at most two a day, never for Birdie Plus (usePlacements returns none for Plus).
+  // Sponsored posts: at most five a day, never for Birdie Plus (usePlacements returns none for Plus).
   const ads = usePlacements("card", "explore", mine);
   const [adDay] = useState(() => { try { return JSON.parse(localStorage.getItem(ADS_KEY) ?? "{}") as { day?: string; ids?: string[] }; } catch { return {}; } });
   const ad = useMemo(() => {
     const day = new Date().toDateString();
     const shown = adDay.day === day ? adDay.ids ?? [] : [];
-    return ads.find((x) => shown.includes(x.id)) ?? (shown.length < 2 ? ads[0] : undefined);
+    return ads.find((x) => shown.includes(x.id)) ?? (shown.length < AD_LIMIT ? ads.find((x) => !shown.includes(x.id)) ?? ads[0] : undefined);
   }, [ads, adDay]);
   const adSeen = (id: string) => {
     const day = new Date().toDateString();
@@ -248,6 +251,11 @@ export default function MomentsScreen({ userId, onBack }: { userId?: string; onB
     onLike: async (m) => { setPopFor(null); const r = await likeMoment(m.id, !m.liked); if (r.data) replace(r.data); },
     onComment: (id, replyTo) => setCommenting({ id, replyTo }),
     onDelete: async (m) => { if (!confirm("Delete this post?")) return; await deleteMoment(m.id); setItems((xs) => (xs ?? []).filter((x) => x.id !== m.id)); if (view.k === "post") setOne(null); },
+    onScope: async (m) => {
+      const next = m.comments_scope === "friends" ? "all" : "friends";
+      const r = await setMomentComments(m.id, next);
+      if (r.data) { replace(r.data); flash(next === "all" ? "Everyone who sees this post sees its comments" : "Only your mutual friends see each other's likes and comments"); }
+    },
     onDeleteComment: async (id) => { if (!confirm("Delete your comment?")) return; await deleteMomentComment(id); void load(); if (view.k === "post") void momentGet(view.id).then(setOne); },
     onPhotos: (paths, i) => setViewer({ paths, i }),
     onProfile: (id) => setOverlay({ t: "contact", id }),
@@ -384,6 +392,7 @@ function Composer({ initial, onCancel, onPosted }: { initial: { mode: "photos" |
   const [text, setText] = useState("");
   const [loc, setLoc] = useState<string | null>(null);
   const [vis, setVis] = useState<"friends" | "private">("friends");
+  const [scope, setScope] = useState<"all" | "friends">("all");
   const [busy, setBusy] = useState<string | null>(null);
   const add = useRef<HTMLInputElement>(null);
   const isVideo = initial.mode === "video";
@@ -408,7 +417,7 @@ function Composer({ initial, onCancel, onPosted }: { initial: { mode: "photos" |
       }
     }
     setBusy("Posting...");
-    const r = await postMoment(text, { images: paths, location: loc, video, link: initial.link ?? null, visibility: vis });
+    const r = await postMoment(text, { images: paths, location: loc, video, link: initial.link ?? null, visibility: vis, comments: scope });
     setBusy(null);
     if (r.error || !r.data) return flash(r.error === "slow_down" ? "You've posted a lot today" : "Couldn't post");
     onPosted(r.data);
@@ -442,6 +451,9 @@ function Composer({ initial, onCancel, onPosted }: { initial: { mode: "photos" |
           <button onClick={() => setVis((v) => (v === "friends" ? "private" : "friends"))} className="flex w-full items-center gap-3 py-4 text-left text-[16px] text-[var(--we-text)]">
             {vis === "friends" ? <Users size={20} /> : <Lock size={20} />}<span className="flex-1">Visible to</span><span className="text-[var(--we-sub)]">{vis === "friends" ? "Friends" : "Only Me"}</span><ChevronRight size={18} className="text-[var(--we-hint)]" />
           </button>
+          {vis === "friends" && <button onClick={() => setScope((v) => (v === "all" ? "friends" : "all"))} className="flex w-full items-center gap-3 border-t border-[var(--we-sep)] py-4 text-left text-[16px] text-[var(--we-text)]">
+            <MessageSquare size={20} /><span className="flex-1">Likes and comments seen by</span><span className="text-[var(--we-sub)]">{scope === "all" ? "Everyone" : "Mutual friends"}</span><ChevronRight size={18} className="text-[var(--we-hint)]" />
+          </button>}
         </div>
       </div>
     </div>

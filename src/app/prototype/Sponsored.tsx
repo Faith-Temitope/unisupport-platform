@@ -114,7 +114,7 @@ export function FeedAd({ p, edge }: { p: Placement; edge?: boolean }) {
   );
 }
 
-/** A sponsored post in Moments: looks like a friend's post, always labelled Sponsored (at most two a day). */
+/** A sponsored post in Moments: looks like a friend's post, always labelled Sponsored (at most five a day). */
 export function MomentAd({ p, onSeen }: { p: Placement; onSeen: (id: string) => void }) {
   const ref = useViewLog(p.id);
   const seen = useRef(onSeen);

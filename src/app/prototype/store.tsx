@@ -24,9 +24,9 @@ import { navInit, navScreen } from "./nav";
 export type TabId = "study" | "chats" | "explore" | "me";
 /** What's open inside the Chats tab (null = the chat list). Birdie AI and Unisupport Help live here now. */
 export type ChatView = null | { k: "birdie" } | { k: "help" } | { k: "dm"; id: string } | { k: "group"; id: string } | { k: "oa"; id: string }
-  | { k: "oaProfile"; key: string } | { k: "post"; id: string } | { k: "courses" } | { k: "verified" } | { k: "manage"; id: string };
+  | { k: "oaProfile"; key: string } | { k: "post"; id: string } | { k: "courses" } | { k: "verified" } | { k: "manage"; id: string } | { k: "friends" };
 /** What's open inside Discover (null = the Discover list). */
-export type DiscoverView = null | { k: "moments" } | { k: "userMoments"; id: string } | { k: "channels" } | { k: "scan" } | { k: "shake" } | { k: "stories" }
+export type DiscoverView = null | { k: "moments" } | { k: "userMoments"; id: string } | { k: "channels" } | { k: "sharedCourses" } | { k: "deals" } | { k: "scan" } | { k: "shake" } | { k: "stories" }
   | { k: "search" } | { k: "school" } | { k: "mini" } | { k: "post"; id: string } | { k: "oaProfile"; key: string };
 export type AuthStatus = "loading" | "out" | "guest" | "in";
 export type Boot = "splash" | "word" | "done";

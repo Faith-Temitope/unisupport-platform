@@ -17,6 +17,7 @@ import { Btn } from "./ui";
 import { logEvent } from "./live/analyticsData";
 import { accentVars, useDark } from "./theme";
 import { TabChats, TabCourses, TabDiscover, TabMe } from "./we";
+import { PayToHost, payTo } from "./MeServices";
 
 // Screens load only when first opened, so a cheap phone downloads and runs less at startup.
 const Discover = dynamic(() => import("./Discover"), { ssr: false });
@@ -97,6 +98,8 @@ function Shell() {
     if (q.get("oa")) setChatView({ k: "oa", id: q.get("oa")! });
     if (q.get("oa_inbox")) setChatView({ k: "manage", id: q.get("oa_inbox")! });
     if (chat) setOverlay({ t: "thread", id: chat });
+    if (q.get("friends")) setChatView({ k: "friends" });
+    if (q.get("payto")) payTo(q.get("payto")!, Number(q.get("amount") ?? 0) || undefined);
     if (q.get("oa_post")) setChatView({ k: "post", id: q.get("oa_post")! });
     if (q.get("watch")) watch(q.get("watch")!);
     if (t === "explore" || q.get("moments")) { setTab("explore"); setDiscoverView(q.get("moments") ? { k: "moments" } : null); }
@@ -104,7 +107,7 @@ function Shell() {
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     // After saved screens are restored (a microtask), so the link wins over the last screen.
-    if (["tab", "chat", "group", "dm", "oa", "oa_inbox", "moments", "oa_post", "watch"].some((k) => q.get(k))) { const href = window.location.href; window.history.replaceState(null, "", window.location.pathname); setTimeout(() => openLink(href), 0); }
+    if (["tab", "chat", "group", "dm", "oa", "oa_inbox", "moments", "oa_post", "watch", "friends", "payto"].some((k) => q.get(k))) { const href = window.location.href; window.history.replaceState(null, "", window.location.pathname); setTimeout(() => openLink(href), 0); }
     const onMsg = (e: MessageEvent) => { if (e.data?.type === "open-link") openLink(e.data.url); };
     const onLink = (e: Event) => { const href = String((e as CustomEvent).detail ?? ""); const u = new URL(href, window.location.origin); if (u.pathname.startsWith("/u/")) void openByHandle(u.pathname.slice(3)); else openLink(href); };
     navigator.serviceWorker?.addEventListener("message", onMsg);
@@ -176,6 +179,7 @@ function Shell() {
               </div>
 
               <Mascot />
+              <PayToHost />
               {seen.recorder && <Recorder />}
               <Sheets />
               {seen.overlays && <Overlays />}
