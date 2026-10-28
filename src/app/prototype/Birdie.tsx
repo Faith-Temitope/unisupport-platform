@@ -46,6 +46,11 @@ async function photoOf(f: File): Promise<Photo | null> {
   } catch { return null; }
 }
 
+/** The first message in the My School chat. */
+function schoolGreeting(name: string, school: string): BMsg {
+  return bird(`Hi ${name}. Ask me anything about ${school || "your school"}: clearance, registration, fees, exams, offices and rules. I answer from what your school, SUG and departments have shared on Birdie, and I'll say when they haven't.`);
+}
+
 function greeting(c: Course | null, name: string): BMsg {
   if (!c) return bird(`Hi ${name}. This is a general chat, not tied to a course. Create a course in Courses and I can learn from your slides and notes.`);
   const n = docsOf(c).length;
@@ -126,7 +131,7 @@ export default function Birdie({ active, onBack }: { active: boolean; onBack?: (
   }, [course?.sourceCourseId, loadRemoteCourseContent]);
   const effectiveCourse = useMemo(() => (course?.sourceCourseId ? { ...course, notes: sharedRemoteContent?.notes ?? [], files: sharedRemoteContent?.files ?? [], recs: sharedRemoteContent?.recs ?? [] } : course), [course, sharedRemoteContent]);
 
-  const thread = chats[ctx] ?? [greeting(effectiveCourse, name)];
+  const thread = chats[ctx] ?? [base === "campus" ? schoolGreeting(name, profile.institution) : greeting(effectiveCourse, name)];
   const docs = useMemo(() => (effectiveCourse ? docsOf(effectiveCourse) : []), [effectiveCourse]);
 
   const append = useCallback((key: string, m: BMsg, base?: BMsg[]) => setChats((cs) => ({ ...cs, [key]: [...(cs[key] ?? base ?? []), m] })), [setChats]);
@@ -147,7 +152,7 @@ export default function Birdie({ active, onBack }: { active: boolean; onBack?: (
     if (!raw.trim() && !pic) return;
     const text = raw.trim() || "Help me with this photo.";
     logChat();
-    const base = [greeting(c, name)];
+    const base = [key.split("~")[0] === "campus" ? schoolGreeting(name, profile.institution) : greeting(c, name)];
     const history = (chats[key] ?? []).slice(-16);
     setChats((cs) => ({ ...cs, [key]: [...(cs[key] ?? base), me(text, pic?.thumb)] }));
     setTyping(true);
@@ -179,8 +184,17 @@ export default function Birdie({ active, onBack }: { active: boolean; onBack?: (
       const docs = [...k.passages.map((p) => ({ source: p.title, text: p.text, title: p.title })), ...k.updates.map((u) => ({ source: `${u.account}: ${u.title}`, text: u.text, title: u.title }))];
       info.used = docs as unknown as typeof info.used;
       const material = docs.map((d) => `[${d.source}]\n${d.text}`).join("\n\n---\n\n");
-      system = chatSystem({ name, level: profile.level, program: profile.program, course: null, material, length: settings.answerLength })
-        + `\n\nYou are answering a question about the student's school (${profile.institution || k.school || "their school"}). Use ONLY the school documents and campus updates above for facts about the school: rules, fees, deadlines, offices, locations, policies. Name the document you used in [brackets]. If they don't cover it, say you couldn't find it in what the school has shared on Birdie, give general advice clearly marked as general, and suggest who to ask (for example the faculty office or Student Affairs). Never invent a school rule, date, fee or office.${k.docs === 0 ? " The school hasn't added any documents to Birdie yet; say so briefly." : ""}`;
+      const school = profile.institution || k.school || "the student's school";
+      system = `You are Birdie, the campus assistant for ${school}, talking to ${name}, a student there.
+Answer questions about the school (offices, clearance, registration, fees, exams, rules, dates) using ONLY the SCHOOL DOCUMENTS below. They are the school's own handbook, policies, notices and recent updates.
+- Give the exact steps, places, times, items and deadlines the documents give, in their order and wording. Do not add items, steps, fees, offices or dates that are not in them.
+- After each fact, name its document in [square brackets], for example [Student Handbook 2026].
+- If the documents only cover part of the question, answer that part, then say clearly: "Your school hasn't shared the rest on Birdie." You may add one or two lines of general advice, starting with "In general," and suggest who to ask (for example the faculty office or Student Affairs).
+- If nothing in the documents covers it, say so first, then the general advice and who to ask.
+- Be brief and clear, in plain English. No long lists unless the document has one.${k.docs === 0 ? "\n- The school hasn't added any documents to Birdie yet. Say that briefly, then give general advice as above." : ""}
+
+SCHOOL DOCUMENTS:
+${material || "(none matched this question)"}`;
     }
     let messages: { role: "user" | "assistant"; content: string }[];
     if (cards) { system = CARDS_SYSTEM(info.text, 6); messages = [{ role: "user", content: "Make the flashcards now." }]; }
@@ -345,7 +359,8 @@ export default function Birdie({ active, onBack }: { active: boolean; onBack?: (
 
   // "Teach me step by step" is the Learn mode: Birdie guides with questions instead of handing over answers.
   const TEACH = course ? `Teach me ${course.code} step by step from all my materials. Give me an overview of every topic first, then teach the first topic fully with examples, then give me one quick question to check I got it.` : "Teach me step by step. If I haven't said a topic yet, suggest a few from my courses and start teaching the first one fully with examples.";
-  const chips = course ? ["Teach me step by step", "Summarize my notes", "Make flashcards", "Quiz me"] : ["Teach me step by step", "Help me plan my week", "I'm feeling stressed"];
+  const chips = base === "campus" ? ["Where do I do clearance?", "When does course registration close?", "What if I miss an exam?"]
+    : course ? ["Teach me step by step", "Summarize my notes", "Make flashcards", "Quiz me"] : ["Teach me step by step", "Help me plan my week", "I'm feeling stressed"];
   const sendChip = (c: string) => (c === "Quiz me" && course && docs.length ? pickMode("test") : send(c === "Teach me step by step" ? TEACH : c));
   function submit() { if (!chatting || (!draft.trim() && !photo)) return; void send(draft, ctx, effectiveCourse, photo); setDraft(""); setPhoto(null); }
   const birdieCards = usePlacements("card", "birdie", active);
@@ -401,7 +416,7 @@ export default function Birdie({ active, onBack }: { active: boolean; onBack?: (
       <div className="relative min-h-0 flex-1">
         {chatting ? (
           <div onScroll={onChatScroll} onClick={() => setAttach(false)} className="no-scrollbar absolute inset-0 space-y-4 overflow-y-auto bg-[var(--we-chat)] px-3 py-3">
-            {courses.length === 0 && <div className="mx-auto w-fit max-w-[85%] rounded-[4px] bg-black/10 px-2.5 py-1 text-center text-[12.5px] leading-snug text-[var(--we-sub)]">Birdie learns from your courses. <button onClick={() => setTab("study")} className="font-bold underline">Create one in Courses</button> to get answers from your own material.</div>}
+            {courses.length === 0 && base !== "campus" && <div className="mx-auto w-fit max-w-[85%] rounded-[4px] bg-black/10 px-2.5 py-1 text-center text-[12.5px] leading-snug text-[var(--we-sub)]">Birdie learns from your courses. <button onClick={() => setTab("study")} className="font-bold underline">Create one in Courses</button> to get answers from your own material.</div>}
             {thread.map((m) => (
               <motion.div key={m.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`flex items-start gap-2.5 ${m.from === "me" ? "flex-row-reverse" : ""}`}>
                 {m.from === "me" ? <SqAvatar name={profile.name || "Me"} color="#8A2FA3" size={40} /> : <CompanionAvatar id={settings.aiBrain} size={40} />}
@@ -412,7 +427,7 @@ export default function Birdie({ active, onBack }: { active: boolean; onBack?: (
                     <div className="relative">{m.from === "bird" ? <Rich text={m.text} /> : m.text}</div>
                   </div>
                   {m.img && <DrawnPicture path={m.img} onOpen={() => openFile({ name: "Birdie picture.png", path: m.img })} />}
-                  {m.cite && <Sources cite={m.cite} />}
+                  {m.cite && <Sources cite={m.cite} label={base === "campus" ? "From your school" : undefined} />}
                   {m.meta && <div className="mt-0.5 pl-1 text-[11px] text-[var(--we-hint)]">{m.meta}</div>}
                   {m.cards && <Flashcards cards={m.cards} />}
                   {m.from === "bird" && (
@@ -619,12 +634,12 @@ function Tool({ label, sub, Icon, onClick }: { label: string; sub: string; Icon:
 }
 
 /** "From your notes" sources, folded away until tapped. */
-function Sources({ cite }: { cite: string }) {
+function Sources({ cite, label = "From your notes" }: { cite: string; label?: string }) {
   const [open, setOpen] = useState(false);
   const list = Array.from(new Set(cite.split(" · ").filter(Boolean)));
   return (
     <div className="mt-1 pl-1">
-      <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-1 text-[11px] font-semibold text-[var(--study)]"><BookOpen size={11} />From your notes · {list.length} source{list.length === 1 ? "" : "s"}<ChevronDown size={12} className={`transition ${open ? "rotate-180" : ""}`} /></button>
+      <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-1 text-[11px] font-semibold text-[var(--study)]"><BookOpen size={11} />{label} · {list.length} source{list.length === 1 ? "" : "s"}<ChevronDown size={12} className={`transition ${open ? "rotate-180" : ""}`} /></button>
       {open && <div className="mt-1 space-y-0.5 border-l-2 border-[var(--study-soft)] pl-2">{list.map((s) => <div key={s} className="truncate text-[11.5px] text-[var(--dim)]">{s.replace(/^Note: /, "")}</div>)}</div>}
     </div>
   );

@@ -93,6 +93,7 @@ function Shell() {
     const t = q.get("tab"); const chat = q.get("chat"); const group = q.get("group");
     setOverlay(null);
     if (t === "study" || t === "explore" || t === "chats" || t === "me" || t === "birdie" || t === "help") setTab(t);
+    if (t === "chats" && !group && !q.get("dm") && !q.get("oa") && !q.get("oa_inbox") && !q.get("friends") && !q.get("oa_post")) setChatView(null); // a link to Chats lands on the list
     if (group) setChatView({ k: "group", id: group });
     if (q.get("dm")) setChatView({ k: "dm", id: q.get("dm")! });
     if (q.get("oa")) setChatView({ k: "oa", id: q.get("oa")! });
