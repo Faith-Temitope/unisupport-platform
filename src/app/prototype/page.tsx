@@ -20,6 +20,9 @@ import { TabChats, TabCourses, TabDiscover, TabMe } from "./we";
 import { PayToHost, payTo } from "./MeServices";
 import { NoticesHost, openAchievements, openNotifications } from "./Notifications";
 import { RepDeskHost } from "./RepDesk";
+import { BusinessHost, openBusiness } from "./Business";
+import { ShopHost, openOrders, openStore } from "./Shop";
+import { JobsHost, openApplications, openJob } from "./Jobs";
 
 // Screens load only when first opened, so a cheap phone downloads and runs less at startup.
 const Discover = dynamic(() => import("./Discover"), { ssr: false });
@@ -109,6 +112,15 @@ function Shell() {
     if (q.get("oa_post")) setChatView({ k: "post", id: q.get("oa_post")! });
     if (q.get("watch")) watch(q.get("watch")!);
     if (q.get("notifications")) openNotifications();
+    // Birdie for Business: a business's own screens, a shop, an order, a job, and coming back from Paystack.
+    if (q.get("biz")) openBusiness(q.get("biz")!, q.get("bizview") ?? undefined);
+    if (q.get("business")) { setTab("me"); openBusiness(); }
+    if (q.get("store")) openStore(q.get("store")!);
+    if (q.get("order")) openOrders(q.get("order")!);
+    if (q.get("bookings")) openOrders(undefined, "bookings");
+    if (q.get("job")) openJob(q.get("job")!);
+    if (q.get("applications")) openApplications();
+    if (q.get("paid")) window.dispatchEvent(new CustomEvent("birdie-paid", { detail: q.get("paid") }));
     if (q.get("achievements")) { setTab("me"); openAchievements(); }
     if (q.get("quiz")) goBirdie({ courseId: q.get("quiz")!, mode: "test" });
     if (q.get("course")) goStudy({ courseId: q.get("course")!, tab: q.get("ctab") ?? "materials" });
@@ -117,7 +129,7 @@ function Shell() {
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     // After saved screens are restored (a microtask), so the link wins over the last screen.
-    if (["tab", "chat", "group", "dm", "oa", "oa_inbox", "moments", "oa_post", "watch", "friends", "payto", "schedule", "campus", "notifications", "achievements", "quiz", "course"].some((k) => q.get(k))) { const href = window.location.href; window.history.replaceState(null, "", window.location.pathname); setTimeout(() => openLink(href), 0); }
+    if (["tab", "chat", "group", "dm", "oa", "oa_inbox", "moments", "oa_post", "watch", "friends", "payto", "schedule", "campus", "notifications", "achievements", "quiz", "course", "biz", "business", "store", "order", "bookings", "job", "applications", "paid"].some((k) => q.get(k))) { const href = window.location.href; window.history.replaceState(null, "", window.location.pathname); setTimeout(() => openLink(href), 0); }
     const onMsg = (e: MessageEvent) => { if (e.data?.type === "open-link") openLink(e.data.url); };
     const onLink = (e: Event) => { const href = String((e as CustomEvent).detail ?? ""); const u = new URL(href, window.location.origin); if (u.pathname.startsWith("/u/")) void openByHandle(u.pathname.slice(3)); else openLink(href); };
     navigator.serviceWorker?.addEventListener("message", onMsg);
@@ -191,6 +203,9 @@ function Shell() {
               <PayToHost />
               <NoticesHost />
               <RepDeskHost />
+              <BusinessHost />
+              <ShopHost />
+              <JobsHost />
               {seen.recorder && <Recorder />}
               <Sheets />
               {seen.overlays && <Overlays />}

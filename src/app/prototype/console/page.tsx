@@ -11,6 +11,7 @@ import { FeedbackCard } from "./FeedbackCard";
 import { SchoolSuggestions } from "./SchoolSuggestions";
 import { BadgesTab } from "./BadgesTab";
 import { OfficialsTab } from "./OfficialsTab";
+import { BusinessTab } from "./BusinessTab";
 import { BadgeCheck, BarChart3, Bell, Building2, Cpu, Crown, LogOut, Megaphone, Printer, Sliders, Users as UsersIcon } from "lucide-react";
 import { OrdersTab } from "./OrdersTab";
 import { adminListReps, adminSetRep, type AdminRep } from "../live/repData";
@@ -76,7 +77,7 @@ function SignIn({ onDone }: { onDone: () => void }) {
 }
 
 function Workspace({ me, onOut }: { me: { id: string; name: string }; onOut: () => void }) {
-  const [tab, setTab] = useState<"alerts" | "activity" | "orders" | "users" | "reps" | "badges" | "sponsors" | "schools" | "pricing" | "ai" | "verified">("activity");
+  const [tab, setTab] = useState<"alerts" | "activity" | "orders" | "users" | "reps" | "badges" | "sponsors" | "schools" | "pricing" | "ai" | "verified" | "business">("activity");
   const { show, node } = useToast();
   // Alerts link straight to the right tab (?tab=orders etc.).
   useEffect(() => { void Promise.resolve().then(() => { const t = new URLSearchParams(location.search).get("tab"); if (t) setTab(t as typeof tab); }); }, []);
@@ -92,6 +93,7 @@ function Workspace({ me, onOut }: { me: { id: string; name: string }; onOut: () 
     { id: "pricing", label: "Pricing", icon: <Sliders size={17} /> },
     { id: "ai", label: "AI models", icon: <Cpu size={17} /> },
     { id: "verified", label: "Verified accounts", icon: <BadgeCheck size={17} /> },
+    { id: "business", label: "Businesses", icon: <Building2 size={17} /> },
   ];
   return (
     <div className="mx-auto max-w-[1180px] overflow-x-hidden p-4 md:p-6">
@@ -111,6 +113,7 @@ function Workspace({ me, onOut }: { me: { id: string; name: string }; onOut: () 
       {tab === "pricing" && <PricingTab show={show} />}
       {tab === "ai" && <AiTab show={show} />}
       {tab === "verified" && <OfficialsTab show={show} />}
+      {tab === "business" && <BusinessTab show={show} />}
       {node}
     </div>
   );

@@ -3,7 +3,7 @@
 // Discover, laid out like WeChat's: Moments, Channels, Scan, Shake, Top Stories, Search, People at your
 // school and Mini Programs. Each opens full screen (the bottom bar hides) and Back returns to the list.
 import jsQR from "jsqr";
-import { BadgeCheck, BedDouble, BookOpen, Bot, Briefcase, Camera, Heart, PenLine, QrCode, SearchCheck, Tag, ImagePlus, LayoutGrid, Plus, ScanLine, Search, Smartphone, Zap } from "lucide-react";
+import { BadgeCheck, BedDouble, Building, Printer, Shirt, ShoppingBag, Store, UtensilsCrossed, Wrench, BookOpen, Bot, Briefcase, Camera, Heart, PenLine, QrCode, SearchCheck, Tag, ImagePlus, LayoutGrid, Plus, ScanLine, Search, Smartphone, Zap } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Head, ListRow } from "./Chats";
 import Campus, { hasNewCampusUpdate } from "./Campus";
@@ -14,6 +14,11 @@ import { OALogo, OAPostView, OAProfileView } from "./Official";
 import { momentsFeed, peopleAtSchool, searchAll, shake, topStories, type ArticleCard, type ChatPerson, type Moment } from "./live/chatData";
 import { JustDoIt } from "./JustDoIt";
 import { Board } from "./Boards";
+import { Directory, openOrders, openStore } from "./Shop";
+import { adEvent, adsFor, bizDirectory, type Ad } from "./live/bizData";
+import { campaignLink } from "./live/sponsorData";
+import { BizAvatar } from "./bizkit";
+import { Jobs } from "./Jobs";
 import { SchoolVerifyPage } from "./Verify";
 import { mySchoolVerification } from "./live/verifyData";
 import { friendsHeartsRecent } from "./live/notifyData";
@@ -341,10 +346,16 @@ function SearchAll({ onBack }: { onBack: () => void }) {
   const [res, setRes] = useState<Awaited<ReturnType<typeof searchAll>> | null>(null);
   const [trending, setTrending] = useState<ArticleCard[]>([]);
   useEffect(() => { void topStories().then((l) => setTrending(l.slice(0, 8))); }, []);
+  const [shops, setShops] = useState<Awaited<ReturnType<typeof bizDirectory>>>([]);
+  const [sponsored, setSponsored] = useState<Ad | null>(null);
   useEffect(() => {
     const t = q.trim();
     if (t.length < 2) { void Promise.resolve().then(() => setRes(null)); return; }
-    const h = setTimeout(() => { void searchAll(t).then(setRes); void searchFeed(t); }, 300);
+    const h = setTimeout(() => {
+      void searchAll(t).then(setRes); void searchFeed(t);
+      void bizDirectory(null, t).then((l) => setShops(l.slice(0, 5)));
+      void adsFor("search").then((a) => { setSponsored(a[0] ?? null); if (a[0]) void adEvent(a[0].id, "view"); });
+    }, 300);
     return () => clearTimeout(h);
   }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
   const term = q.trim().toLowerCase();
@@ -374,7 +385,16 @@ function SearchAll({ onBack }: { onBack: () => void }) {
             <span className="min-w-0 flex-1"><span className="block truncate text-[15.5px] text-[var(--we-text)]">Ask Birdie: {q.trim()}</span><span className="block text-[12.5px] text-[var(--we-sub)]">Get an answer from Birdie AI</span></span>
           </button>
         )}
-        {empty && <p className="pt-10 text-center text-[14px] text-[var(--we-sub)]">No results for &quot;{q.trim()}&quot;</p>}
+        {res && sponsored && (
+          <button onClick={() => { void adEvent(sponsored.id, "click"); const u = campaignLink(sponsored); if (u?.startsWith("/prototype?")) window.dispatchEvent(new CustomEvent("birdie-open-link", { detail: u })); else if (u) window.open(u, "_blank", "noopener,noreferrer"); }}
+            className="mx-3 mt-2 flex w-[calc(100%-1.5rem)] items-center gap-3 rounded-[8px] bg-[var(--we-cell)] px-4 py-3 text-left">
+            <BizAvatar b={sponsored.business} size={40} />
+            <span className="min-w-0 flex-1"><span className="block truncate text-[15.5px] text-[var(--we-text)]">{sponsored.title}</span><span className="block truncate text-[12.5px] text-[var(--we-sub)]">Sponsored · {sponsored.sponsor_name}</span></span>
+            <span className="shrink-0 text-[14px] text-[var(--we-link)]">{sponsored.cta_label}</span>
+          </button>
+        )}
+        {res && show("all") && shops.length > 0 && <><Head t="Shops" /><div className="bg-[var(--we-cell)]">{shops.map((b) => <ListRow key={b.id} avatar={<BizAvatar b={b} size={44} />} name={b.name} last={[b.biz_category, b.is_open ? "Open" : "Closed", b.rating ? `${b.rating}★` : null].filter(Boolean).join(" · ")} onClick={() => openStore(b.id)} />)}</div></>}
+        {empty && !shops.length && <p className="pt-10 text-center text-[14px] text-[var(--we-sub)]">No results for &quot;{q.trim()}&quot;</p>}
         {res && show("people") && res.people.length > 0 && <><Head t="People" /><div className="bg-[var(--we-cell)]">{res.people.map((p) => <ListRow key={p.id} avatar={<SqAvatar name={p.name} color={p.color} size={44} />} name={p.name} last={[p.handle && `@${p.handle}`, p.school].filter(Boolean).join(" · ")} onClick={() => setOverlay({ t: "contact", id: p.id })} />)}</div></>}
         {res && show("channels") && vids.length > 0 && <><Head t="Channels" /><div className="grid grid-cols-2 gap-2 px-3">{vids.map((p) => (
           <button key={p.id} onClick={() => go({ k: "channels" })} className="overflow-hidden rounded-[8px] bg-[var(--we-cell)] text-left">
@@ -432,7 +452,7 @@ function School({ onBack }: { onBack: () => void }) {
   );
 }
 
-type MiniSub = null | "internships" | "jdi" | "hostel" | "lostfound";
+type MiniSub = null | "internships" | "jdi" | "hostel" | "lostfound" | { shop: string; title: string };
 
 /** Birdie's tools. (Printing and tutorials are in Me > Services.) */
 function Mini({ onBack }: { onBack: () => void }) {
@@ -444,10 +464,20 @@ function Mini({ onBack }: { onBack: () => void }) {
   const close = () => setSub(null);
 
   if (sub === "jdi") return <JustDoIt onBack={close} />;
-  if (sub === "internships") return <Internships onBack={close} />;
+  if (sub === "internships") return <Jobs onBack={close} />;
   if (sub === "hostel" || sub === "lostfound") return <Board board={sub} onBack={close} />;
+  if (sub && typeof sub === "object") return <Directory category={sub.shop} title={sub.title} onBack={close} />;
+  const shop = (cat: string, title = cat) => () => setSub({ shop: cat, title });
 
   const apps: { label: string; color: string; icon: ReactNode; run: () => void }[] = [
+    { label: "Food", color: "#E8742A", icon: <UtensilsCrossed size={26} />, run: shop("Food") },
+    { label: "Print", color: "#3D83F7", icon: <Printer size={26} />, run: shop("Print", "Print & Deliver") },
+    { label: "Lodges", color: "#1B8A85", icon: <Building size={26} />, run: shop("Lodges") },
+    { label: "Laundry", color: "#5BB8F0", icon: <Shirt size={26} />, run: shop("Laundry") },
+    { label: "Repairs", color: "#576B95", icon: <Wrench size={26} />, run: shop("Repairs") },
+    { label: "Gadgets", color: "#2F9E5B", icon: <Smartphone size={26} />, run: shop("Gadgets") },
+    { label: "More Shops", color: "#A63FBD", icon: <Store size={26} />, run: () => setSub({ shop: "", title: "Shops at Your School" }) },
+    { label: "My Orders", color: "#F5A623", icon: <ShoppingBag size={26} />, run: need(() => openOrders()) },
     { label: "Internships & SIWES", color: "#7C4DDB", icon: <Briefcase size={26} />, run: () => setSub("internships") },
     { label: "Just Do It", color: "#E2553F", icon: <Zap size={26} />, run: need(() => setSub("jdi")) },
     { label: "Hostel & Roommates", color: "#1B8A85", icon: <BedDouble size={26} />, run: () => setSub("hostel") },

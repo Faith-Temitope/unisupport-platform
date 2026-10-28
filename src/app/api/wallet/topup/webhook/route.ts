@@ -2,7 +2,7 @@ import { createClient as createAdmin } from "@supabase/supabase-js";
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 
-// POST /api/wallet/topup/webhook — Paystack's server calls this directly (no student session).
+// POST /api/wallet/topup/webhook: Paystack's server calls this directly (no student session).
 // Authenticity comes only from the x-paystack-signature header, an HMAC-SHA512 of the raw body
 // with the secret key. Never trust the body before that check passes.
 export async function POST(req: Request) {
@@ -19,6 +19,14 @@ export async function POST(req: Request) {
   if (evt.event !== "charge.success" || !evt.data?.reference) return NextResponse.json({ ok: true });
 
   const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey, { auth: { persistSession: false } });
+  // Birdie for Business payments (orders, verification fee, ad credit) share this webhook: Paystack allows one.
+  if (evt.data.reference.startsWith("bz_")) {
+    const { data: p } = await admin.from("biz_payments").select("amount").eq("reference", evt.data.reference).maybeSingle();
+    if (!p || Math.round(Number(p.amount) * 100) !== evt.data.amount) return NextResponse.json({ ok: true });
+    const { error } = await admin.rpc("_biz_payment_paid", { p_ref: evt.data.reference, p_amount: p.amount });
+    if (error) console.error("_biz_payment_paid (webhook) failed", error.message);
+    return NextResponse.json({ ok: true });
+  }
   const { data: t } = await admin.from("topups").select("amount").eq("reference", evt.data.reference).maybeSingle();
   if (!t || Math.round(Number(t.amount) * 100) !== evt.data.amount) return NextResponse.json({ ok: true }); // unknown or mismatched, ignore
 

@@ -1,11 +1,8 @@
 import type { Metadata } from "next";
-import PartnerApp from "./PartnerApp";
+import { BusinessLanding } from "@/components/BusinessLanding";
 
-export const metadata: Metadata = {
-  title: "Birdie print partners",
-  description: "Print shops near campus: get print, binding and handwriting orders from students on Birdie, already paid for.",
-};
+export const metadata: Metadata = { title: "Birdie print partners", description: "Print shops near campus: get paid print, binding and handwriting jobs from students on Birdie." };
 
-export default function PartnerPage() {
-  return <PartnerApp />;
+export default function Page() {
+  return <BusinessLanding kind="print" />;
 }

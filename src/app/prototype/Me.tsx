@@ -3,7 +3,7 @@
 // Me, laid out like WeChat's: you (name, Birdie ID, QR code), then Services (Money, Wallet, campus
 // services), Favorites, My Posts, Cards & Offers, Sticker Gallery and Settings. Nothing that already
 // lives in Chats or Discover.
-import { Bell, ChevronRight, CreditCard, FileText, Crown, Images, QrCode, Settings as Cog, Smile, Star, Trash2, Trophy, CircleCheckBig } from "lucide-react";
+import { Bell, Repeat, ShoppingBag, ChevronRight, CreditCard, FileText, Crown, Images, QrCode, Settings as Cog, Smile, Star, Trash2, Trophy, CircleCheckBig } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { favText, readFavs, writeFavs, type Fav } from "./ChatRoom";
 import { chatMediaUrl, hasPin, setPin } from "./live/chatData";
@@ -11,6 +11,8 @@ import { MyProfilePage, MyQrPage, ServicesPage } from "./MeServices";
 import MomentsScreen from "./Moments";
 import { MyCvPage } from "./MyCv";
 import { openAchievements, openNotifications, useUnreadCount } from "./Notifications";
+import { openBusiness } from "./Business";
+import { openOrders } from "./Shop";
 import { useBackLayer } from "./nav";
 import { useApp } from "./store";
 import { Btn, Sheet } from "./ui";
@@ -54,6 +56,7 @@ export default function Me({ active }: { active: boolean }) {
 
       <CellGroup>
         <Cell icon={ic(<CircleCheckBig size={22} />, "#2AAE67")} label="Services" onClick={() => setSub("services")} />
+        <Cell icon={ic(<ShoppingBag size={22} />, "#E8742A")} label="My Orders" sub="Food, printing, bookings" onClick={need(() => openOrders())} />
       </CellGroup>
       <CellGroup>
         <Cell icon={ic(<Bell size={22} />, "#E2553F")} label="Notifications" value={unread ? <span className="rounded-full bg-[var(--we-red)] px-1.5 text-[12px] leading-[18px] text-white">{unread > 99 ? "99+" : unread}</span> : undefined} onClick={openNotifications} />
@@ -67,6 +70,7 @@ export default function Me({ active }: { active: boolean }) {
         <Cell icon={ic(<Smile size={22} />, "#F5C518")} label="Sticker Gallery" onClick={() => setSub("stickers")} />
       </CellGroup>
       <CellGroup>
+        <Cell icon={ic(<Repeat size={22} />, "#576B95")} label="Switch Account" sub="Your shop, company or school body" onClick={need(() => openBusiness())} />
         <Cell icon={ic(<Cog size={22} />, "#3D83F7")} label="Settings" onClick={() => setOverlay({ t: "settings" })} />
       </CellGroup>
       <ChangePin open={pinOpen} onClose={() => setPinOpen(false)} />

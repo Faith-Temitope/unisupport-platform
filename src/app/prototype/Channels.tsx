@@ -18,6 +18,8 @@ import { PostMenu } from "./PostMenu";
 import { initials } from "./PostCard";
 import { useApp, type Post } from "./store";
 import { Page } from "./ui";
+import { adEvent, adsFor, type Ad } from "./live/bizData";
+import { campaignLink } from "./live/sponsorData";
 
 type Tab = "following" | "friends" | "hot";
 const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n));
@@ -178,7 +180,7 @@ function Slide(props: { post: Post; active: boolean; muted: boolean; onUnmute: (
 const friendsLine = (h?: Hearts) => !h?.friends.length ? null : h.friends.length === 1 ? `${h.friends[0]} hearted this` : `${h.friends[0]} and ${h.friends.length - 1} friend${h.friends.length > 2 ? "s" : ""} hearted this`;
 
 export default function Channels({ active, onBack, onSearch }: { active: boolean; onBack: () => void; onSearch: () => void }) {
-  const { posts, forYou, following, personById, toggleFollow, toggleLike, profile, auth, setOverlay, setAuthOpen, setTab: setAppTab, setDiscoverView, refreshFeed, loadMoreFeed, loadForYou, flash } = useApp();
+  const { posts, forYou, following, personById, toggleFollow, toggleLike, profile, auth, setOverlay, setAuthOpen, setTab: setAppTab, setDiscoverView, refreshFeed, loadMoreFeed, loadForYou, flash, plus } = useApp();
   const [tab, setTab] = useState<Tab>("hot");
   const [friendIds, setFriendIds] = useState<string[]>([]);
   const [cur, setCur] = useState(0);
@@ -194,14 +196,19 @@ export default function Channels({ active, onBack, onSearch }: { active: boolean
   const me = auth.userId;
 
   useEffect(() => { if (!active) return; void refreshFeed(); void loadForYou(true); if (auth.status === "in") void myDms().then((d) => setFriendIds(d.map((x) => x.other.id))); }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
+  // One sponsored video in Hot, after the fifth video (never for Plus members; the server checks too).
+  const [ad, setAd] = useState<Ad | null>(null);
+  useEffect(() => { if (active && auth.status === "in" && !plus) void adsFor("channels").then((a) => setAd(a[0] ?? null)); }, [active, auth.status, plus]);
   const list = useMemo(() => {
     const byId = new Map(posts.map((p) => [p.id, p]));
     if (tab === "following") return posts.filter((p) => following.includes(p.authorId));
     if (tab === "friends") return posts.filter((p) => friendIds.includes(p.authorId));
     const ranked = forYou.map((r) => byId.get(r.id)).filter(Boolean) as Post[];
     const seen = new Set(ranked.map((p) => p.id));
-    return [...ranked, ...posts.filter((p) => !seen.has(p.id))];
-  }, [tab, posts, forYou, following, friendIds]);
+    const all = [...ranked, ...posts.filter((p) => !seen.has(p.id))];
+    if (ad?.media_url && all.length > 5) all.splice(5, 0, { id: `ad:${ad.id}`, authorId: ad.business.id, kind: "video", title: ad.title, body: ad.body ?? undefined, videoUrl: ad.media_url, field: "", tags: [], grad: "", createdAt: 0, likes: 0, liked: false });
+    return all;
+  }, [tab, posts, forYou, following, friendIds, ad]);
   const post = list[cur];
   useEffect(() => { box.current?.scrollTo({ top: 0 }); void Promise.resolve().then(() => setCur(0)); }, [tab]);
   useEffect(() => { if (active && post?.remote) void logPostEvent(post.id, "view"); }, [active, post?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -265,6 +272,7 @@ export default function Channels({ active, onBack, onSearch }: { active: boolean
             {tab === "following" ? "Follow creators and their videos show here." : tab === "friends" ? "Videos from people you chat with show here." : "No videos yet. Be the first: tap the person icon to open your channel and post."}
           </div>
         ) : list.map((p, i) => {
+          if (p.id.startsWith("ad:") && ad) return <AdSlide key={p.id} ad={ad} active={active && i === cur} near={Math.abs(i - cur) <= 1} muted={muted} onUnmute={() => setMuted(false)} />;
           const a = author(p);
           const near = Math.abs(i - cur) <= 1;
           const h = hearts[p.id];
@@ -310,5 +318,31 @@ export default function Channels({ active, onBack, onSearch }: { active: boolean
       {menu && <PostMenu post={menu} open onClose={() => setMenu(null)} />}
       <Page open={downloads} onClose={() => setDownloads(false)} title="Downloads"><div className="p-4"><Downloads /></div></Page>
     </div>
+  );
+}
+
+/** A sponsored video in the feed: counted once it's on screen, labelled, and reportable. */
+function AdSlide({ ad, active, near, muted, onUnmute }: { ad: Ad; active: boolean; near: boolean; muted: boolean; onUnmute: () => void }) {
+  const { flash } = useApp();
+  const vid = useRef<HTMLVideoElement>(null);
+  const counted = useRef(false);
+  useEffect(() => {
+    const v = vid.current; if (!v) return;
+    if (active) { void v.play().catch(() => {}); if (!counted.current) { counted.current = true; void adEvent(ad.id, "view"); } } else v.pause();
+  }, [active, ad.id]);
+  const go = () => { void adEvent(ad.id, "click"); const url = campaignLink(ad); if (url?.startsWith("/prototype?")) window.dispatchEvent(new CustomEvent("birdie-open-link", { detail: url })); else if (url) window.open(url, "_blank", "noopener,noreferrer"); };
+  return (
+    <section className="relative h-full w-full snap-start snap-always overflow-hidden bg-black">
+      {near && <video ref={vid} src={ad.media_url ?? undefined} muted={muted} loop playsInline onClick={() => muted && onUnmute()} className="h-full w-full object-contain" />}
+      <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/30 to-transparent px-4 pb-4 pt-24">
+        <div className="mb-1 text-[12px] uppercase tracking-wider text-white/70">Sponsored · {ad.sponsor_name}</div>
+        <div className="text-[16px] font-semibold text-white">{ad.title}</div>
+        {ad.body && <div className="mt-0.5 line-clamp-2 text-[14px] text-white/85">{ad.body}</div>}
+        <div className="mt-3 flex items-center gap-3">
+          <button onClick={go} className="flex-1 rounded-[6px] bg-white py-2.5 text-[15px] font-semibold text-black">{ad.cta_label}</button>
+          <button onClick={async () => { const why = prompt("What's wrong with this ad?"); if (why === null) return; await adEvent(ad.id, "report", why); flash("Thanks. We won't show it to you again."); }} className="text-[13px] text-white/70">Report</button>
+        </div>
+      </div>
+    </section>
   );
 }

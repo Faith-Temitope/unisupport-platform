@@ -27,7 +27,7 @@ export interface OMenu { label: string; kind?: "link" | "reply"; value?: string;
 export interface OARow extends OAccount { pinned: boolean; muted: boolean; last_at: string; last: string | null; unread: number; window_open: boolean }
 export interface OAMsg { id: string; from_oa: boolean; kind: "text" | "image" | "article" | "auto" | "menu"; body: string; meta: Record<string, unknown>; created_at: string }
 export interface OAPostCard { id: string; kind: "article" | "video"; title: string; summary: string | null; cover_url: string | null; video_url: string | null; views: number; created_at: string }
-export interface OAProfile extends OAccount { followers: number; following: boolean; my_role: "owner" | "admin" | null; posts: OAPostCard[] }
+export interface OAProfile extends OAccount { followers: number; following: boolean; my_role: "owner" | "admin" | "staff" | null; posts: OAPostCard[]; biz_type?: "school_body" | "campus_business" | "organisation"; level?: string }
 export interface CourseFeedRow {
   shared_id: string; course_id: string | null; code: string; name: string; owner: ChatPerson; mine: boolean; price: number | null; members: number;
   post: { id: string; body: string; pinned: boolean; created_at: string; author: ChatPerson } | null;

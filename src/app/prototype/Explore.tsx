@@ -1,5 +1,8 @@
 "use client";
 
+import { bizDirectory } from "./live/bizData";
+import { openStore } from "./Shop";
+import { BizAvatar } from "./bizkit";
 import { whileVisible } from "./perf";
 import { useViewState } from "./persist";
 import { BadgeCheck, BookmarkPlus, ChevronLeft, Search } from "lucide-react";
@@ -184,7 +187,7 @@ export default function Explore({ active, onBack, section = "feed" }: { active: 
             </div>
           )
         ) : seg === "deals" ? (
-          <div className="px-4 pt-2"><CampusDeals campus={campus} deals={deals} /></div>
+          <div><ShopOffers /><div className="px-4 pt-2"><CampusDeals campus={campus} deals={deals} /></div></div>
         ) : (
           <div>
             <div className="bg-[var(--we-cell)]">
@@ -300,3 +303,22 @@ function ShareSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
 }
 
 export { nowTime };
+
+/** Campus Deals: offers and discount codes from shops at your school. */
+function ShopOffers() {
+  const [list, setList] = useState<Awaited<ReturnType<typeof bizDirectory>>>([]);
+  useEffect(() => { void bizDirectory(null).then((l) => setList(l.filter((b) => b.offer))); }, []);
+  if (!list.length) return null;
+  return (
+    <div>
+      <div className="px-4 pb-1.5 pt-3 text-[13px] text-[var(--we-sub)]">Offers at your school</div>
+      <div className="bg-[var(--we-cell)]">{list.map((b) => (
+        <button key={b.id} onClick={() => openStore(b.id)} className="flex w-full items-center gap-3 border-b border-[var(--we-sep)] px-4 py-3 text-left last:border-0 active:bg-[var(--we-bg)]">
+          <BizAvatar b={b} />
+          <span className="min-w-0 flex-1"><span className="block truncate text-[16px] text-[var(--we-text)]">{b.offer!.title}</span><span className="block truncate text-[13px] text-[var(--we-sub)]">{b.name}{b.biz_category ? ` · ${b.biz_category}` : ""}{b.featured ? " · Sponsored" : ""}</span></span>
+          {b.offer!.percent_off ? <span className="shrink-0 rounded-[4px] bg-[#FFF4E0] px-2 py-1 text-[13px] font-medium text-[#C77700]">{b.offer!.percent_off}% off</span> : null}
+        </button>
+      ))}</div>
+    </div>
+  );
+}

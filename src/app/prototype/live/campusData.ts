@@ -12,9 +12,11 @@ async function call<T>(fn: string, args: Record<string, unknown> = {}): Promise<
 export type EventKind = "class" | "test" | "exam" | "deadline" | "cancelled" | "other";
 export interface CourseEvent { id: string; group_id: string; course: string; kind: EventKind; title: string; starts_at: string; ends_at: string | null; venue: string | null; note: string | null; by: ChatPerson; can_manage: boolean }
 export interface CourseSlot { id: string; group_id: string; course: string; weekday: number; starts: string; ends: string; kind: "lecture" | "tutorial" | "practical" | "lab"; venue: string | null; can_manage: boolean }
-export interface Schedule { events: CourseEvent[]; slots: CourseSlot[]; manage: { group_id: string; course: string }[] }
+/** Your own: interviews from job applications and confirmed bookings (lodge inspections, repairs). */
+export interface PersonalItem { id: string; kind: "interview" | "booking"; title: string; starts_at: string; venue: string | null }
+export interface Schedule { events: CourseEvent[]; slots: CourseSlot[]; manage: { group_id: string; course: string }[]; personal?: PersonalItem[] }
 
-export const mySchedule = async (from: Date, to: Date) => (await call<Schedule>("my_schedule", { p_from: from.toISOString(), p_to: to.toISOString() })).data ?? { events: [], slots: [], manage: [] };
+export const mySchedule = async (from: Date, to: Date) => (await call<Schedule>("my_schedule", { p_from: from.toISOString(), p_to: to.toISOString() })).data ?? { events: [], slots: [], manage: [], personal: [] };
 export const addCourseEvent = (group: string, e: { kind: EventKind; title: string; starts: Date; ends?: Date | null; venue?: string | null; note?: string | null }) =>
   call<CourseEvent>("add_course_event", { p_group: group, p_kind: e.kind, p_title: e.title, p_starts: e.starts.toISOString(), p_ends: e.ends?.toISOString() ?? null, p_venue: e.venue ?? null, p_note: e.note ?? null });
 export const deleteCourseEvent = (id: string) => call("delete_course_event", { p_id: id });

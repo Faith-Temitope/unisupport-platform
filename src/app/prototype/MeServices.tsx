@@ -3,6 +3,7 @@
 // Me's pages, laid out like WeChat's: My Profile, My QR Code, Services (Money, Wallet and campus
 // services), Wallet, Payment Settings and Money (your "Receive Money" code). Plus the pay-by-QR flow:
 // scanning someone's Receive Money code (or opening /pay-me/<handle>) opens a transfer to them.
+import { Directory, openOrders } from "./Shop";
 import QRCode from "qrcode";
 import { Briefcase, ChevronRight, PenLine, Presentation, Printer, QrCode, ScanLine, ShieldCheck, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -147,10 +148,11 @@ type Sub = null | "money" | "wallet" | "tx" | "pay" | "tutorials";
 
 /** Me > Services: Money and Wallet up top, then the campus services Birdie runs. */
 export function ServicesPage({ onBack, onPin }: { onBack: () => void; onPin: () => void }) {
-  const { balance, setWalletOpen, openPrint, auth, setAuthOpen, setChatView, setTab, refreshWallet } = useApp();
+  const { balance, setWalletOpen, auth, setAuthOpen, setChatView, setTab, refreshWallet } = useApp();
   const [sub, setSub] = useState<Sub>(null);
   const [managed, setManaged] = useState<OAManaged[]>([]);
   const [apply, setApply] = useState(false);
+  const [printShops, setPrintShops] = useState(false);
   useBackLayer(!!sub, () => setSub(null));
   useBackLayer(sub === "tx" || sub === "pay", () => setSub("wallet")); // these open on top of Wallet
   const signedIn = auth.status === "in";
@@ -195,9 +197,9 @@ export function ServicesPage({ onBack, onPin }: { onBack: () => void; onPin: () 
         <div className="mt-3 rounded-[8px] bg-[var(--we-cell)] px-3 pb-3 pt-3">
           <div className="px-1 pb-2 text-[13.5px] text-[var(--we-sub)]">Campus Services</div>
           <div className="grid grid-cols-4 gap-y-2">
-            {tile("Print & Deliver", Printer, "#3D83F7", need(() => openPrint({ kind: "print" })))}
-            {tile("Handwriting", PenLine, "#E2553F", need(() => openPrint({ kind: "handwrite" })))}
-            {tile("My Print Orders", Printer, "#F5A623", need(() => openPrint({ kind: "orders" })))}
+            {tile("Print & Deliver", Printer, "#3D83F7", () => setPrintShops(true))}
+            {tile("Handwriting", PenLine, "#E2553F", () => setPrintShops(true))}
+            {tile("My Orders", Printer, "#F5A623", need(() => openOrders()))}
             {tile("Tutorials", Presentation, "#1B8A85", () => setSub("tutorials"))}
           </div>
         </div>
@@ -213,6 +215,7 @@ export function ServicesPage({ onBack, onPin }: { onBack: () => void; onPin: () 
         )}
       </div>
       <ApplyVerifiedSheet open={apply} onClose={() => setApply(false)} />
+      {printShops && <Directory category="Print" title="Print & Deliver" onBack={() => setPrintShops(false)} />}
     </div>
   );
 }

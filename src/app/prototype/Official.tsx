@@ -3,6 +3,7 @@
 // Verified accounts (WeChat's official accounts): companies with SIWES and internships, the SUG,
 // departments and school bodies. Students chat with them, read their articles and videos, and use
 // their menu. An account can only message you within 7 days of you writing to it.
+import { openStore } from "./Shop";
 import { ApplyVerifiedPage } from "./Verify";
 import { shareToMoments } from "./Moments";
 import { MomentsIcon } from "./we";
@@ -159,6 +160,8 @@ export function OAProfileView({ keyOrId, onBack, onChat, onPost, onManage }: { k
             <button onClick={() => void follow()} className={`rounded-xl py-2.5 text-[14px] font-semibold active:scale-95 ${p.following ? "bg-[var(--paper-dim)]" : "bg-[var(--ink)] text-[var(--paper)]"}`}>{p.following ? "Following" : "Follow"}</button>
             <button onClick={() => onChat(p.id)} className="rounded-xl bg-[var(--paper-dim)] py-2.5 text-[14px] font-semibold active:scale-95">Messages</button>
           </div>
+          {p.biz_type === "campus_business" && <button onClick={() => openStore(p.id)} className="mt-2 w-full rounded-xl bg-[var(--we-accent)] py-2.5 text-[14px] font-semibold text-white active:scale-95">Open Shop</button>}
+          {p.biz_type === "organisation" && <button onClick={() => openStore(p.id)} className="mt-2 w-full rounded-xl bg-[var(--we-accent)] py-2.5 text-[14px] font-semibold text-white active:scale-95">Jobs and More</button>}
         </div>
         <div className="sticky top-0 z-10 border-b border-[var(--line)] bg-[var(--paper)] px-5 py-2"><Segmented value={tab} onChange={setTab} options={[{ id: "articles", label: "Articles" }, { id: "videos", label: "Videos" }, { id: "services", label: "Services" }]} /></div>
         <div className="px-5 py-3">

@@ -35,6 +35,8 @@ function useViewLog(id: string) {
 
 function open(p: Placement) {
   logPlacement(p.id, "click");
+  // A business campaign opening a page inside Birdie (its shop, a job).
+  if (p.url?.startsWith("/prototype?")) { window.dispatchEvent(new CustomEvent("birdie-open-link", { detail: p.url })); return; }
   const u = p.url ? cleanUrl(p.url) : null;
   if (u) window.open(u, "_blank", "noopener,noreferrer");
 }

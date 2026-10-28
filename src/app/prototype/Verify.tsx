@@ -12,7 +12,7 @@ import { useApp } from "./store";
 import { Page } from "./ui";
 
 /** A photo slot: opens the camera (front for selfies), shows the shot, uploads it privately. */
-function Shot({ label, hint, selfie, pdf, value, onDone }: { label: string; hint: string; selfie?: boolean; pdf?: boolean; value: { path: string; url: string } | null; onDone: (v: { path: string; url: string } | null) => void }) {
+export function Shot({ label, hint, selfie, pdf, value, onDone }: { label: string; hint: string; selfie?: boolean; pdf?: boolean; value: { path: string; url: string } | null; onDone: (v: { path: string; url: string } | null) => void }) {
   const { flash } = useApp();
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);

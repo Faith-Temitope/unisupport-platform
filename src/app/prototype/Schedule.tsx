@@ -14,6 +14,7 @@ const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", 
 const KIND: Record<string, { label: string; color: string }> = {
   class: { label: "Class", color: "#3D83F7" }, lecture: { label: "Lecture", color: "#3D83F7" }, tutorial: { label: "Tutorial", color: "#1B8A85" }, practical: { label: "Practical", color: "#7C4DDB" }, lab: { label: "Lab", color: "#7C4DDB" },
   test: { label: "Test", color: "#E2553F" }, exam: { label: "Exam", color: "#D9467E" }, deadline: { label: "Deadline", color: "#F5A623" }, cancelled: { label: "Cancelled", color: "#7F7F7F" }, other: { label: "Event", color: "#576B95" },
+  interview: { label: "Interview", color: "#2AAE67" }, booking: { label: "Booking", color: "#1B8A85" },
 };
 const t12 = (hhmm: string) => { const [h, m] = hhmm.split(":").map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
 // Times show in Nigeria time, the way reps type them, whatever the phone is set to.
@@ -37,7 +38,7 @@ function useSchedule(active = true) {
   return { s, load };
 }
 
-type Item = { key: string; time: string; sort: string; course: string; kind: string; title: string; venue: string | null; cancelled?: boolean; event?: CourseEvent; slot?: CourseSlot };
+type Item = { key: string; time: string; sort: string; course: string; kind: string; title: string; venue: string | null; cancelled?: boolean; event?: CourseEvent; slot?: CourseSlot; at?: string };
 function dayItems(s: Schedule, day: Date): Item[] {
   const events = s.events.filter((e) => sameDay(new Date(e.starts_at), day));
   const cancelledCourses = new Set(events.filter((e) => e.kind === "cancelled").map((e) => e.group_id));
@@ -45,7 +46,9 @@ function dayItems(s: Schedule, day: Date): Item[] {
     key: "s" + x.id, time: `${t12(x.starts)} – ${t12(x.ends)}`, sort: x.starts, course: x.course, kind: x.kind, title: KIND[x.kind]?.label ?? "Class", venue: x.venue, cancelled: cancelledCourses.has(x.group_id), slot: x,
   }));
   const ev: Item[] = events.map((e) => ({ key: "e" + e.id, time: timeOf(e.starts_at), sort: new Date(e.starts_at).toTimeString().slice(0, 5), course: e.course, kind: e.kind, title: e.title, venue: e.venue, event: e }));
-  return [...slots, ...ev].sort((a, b) => a.sort.localeCompare(b.sort));
+  // Interviews and bookings: yours alone.
+  const mine: Item[] = (s.personal ?? []).filter((p) => sameDay(new Date(p.starts_at), day)).map((p) => ({ key: "p" + p.id, time: timeOf(p.starts_at), sort: new Date(p.starts_at).toTimeString().slice(0, 5), course: p.kind === "interview" ? "Interview" : "Booking", kind: p.kind, title: p.title, venue: p.venue, at: p.starts_at }));
+  return [...slots, ...ev, ...mine].sort((a, b) => a.sort.localeCompare(b.sort));
 }
 
 function Row({ it, onDelete }: { it: Item; onDelete?: () => void }) {
@@ -65,13 +68,13 @@ function Row({ it, onDelete }: { it: Item; onDelete?: () => void }) {
 
 const lagosMin = (d: Date) => { const [h, m] = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ }).split(":").map(Number); return h * 60 + m; };
 const hhmmMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
-const what = (it: { course: string; kind: string }) => `${it.course} ${(KIND[it.kind]?.label ?? "class").toLowerCase()}`;
+const what = (it: { course: string; kind: string; title?: string }) => (it.kind === "interview" || it.kind === "booking" ? it.title ?? it.course : `${it.course} ${(KIND[it.kind]?.label ?? "class").toLowerCase()}`);
 
 /** One short line: what's on now, what's next today, or the next test. */
 function hintOf(s: Schedule, items: Item[], now: Date) {
   const n = lagosMin(now);
   const live = items.filter((it) => !it.cancelled && it.kind !== "cancelled").map((it) => {
-    const start = it.slot ? hhmmMin(it.slot.starts) : lagosMin(new Date(it.event!.starts_at));
+    const start = it.slot ? hhmmMin(it.slot.starts) : lagosMin(new Date(it.event?.starts_at ?? it.at ?? Date.now()));
     const end = it.slot ? hhmmMin(it.slot.ends) : it.event?.ends_at ? lagosMin(new Date(it.event.ends_at)) : start + 60;
     return { it, start, end };
   });
