@@ -27,7 +27,7 @@ export type ChatView = null | { k: "birdie" } | { k: "help" } | { k: "dm"; id: s
   | { k: "oaProfile"; key: string } | { k: "post"; id: string } | { k: "courses" } | { k: "verified" } | { k: "manage"; id: string } | { k: "friends" };
 /** What's open inside Discover (null = the Discover list). */
 export type DiscoverView = null | { k: "moments" } | { k: "userMoments"; id: string } | { k: "channels" } | { k: "sharedCourses" } | { k: "deals" } | { k: "scan" } | { k: "shake" } | { k: "stories" }
-  | { k: "search" } | { k: "school" } | { k: "mini" } | { k: "post"; id: string } | { k: "oaProfile"; key: string };
+  | { k: "search" } | { k: "school" } | { k: "mini" } | { k: "articles" } | { k: "post"; id: string } | { k: "oaProfile"; key: string };
 export type AuthStatus = "loading" | "out" | "guest" | "in";
 export type Boot = "splash" | "word" | "done";
 export type Emote = "happy" | "sad" | "love" | "say" | "angry";

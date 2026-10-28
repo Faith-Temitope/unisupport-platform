@@ -12,6 +12,7 @@ import ChatInfo, { chatBackground, clearedAt, showNames } from "./ChatInfo";
 import { CourseShareSheet } from "./CourseShare";
 import { Linkified } from "./Linkified";
 import { Rich } from "./Rich";
+import { addCourseEvent, deleteCourseEvent, looksLikeEvent, type EventKind } from "./live/campusData";
 import { groupMembers, type GroupMember } from "./live/groupData";
 import { GiveawayOpen, GiveawaySheet, PacketCard, TransferCard, TransferSheet } from "./Money";
 import { whileVisible } from "./perf";
@@ -188,6 +189,28 @@ export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
     if (everyone && t.includes("@All")) meta.everyone = true;
     setTags([]); setEveryone(false); setAskBirdie(null);
     if (!(await post("text", t, meta))) setDraft(t);
+    else void maybeEvent(t);
+  }
+  // A rep (course owner or admin) posting "CSC 301 test Thursday 10am LT2" in a course chat: Birdie reads
+  // it and puts it on everyone's class timetable, with reminders. The rep can undo it.
+  const [added, setAdded] = useState<{ id: string; line: string } | null>(null);
+  async function maybeEvent(text: string) {
+    if (scope !== "group" || !group?.is_course || (group.role !== "owner" && group.role !== "admin") || !looksLikeEvent(text)) return;
+    const now = new Date();
+    const today = now.toLocaleDateString("en-GB", { timeZone: "Africa/Lagos", weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    const r = await askAI({ brain: "spark", tier: "quick", feature: "chat",
+      system: `Today is ${today} (Nigeria time). A course rep posted the message below in a class group chat. If it announces something with a date or time for the class (a test, exam, class, deadline, cancelled or moved class), reply with JSON only: {"event":true,"kind":"test|exam|class|deadline|cancelled|other","title":"short title like CSC 301 test","date":"YYYY-MM-DD","time":"HH:MM or null","venue":"place or null"}. Otherwise reply {"event":false}.`,
+      messages: [{ role: "user", content: text }] });
+    if (!r.ok) return;
+    let j: { event?: boolean; kind?: EventKind; title?: string; date?: string; time?: string | null; venue?: string | null } = {};
+    try { j = JSON.parse(r.text.replace(/^[^{]*/, "").replace(/[^}]*$/, "")); } catch { return; }
+    if (!j.event || !j.date || !/^\d{4}-\d{2}-\d{2}$/.test(j.date)) return;
+    const time = j.time && /^\d{1,2}:\d{2}$/.test(j.time) ? j.time.padStart(5, "0") : j.kind === "deadline" ? "23:59" : "09:00";
+    const starts = new Date(`${j.date}T${time}:00+01:00`);
+    if (Number.isNaN(starts.getTime()) || starts.getTime() < now.getTime() - 3600e3) return;
+    const kind = (["class", "test", "exam", "deadline", "cancelled", "other"].includes(String(j.kind)) ? j.kind : "other") as EventKind;
+    const ev = await addCourseEvent(id, { kind, title: (j.title || text).slice(0, 140), starts, venue: j.venue || null });
+    if (ev.data) { setAdded({ id: ev.data.id, line: `${ev.data.title} · ${starts.toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: "Africa/Lagos" })}` }); setTimeout(() => setAdded(null), 12000); void load(); }
   }
   /** Ask Birdie inside this chat. It knows the recent messages and who you are (name, school, courses). */
   async function birdie(text: string, mode: "private" | "public") {
@@ -497,6 +520,12 @@ export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
             <span className={`flex h-16 w-16 items-center justify-center rounded-full text-[26px] transition ${recording === "cancel" ? "scale-110 bg-white text-[var(--we-red)]" : "bg-white/20 text-white"}`}>✕</span>
           </div>
           <p className="mt-6 text-[14px] text-white/85">{recording === "cancel" ? "Release to cancel" : "Release to send · slide up to cancel"}</p>
+        </div>
+      )}
+      {added && (
+        <div className="flex shrink-0 items-center gap-2 bg-[var(--we-bar)] px-3 pt-2 text-[13px] text-[var(--we-text)]">
+          <span className="min-w-0 flex-1 truncate">📅 On the class timetable: {added.line}</span>
+          <button onClick={async () => { await deleteCourseEvent(added.id); setAdded(null); void load(); flash("Removed from the timetable"); }} className="text-[var(--we-link)]">Undo</button>
         </div>
       )}
       {atQuery !== null && !voice && (

@@ -99,6 +99,8 @@ function Shell() {
     if (q.get("oa_inbox")) setChatView({ k: "manage", id: q.get("oa_inbox")! });
     if (chat) setOverlay({ t: "thread", id: chat });
     if (q.get("friends")) setChatView({ k: "friends" });
+    if (q.get("schedule")) { setTab("study"); setTimeout(() => window.dispatchEvent(new Event("birdie-open-schedule")), 50); }
+    if (q.get("campus")) { setTab("explore"); setDiscoverView({ k: "stories" }); }
     if (q.get("payto")) payTo(q.get("payto")!, Number(q.get("amount") ?? 0) || undefined);
     if (q.get("oa_post")) setChatView({ k: "post", id: q.get("oa_post")! });
     if (q.get("watch")) watch(q.get("watch")!);
@@ -107,7 +109,7 @@ function Shell() {
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     // After saved screens are restored (a microtask), so the link wins over the last screen.
-    if (["tab", "chat", "group", "dm", "oa", "oa_inbox", "moments", "oa_post", "watch", "friends", "payto"].some((k) => q.get(k))) { const href = window.location.href; window.history.replaceState(null, "", window.location.pathname); setTimeout(() => openLink(href), 0); }
+    if (["tab", "chat", "group", "dm", "oa", "oa_inbox", "moments", "oa_post", "watch", "friends", "payto", "schedule", "campus"].some((k) => q.get(k))) { const href = window.location.href; window.history.replaceState(null, "", window.location.pathname); setTimeout(() => openLink(href), 0); }
     const onMsg = (e: MessageEvent) => { if (e.data?.type === "open-link") openLink(e.data.url); };
     const onLink = (e: Event) => { const href = String((e as CustomEvent).detail ?? ""); const u = new URL(href, window.location.origin); if (u.pathname.startsWith("/u/")) void openByHandle(u.pathname.slice(3)); else openLink(href); };
     navigator.serviceWorker?.addEventListener("message", onMsg);

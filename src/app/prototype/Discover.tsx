@@ -6,6 +6,7 @@ import jsQR from "jsqr";
 import { BookOpen, Bot, Briefcase, Camera, QrCode, Tag, ImagePlus, LayoutGrid, Plus, ScanLine, Search, Smartphone, Zap } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Head, ListRow } from "./Chats";
+import Campus, { hasNewCampusUpdate } from "./Campus";
 import Channels from "./Channels";
 import Explore from "./Explore";
 import MomentsScreen, { hasNewMomentNotices } from "./Moments";
@@ -29,6 +30,7 @@ export default function Discover({ active }: { active: boolean }) {
   const [latest, setLatest] = useState<Moment | null>(null);
   const [seenAt, setSeenAt] = useState("");
   const [notices, setNotices] = useState(false);
+  const [campusNew, setCampusNew] = useState(false);
   const [menu, setMenu] = useState(false);
   useBackLayer(menu, () => setMenu(false));
   const signedIn = auth.status === "in";
@@ -36,6 +38,7 @@ export default function Discover({ active }: { active: boolean }) {
     if (!active || view || !signedIn) return;
     void momentsFeed().then((l) => setLatest(l.find((m) => !m.mine) ?? null));
     void hasNewMomentNotices().then(setNotices);
+    void hasNewCampusUpdate().then(setCampusNew);
     try { void Promise.resolve().then(() => setSeenAt(localStorage.getItem(SEEN_KEY) ?? "")); } catch { /* ignore */ }
   }, [active, view, signedIn]);
   const open = (v: NonNullable<typeof view>) => {
@@ -55,7 +58,8 @@ export default function Discover({ active }: { active: boolean }) {
       {view.k === "deals" && <Explore active={active} onBack={back} section="deals" />}
       {view.k === "scan" && <Scan onBack={back} />}
       {view.k === "shake" && <Shake onBack={back} />}
-      {view.k === "stories" && <Stories onBack={back} onOpen={(id) => go({ k: "post", id })} />}
+      {view.k === "stories" && <Campus onBack={back} onArticles={() => go({ k: "articles" })} />}
+      {view.k === "articles" && <Stories onBack={back} onOpen={(id) => go({ k: "post", id })} />}
       {view.k === "search" && <SearchAll onBack={back} />}
       {view.k === "school" && <School onBack={back} />}
       {view.k === "mini" && <Mini onBack={back} />}
@@ -102,7 +106,7 @@ export default function Discover({ active }: { active: boolean }) {
           <Cell icon={icon(<ShakeIcon />)} label="Shake" onClick={() => open({ k: "shake" })} />
         </CellGroup>
         <CellGroup>
-          <Cell icon={icon(<TopStoriesIcon />)} label="Top Stories" onClick={() => open({ k: "stories" })} />
+          <Cell icon={icon(<TopStoriesIcon />)} label="Campus" onClick={() => { setCampusNew(false); open({ k: "stories" }); }} right={campusNew ? <span className="mr-1"><Badge dot /></span> : undefined} />
           <Cell icon={icon(<SearchSparkIcon />)} label="Search" onClick={() => open({ k: "search" })} />
         </CellGroup>
         <CellGroup>
@@ -304,7 +308,7 @@ function Stories({ onBack, onOpen }: { onBack: () => void; onOpen: (id: string) 
   useEffect(() => { void topStories().then(setItems); }, []);
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[var(--we-bg)]">
-      <WeHeader onBack={onBack} title="Top Stories" />
+      <WeHeader onBack={onBack} title="Articles" />
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-10">
         {items === null ? <p className="py-10 text-center text-[13px] text-[var(--we-sub)]">Loading...</p>
           : items.length === 0 ? <p className="px-10 py-16 text-center text-[14px] text-[var(--we-sub)]">Articles from verified accounts (your SUG, departments, companies) show here.</p>

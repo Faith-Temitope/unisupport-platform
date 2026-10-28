@@ -18,6 +18,7 @@ import { safeName, signedUrl, uploadTo } from "./live/helpData";
 import { folderPath, uid, useApp, type Course, type FileItem, type Folder, type Rec } from "./store";
 import { Btn, Empty, IconBtn, Label, Sheet, TextField, TopBar } from "./ui";
 import { DeadlinesCard, ExtraSheets, TodayCard, type ExtraSheet } from "./StudyExtras";
+import { TimetablePage, TodaySchedule } from "./Schedule";
 import { CategoryPicker, CategoryPill, CategoryTabs } from "./Categories";
 import { ShareCourseForm } from "./ShareCourseForm";
 
@@ -30,6 +31,9 @@ const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, 
 export default function Study() {
   const { courses, folders, addCourse, addFolder, renameFolder, deleteFolder, deleteCourse, moveCourse, recommendation, dismissRec, goBirdie, studyIntent, clearStudyIntent, settings, flash, notices } = useApp();
   const [extra, setExtra] = useState<ExtraSheet>(null);
+  // Courses > Timetable (also opened by a reminder notification: ?tab=study&schedule=1).
+  const [timetable, setTimetable] = useState(false);
+  useEffect(() => { const on = () => setTimetable(true); window.addEventListener("birdie-open-schedule", on); return () => window.removeEventListener("birdie-open-schedule", on); }, []);
   const [folderId, setFolderId] = useViewState<string | null>("study.folder", null);
   const [courseId, setCourseId] = useViewState<string | null>("study.course", null);
   const [initialTab, setInitialTab] = useViewState<CTab>("study.courseTab", "materials");
@@ -79,6 +83,7 @@ export default function Study() {
         </AnimatePresence>
 
         {folderId === null && <PushNudge />}
+        {folderId === null && <TodaySchedule onOpen={() => setTimetable(true)} />}
         {folderId === null && <TodayCard open={setExtra} />}
         {folderId === null && <DeadlinesCard open={setExtra} />}
 
@@ -132,6 +137,7 @@ export default function Study() {
       </div>
 
       <ExtraSheets sheet={extra} setSheet={setExtra} />
+      <TimetablePage open={timetable} onClose={() => setTimetable(false)} />
       <Sheet open={sheet === "menu"} onClose={() => setSheet(null)} title={folderId ? `Add inside ${path[path.length - 1]?.name}` : "Add to Study"}>
         <div className="space-y-2.5">
           <button onClick={() => setSheet("course")} className="flex w-full items-center gap-3 rounded-2xl border border-[var(--line)] bg-white p-4 text-left active:scale-[0.98]"><Sparkles className="text-[var(--study)]" size={20} /><div><div className="text-[14px] font-semibold">New course</div><div className="text-[12px] text-[var(--dim)]">A library Birdie learns from</div></div></button>
