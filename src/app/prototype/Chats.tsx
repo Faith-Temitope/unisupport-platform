@@ -5,7 +5,7 @@
 // Unisupport Help are pinned on top. Courses sit in their own folder, like WeChat's Subscriptions.
 import { useHelpData } from "./live/helpData";
 import { navBack, useBackLayer } from "./nav";
-import { syncCourseChats } from "./live/chatData";
+import { groupDisband, syncCourseChats } from "./live/chatData";
 import { AnimatePresence, motion } from "framer-motion";
 import { BadgeCheck, BellOff, Hash, Plus, ScanLine, Search, UserPlus, Users } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -25,7 +25,7 @@ const Help = dynamic(() => import("./Help"), { ssr: false });
 const OfficialManage = dynamic(() => import("./OfficialManage"), { ssr: false });
 
 type Row = { key: string; view: ChatView; name: string; last: string; at: string; unread: number; muted: boolean; pinned: boolean; avatar: ReactNode; tick?: boolean; dot?: boolean;
-  menu?: { kind: "dm" | "group" | "oa"; id: string }; onOpen?: () => void };
+  menu?: { kind: "dm" | "group" | "oa"; id: string; owner?: boolean; course?: boolean }; onOpen?: () => void };
 
 export default function Chats({ active }: { active: boolean }) {
   const { chatView, setChatView, auth, setAuthOpen, setChatBadge, chats: birdieChats, courses, goStudy, goHelp, flash } = useApp();
@@ -37,6 +37,7 @@ export default function Chats({ active }: { active: boolean }) {
   const [loaded, setLoaded] = useState(false);
   // Writers the Unisupport desk handed you to: each is its own chat, like any other.
   const { sessions } = useHelpData(null, signedIn);
+  const helpLast = sessions.find((x) => x.writers) ? `Your writer${sessions.filter((x) => x.writers).length > 1 ? "s" : ""}: ${sessions.filter((x) => x.writers).map((x) => x.writers!.display_name).join(", ")}` : "Tell us what you need. We'll get it done.";
   const [seenBirdie, setSeenBirdie] = useState(false);
   const [seenHelp, setSeenHelp] = useState(false);
   if (chatView?.k === "birdie" && !seenBirdie) setSeenBirdie(true);
@@ -71,21 +72,17 @@ export default function Chats({ active }: { active: boolean }) {
         avatar: <SqAvatar name={d.other.name} color={d.other.color} size={48} />, menu: { kind: "dm" as const, id: d.id } })),
       ...groups.filter((g) => !g.is_course).map((g) => ({ key: "g" + g.id, view: { k: "group", id: g.id } as ChatView, name: g.remark || g.name,
         last: (g.muted && g.unread > 1 ? `[${g.unread} message(s)] ` : "") + (g.last ?? ""), at: g.last_at ?? "", unread: g.unread, muted: g.muted, pinned: g.pinned,
-        avatar: <GridAvatar avatars={g.avatars} size={48} />, menu: { kind: "group" as const, id: g.id } })),
+        avatar: <GridAvatar avatars={g.avatars} size={48} />, menu: { kind: "group" as const, id: g.id, owner: g.role === "owner", course: g.is_course } })),
       ...oas.map((o) => ({ key: "oa" + o.id, view: { k: "oa", id: o.id } as ChatView, name: o.name, last: o.last ?? o.about ?? "", at: o.last_at, unread: o.unread, muted: o.muted, pinned: o.pinned,
         avatar: <OALogo a={o} size={48} />, tick: true, menu: { kind: "oa" as const, id: o.id } })),
     ];
-    for (const w of sessions.filter((x) => x.writers)) {
-      r.push({ key: "w" + w.id, view: { k: "help" }, onOpen: () => goHelp({ mode: w.mode, courseId: null, sessionId: w.id }), name: w.writers!.display_name,
-        last: `Your writer · ${w.writers!.specialization ?? w.title}`, at: w.created_at, unread: 0, muted: false, pinned: false,
-        avatar: <SqAvatar name={w.writers!.display_name} color="#7C4DDB" size={48} /> });
-    }
-    if (liveCourseChats.length) {
-      const c = liveCourseChats[0];
-      r.push({ key: "courses", view: { k: "courses" }, name: "Courses", last: `${courseUnread > 1 ? `[${courseUnread} message(s)] ` : ""}${c.code}: ${c.last ?? c.notice?.body ?? "Course chat"}`, at: c.last_at, unread: 0, dot: courseUnread > 0, muted: false, pinned: false, avatar: <CoursesFolderIcon size={48} /> });
-    }
     return r.sort((a, b) => Number(b.pinned) - Number(a.pinned) || (b.at || "").localeCompare(a.at || ""));
-  }, [dms, groups, oas, liveCourseChats, courseUnread, sessions, goHelp]);
+  }, [dms, groups, oas]);
+  // Courses sits pinned under Birdie AI and Unisupport Help, like WeChat's Subscriptions folder.
+  const courseRow: Row | null = liveCourseChats.length ? (() => {
+    const c = liveCourseChats[0];
+    return { key: "courses", view: { k: "courses" }, name: "Courses", last: `${courseUnread > 1 ? `[${courseUnread} message(s)] ` : ""}${c.code}: ${c.last ?? c.notice?.body ?? "Course chat"}`, at: c.last_at, unread: 0, dot: courseUnread > 0, muted: false, pinned: true, avatar: <CoursesFolderIcon size={48} /> };
+  })() : null;
   const total = rows.filter((r) => !r.muted).reduce((a, r) => a + r.unread, 0) + courseUnread;
   useEffect(() => { setChatBadge(total); }, [total, setChatBadge]);
 
@@ -116,16 +113,15 @@ export default function Chats({ active }: { active: boolean }) {
           {view.k === "manage" && <OfficialManage id={view.id} onBack={back} onPost={(id) => go({ k: "post", id })} />}
         </div>
       )}
-      <ChatList rows={rows} loaded={loaded} signedIn={signedIn} birdieLast={birdieLast} open={go} onSignIn={() => setAuthOpen(true)} reload={load} />
+      <ChatList rows={rows} courseRow={courseRow} helpLast={helpLast} loaded={loaded} signedIn={signedIn} birdieLast={birdieLast} open={go} onSignIn={() => setAuthOpen(true)} reload={load} />
     </div>
   );
 }
 
-function ChatList({ rows, loaded, signedIn, birdieLast, open, onSignIn, reload }: {
-  rows: Row[]; loaded: boolean; signedIn: boolean; birdieLast: string; open: (v: ChatView) => void; onSignIn: () => void; reload: () => void;
+function ChatList({ rows, courseRow, helpLast, loaded, signedIn, birdieLast, open, onSignIn, reload }: {
+  rows: Row[]; courseRow: Row | null; helpLast: string; loaded: boolean; signedIn: boolean; birdieLast: string; open: (v: ChatView) => void; onSignIn: () => void; reload: () => void;
 }) {
-  const { flash, setTab, setDiscoverView, goHelp } = useApp();
-  const openHelp = () => goHelp({ mode: "full", courseId: null });
+  const { flash, setTab, setDiscoverView } = useApp();
   const [menu, setMenu] = useState(false);
   const [searching, setSearching] = useState(false);
   useBackLayer(searching, () => setSearching(false));
@@ -142,7 +138,13 @@ function ChatList({ rows, loaded, signedIn, birdieLast, open, onSignIn, reload }
   async function act(r: Row, what: "pin" | "mute" | "delete") {
     setRowMenu(null);
     const m = r.menu!;
-    if (m.kind === "dm") await dmSet(m.id, what === "pin" ? { pinned: !r.pinned } : what === "mute" ? { muted: !r.muted } : { clear: true });
+    if (what === "delete") {
+      if (m.kind === "dm") { if (!confirm(`Delete your chat with ${r.name}? It comes back if they message you.`)) return; await dmSet(m.id, { clear: true }); }
+      else if (m.kind === "group" && m.owner) { if (!confirm(`Delete "${r.name}" for everyone in it?`)) return; const e = await groupDisband(m.id); if (e) return flash(e === "course_group" ? "Course chats can't be deleted" : "Couldn't delete the group"); flash("Group deleted"); }
+      else if (m.kind === "group") { if (!confirm(`Leave and delete "${r.name}"?`)) return; const g = await import("./live/groupData"); const e = await g.groupLeave(m.id); if (e) return flash(e === "course_group" ? "Course chats stay while you're in the course" : e); flash("You left the group"); }
+      reload(); return;
+    }
+    if (m.kind === "dm") await dmSet(m.id, what === "pin" ? { pinned: !r.pinned } : { muted: !r.muted });
     else if (m.kind === "oa") await oaSet(m.id, what === "pin" ? { pinned: !r.pinned } : { muted: !r.muted });
     else { const g = await import("./live/groupData"); const c = await import("./live/chatData"); if (what === "mute") await g.groupUpdate(m.id, { muted: !r.muted }); else await c.groupSetMe(m.id, { pinned: !r.pinned }); }
     reload();
@@ -181,7 +183,8 @@ function ChatList({ rows, loaded, signedIn, birdieLast, open, onSignIn, reload }
         <ListRow pinned avatar={<span className="flex h-12 w-12 items-center justify-center rounded-[6px] bg-gradient-to-br from-[#C05BD6] to-[#8A2FA3] text-[21px] font-bold text-white">B</span>}
           name="Birdie AI" tick last={birdieLast} onClick={() => open({ k: "birdie" })} />
         <ListRow pinned avatar={<span className="flex h-12 w-12 items-center justify-center rounded-[6px] bg-[#1F1A2B] text-[18px] font-bold text-[#E6B3F2]">U</span>}
-          name="Unisupport Help" tick last="Tell us what you need. We'll get it done." onClick={() => (signedIn ? openHelp() : onSignIn())} />
+          name="Unisupport Help" tick last={helpLast} onClick={() => (signedIn ? open({ k: "help" }) : onSignIn())} />
+        {courseRow && <ListRow pinned avatar={courseRow.avatar} name="Courses" last={courseRow.last} time={listTime(courseRow.at)} dot={courseRow.dot} onClick={() => open(courseRow.view)} />}
         {!signedIn ? (
           <div className="px-8 py-16 text-center">
             <p className="text-[14px] leading-relaxed text-[var(--we-sub)]">Sign in to chat with classmates, make groups, send money and giveaways, and follow your SUG and companies offering SIWES.</p>
@@ -201,7 +204,7 @@ function ChatList({ rows, loaded, signedIn, birdieLast, open, onSignIn, reload }
           <div className="overflow-hidden rounded-[8px] bg-[var(--we-cell)] text-center text-[16px] text-[var(--we-text)]">
             <button onClick={() => void act(rowMenu, "pin")} className="block w-full border-b border-[var(--we-sep)] py-3.5">{rowMenu.pinned ? "Unpin" : "Sticky on Top"}</button>
             <button onClick={() => void act(rowMenu, "mute")} className="block w-full border-b border-[var(--we-sep)] py-3.5">{rowMenu.muted ? "Unmute" : "Mute Notifications"}</button>
-            {rowMenu.menu?.kind === "dm" && <button onClick={() => void act(rowMenu, "delete")} className="block w-full py-3.5 text-[var(--we-red)]">Delete</button>}
+            {(rowMenu.menu?.kind === "dm" || (rowMenu.menu?.kind === "group" && !rowMenu.menu.course)) && <button onClick={() => void act(rowMenu, "delete")} className="block w-full py-3.5 text-[var(--we-red)]">{rowMenu.menu.kind === "group" ? (rowMenu.menu.owner ? "Delete Group" : "Delete and Leave") : "Delete"}</button>}
           </div>
         )}
       </Sheet>

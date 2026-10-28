@@ -50,6 +50,8 @@ export const myGroups = async () => (await call<GroupRow[]>("my_groups2")).data 
 export const myCourseChats = async () => (await call<CourseChat[]>("my_course_chats")).data ?? [];
 /** Every course gets a course chat: send the student's courses so the server makes the missing ones. */
 export const syncCourseChats = (courses: { key: string; code: string; name: string; shared: string | null }[]) => call("sync_course_chats", { p_courses: courses });
+/** The owner deletes a group for everyone (course chats can't be deleted). Returns an error code or null. */
+export const groupDisband = async (id: string) => (await call("group_disband", { p_group: id })).error ?? null;
 export const courseGroupId = async (shared: string) => (await call<string>("course_group_id", { p_shared: shared })).data;
 export const groupSetMe = (id: string, p: { pinned?: boolean; alias?: string; remark?: string }) => call("group_set_me", { p_group: id, p_pinned: p.pinned ?? null, p_alias: p.alias ?? null, p_remark: p.remark ?? null });
 export const searchChat = async (scope: Scope, id: string, q: string) => (await call<{ id: string; body: string; created_at: string; mine: boolean; name: string }[]>("search_chat", { p_scope: scope, p_id: id, p_q: q })).data ?? [];

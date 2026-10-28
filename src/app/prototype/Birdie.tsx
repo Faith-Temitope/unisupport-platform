@@ -1,11 +1,13 @@
 "use client";
 
+import { navBack, useBackLayer } from "./nav";
+import { PlusCircle, WeHeader } from "./we";
 import { whileVisible } from "./perf";
 import { localNotify } from "./push";
 import { useViewState } from "./persist";
 import { VideoLesson } from "./VideoLesson";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, AudioLines, Backpack, BookOpen, BookOpenCheck, Check, ChevronDown, Clapperboard, ClipboardCheck, FileQuestion, FlaskConical, Loader2, Menu, Mic, Palette, Paperclip, Plus, Send, Square, SquarePen, ThumbsDown, ThumbsUp, Volume2, X } from "lucide-react";
+import { ArrowLeft, Search, AudioLines, Backpack, BookOpen, BookOpenCheck, Check, ChevronDown, Clapperboard, ClipboardCheck, FileQuestion, FlaskConical, Loader2, Menu, Mic, Palette, Paperclip, Plus, Send, Square, SquarePen, ThumbsDown, ThumbsUp, Volume2, X } from "lucide-react";
 import { Rich } from "./Rich";
 import { VoiceChat, primeVoiceAudio, type VoiceLine } from "./VoiceChat";
 import { ingestFiles } from "./ingest";
@@ -95,8 +97,19 @@ export default function Birdie({ active, onBack }: { active: boolean; onBack?: (
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   const name = firstName(profile);
-  const course = ctx === "general" ? null : courses.find((c) => c.id === ctx) ?? null;
-  useEffect(() => { if (ctx !== "general" && !courses.some((c) => c.id === ctx)) setCtx("general"); }, [courses, ctx]);
+  // Each conversation has its own key: "<course id or general>~<id>". The course is the part before "~".
+  const base = ctx.split("~")[0];
+  const course = base === "general" ? null : courses.find((c) => c.id === base) ?? null;
+  useEffect(() => { if (base !== "general" && !courses.some((c) => c.id === base)) setCtx("general"); }, [courses, base]); // eslint-disable-line react-hooks/exhaustive-deps
+  const fresh = (b: string) => `${b}~${Date.now().toString(36)}`;
+  // Opening Birdie from Chats shows its home (new chat box, courses, earlier chats); a chat opens on top.
+  const [home, setHome] = useState(true);
+  useBackLayer(!home, () => setHome(true));
+  const wasActive = useRef(active);
+  useEffect(() => {
+    if (active && !wasActive.current && !birdieIntent) void Promise.resolve().then(() => setHome(true));
+    wasActive.current = active;
+  }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A joined (not owned) shared course keeps its own notes/files/recs empty locally -- the real
   // content lives with the owner and is fetched read-only (see Study.tsx's CourseView for the same
@@ -228,8 +241,8 @@ export default function Birdie({ active, onBack }: { active: boolean; onBack?: (
 
   useEffect(() => {
     if (!birdieIntent) return;
-    setCtx(birdieIntent.courseId); setMode(birdieIntent.mode ?? "chat");
-    if (birdieIntent.prompt) { const c = courses.find((x) => x.id === birdieIntent.courseId) ?? null; timers.current.push(setTimeout(() => send(birdieIntent.prompt!, birdieIntent.courseId, c), 300)); }
+    setCtx(birdieIntent.prompt ? fresh(birdieIntent.courseId) : birdieIntent.courseId); setMode(birdieIntent.mode ?? "chat"); void Promise.resolve().then(() => setHome(false));
+    if (birdieIntent.prompt) { const c = courses.find((x) => x.id === birdieIntent.courseId) ?? null; const k = fresh(birdieIntent.courseId); setCtx(k); timers.current.push(setTimeout(() => send(birdieIntent.prompt!, k, c), 300)); }
     clearBirdieIntent();
   }, [birdieIntent]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -354,17 +367,24 @@ export default function Birdie({ active, onBack }: { active: boolean; onBack?: (
   };
   const sponsor = birdieCards.length ? birdieCards[(ctx.length + thread.length) % birdieCards.length] : null;
 
+  if (home) return (
+    <BirdieHome courses={courses} chats={chats} onBack={onBack}
+      onOpen={(k) => { setCtx(k); setMode("chat"); setHome(false); }}
+      onNew={(b, text) => { const k = fresh(b); setCtx(k); setMode("chat"); setHome(false); if (text) void send(text, k, b === "general" ? null : courses.find((c) => c.id === b) ?? null); }}
+      onDelete={(k) => setChats((cs) => { const n = { ...cs }; delete n[k]; return n; })} />
+  );
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center justify-between px-5 pb-2 pt-2">
-        <span className="flex items-center gap-1.5">{onBack && <button onClick={onBack} aria-label="Back" className="flex h-9 w-9 items-center justify-center rounded-xl active:bg-[var(--paper-dim)]"><ArrowLeft size={19} /></button>}<button onClick={() => setDrawer(true)} aria-label="Birdie chats" className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--paper-dim)] active:scale-90"><Menu size={17} /></button></span>
+        <span className="flex items-center gap-1.5">{onBack && <button onClick={navBack} aria-label="Back" className="flex h-9 w-9 items-center justify-center rounded-xl active:bg-[var(--paper-dim)]"><ArrowLeft size={19} /></button>}<button onClick={() => setDrawer(true)} aria-label="Birdie chats" className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--paper-dim)] active:scale-90"><Menu size={17} /></button></span>
         <button onClick={() => setBrainOpen(true)} aria-label="Choose Birdie's brain" className="flex flex-col items-center active:scale-95"><span className="flex items-center gap-2"><span className="disp flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#C05BD6] to-[#8A2FA3] text-[13px] font-bold text-white">B</span><span className="disp text-[19px] font-bold text-[var(--text)]">Birdie</span></span><span className="mt-0.5 rounded-full bg-[var(--birdie-soft)] px-2 py-0.5 text-[10.5px] font-bold text-[var(--birdie-text)]">{live ? brainName(settings.aiBrain, settings.aiTier) : "Offline preview"} ▾</span></button>
-        <button onClick={() => { setChats((cs) => { const n = { ...cs }; delete n[ctx]; return n; }); setMode("chat"); }} aria-label="New chat" className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--paper-dim)] active:scale-90"><SquarePen size={16} /></button>
+        <button onClick={() => { setCtx(fresh(base)); setMode("chat"); }} aria-label="New chat" className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--paper-dim)] active:scale-90"><SquarePen size={16} /></button>
       </div>
 
       <div className="no-scrollbar flex shrink-0 gap-2 overflow-x-auto px-5 pb-2">
         {[...courses.map((c) => ({ id: c.id, label: c.code })), { id: "general", label: "General" }].map((c) => (
-          <button key={c.id} onClick={() => { setCtx(c.id); setMode("chat"); }} className={`shrink-0 rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition active:scale-95 ${ctx === c.id ? "bg-[var(--birdie)] text-white" : "bg-[var(--birdie-soft)] text-[var(--birdie-text)]"}`}>{c.label}</button>
+          <button key={c.id} onClick={() => { if (base !== c.id) setCtx(fresh(c.id)); setMode("chat"); }} className={`shrink-0 rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition active:scale-95 ${base === c.id ? "bg-[var(--birdie)] text-white" : "bg-[var(--birdie-soft)] text-[var(--birdie-text)]"}`}>{c.label}</button>
         ))}
       </div>
 
@@ -635,6 +655,79 @@ function FeedbackForm({ shareDefault, onSend }: { shareDefault: boolean; onSend:
         <span>Share my question and correction to help train Birdie. No name or email is attached, and you can delete it any time in Settings.</span>
       </label>
       <Btn variant="ink" disabled={!reason && !correction.trim()} onClick={() => onSend({ reason: reason ?? undefined, correction: correction.trim() || undefined, share })}>Send feedback</Btn>
+    </div>
+  );
+}
+
+const PALETTE = ["#3D83F7", "#7C4DDB", "#1B8A85", "#D9467E", "#E2553F", "#A63FBD", "#F5A623", "#2F9E5B"];
+const colorOf = (t: string) => PALETTE[[...t].reduce((a, ch) => a + ch.charCodeAt(0), 0) % PALETTE.length];
+
+/** Birdie's home, laid out like the Courses folder: start a chat about a course (circles), pick up an
+ *  earlier chat (cards), or just type at the bottom, which always starts a new chat. */
+function BirdieHome({ courses, chats, onBack, onOpen, onNew, onDelete }: {
+  courses: Course[]; chats: Record<string, BMsg[]>; onBack?: () => void; onOpen: (key: string) => void; onNew: (base: string, text?: string) => void; onDelete: (key: string) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const [q, setQ] = useState("");
+  const [searching, setSearching] = useState(false);
+  const label = (b: string) => { const c = courses.find((x) => x.id === b); return c ? `${c.code} · ${c.name}` : "General"; };
+  const threads = Object.entries(chats)
+    .filter(([, ms]) => ms.some((m) => m.from === "me"))
+    .map(([k, ms]) => ({ k, base: k.split("~")[0], first: ms.find((m) => m.from === "me")?.text ?? "", last: ms[ms.length - 1], n: ms.length }))
+    .filter((t) => !q.trim() || `${t.first} ${t.last.text} ${label(t.base)}`.toLowerCase().includes(q.trim().toLowerCase()))
+    .sort((a, b) => (b.last.at ?? 0) - (a.last.at ?? 0));
+  const go = () => { const t = draft.trim(); if (!t) return; setDraft(""); onNew("general", t); };
+  const Circle = ({ id, code, size = 52 }: { id: string; code: string; size?: number }) => (
+    id === "general"
+      ? <span className="flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#C05BD6] to-[#8A2FA3] font-bold text-white" style={{ width: size, height: size, fontSize: size * 0.4 }}>B</span>
+      : <span className="flex shrink-0 items-center justify-center rounded-full font-semibold text-white" style={{ width: size, height: size, background: colorOf(code), fontSize: size * 0.28 }}>{code.replace(/\s+/g, "").slice(0, 4) || "?"}</span>
+  );
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-[var(--we-bg)]">
+      <WeHeader onBack={onBack ? navBack : undefined} title="Birdie AI" right={<button onClick={() => setSearching((x) => !x)} aria-label="Search chats" className="flex h-10 w-10 items-center justify-center"><Search size={21} /></button>} />
+      {searching && <div className="px-3 pb-2"><div className="flex items-center gap-2 rounded-[6px] bg-[var(--we-cell)] px-3 py-2"><Search size={16} className="text-[var(--we-sub)]" /><input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search your Birdie chats" className="min-w-0 flex-1 bg-transparent text-[15px] text-[var(--we-text)] outline-none" /></div></div>}
+      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-4">
+        {!q && (
+          <div className="px-4 pt-2">
+            <div className="mb-3 text-[13px] text-[var(--we-sub)]">Ask about</div>
+            <div className="no-scrollbar -mx-4 flex gap-4 overflow-x-auto px-4 pb-1">
+              {[{ id: "general", code: "General" }, ...courses.map((c) => ({ id: c.id, code: c.code }))].map((c) => (
+                <button key={c.id} onClick={() => onNew(c.id)} className="flex w-[60px] shrink-0 flex-col items-center gap-1.5">
+                  <Circle id={c.id} code={c.code} />
+                  <span className="max-w-full truncate text-[12px] text-[var(--we-sub)]">{c.id === "general" ? "Anything" : c.code}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="space-y-3 px-3 pt-4">
+          {threads.length === 0
+            ? <p className="px-6 py-10 text-center text-[14px] leading-relaxed text-[var(--we-sub)]">{q ? "No chats match that." : "Ask anything below for a quick answer, or tap a course to ask about your notes. Your chats are kept here."}</p>
+            : threads.map((t) => (
+              <div key={t.k} className="overflow-hidden rounded-[8px] bg-[var(--we-cell)]">
+                <button onClick={() => onOpen(t.k)} onContextMenu={(e) => { e.preventDefault(); if (confirm("Delete this chat?")) onDelete(t.k); }} className="block w-full text-left active:opacity-90">
+                  <div className="flex items-center gap-2.5 px-4 pt-3">
+                    <Circle id={t.base} code={courses.find((c) => c.id === t.base)?.code ?? ""} size={24} />
+                    <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--we-link)]">{label(t.base)}</span>
+                    <span className="shrink-0 text-[12px] text-[var(--we-hint)]">{t.last.t}</span>
+                  </div>
+                  <div className="px-4 pb-3 pt-2">
+                    <div className="line-clamp-2 text-[16px] font-semibold leading-snug text-[var(--we-text)]">{t.first}</div>
+                    <div className="mt-1 line-clamp-2 text-[13.5px] leading-snug text-[var(--we-sub)]">{t.last.text.replace(/[#*_`$\\]/g, "")}</div>
+                  </div>
+                </button>
+              </div>
+            ))}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-end gap-2 border-t border-[var(--we-sep)] bg-[var(--we-bar)] px-2 pb-2 pt-2">
+        <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={1} aria-label="Ask Birdie" placeholder="Ask Birdie anything"
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); go(); } }}
+          className="max-h-28 min-h-9 min-w-0 flex-1 resize-none rounded-[4px] bg-[var(--we-input)] px-2.5 py-[7px] text-[16px] leading-snug text-[var(--we-text)] outline-none placeholder:text-[var(--we-hint)]" />
+        {draft.trim()
+          ? <button onClick={go} className="mb-[2px] h-8 shrink-0 rounded-[4px] bg-[var(--we-accent)] px-3 text-[14px] font-medium text-white">Send</button>
+          : <button onClick={() => onNew("general")} aria-label="New chat" className="mb-[3px] shrink-0 active:opacity-60"><PlusCircle /></button>}
+      </div>
     </div>
   );
 }

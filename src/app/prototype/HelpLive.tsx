@@ -2,10 +2,11 @@
 
 // Help for signed-in students, backed by Supabase: real sessions, messages, fees and files.
 // Desk agents and writers answer from the staff app (/prototype/live/staff). Nothing here is simulated.
+import { navBack, useBackLayer } from "./nav";
+import { EmojiCircle, KeyboardCircle, MoreBtn, PlusCircle, SqAvatar, VoiceCircle, WeHeader } from "./we";
 import { HoldButton } from "./Pocket";
 import { Linkified } from "./Linkified";
-import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, BookOpen, Check, CheckCheck, Download, Eye, FileText, Lock, MoreVertical, Paperclip, Send, Star } from "lucide-react";
+import { BookOpen, Image as ImageIcon, Check, Download, Eye, FileText, Lock, Paperclip, Star } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { CourseShareSheet } from "./CourseShare";
@@ -13,7 +14,7 @@ import { useViewState } from "./persist";
 import { ACCESS_LABEL, DL_LABEL, SERVICE_LABEL, UNIT_LABEL, clock, listFolder, openUrl, rpcError, safeName, sendMessage, signedUrl, uploadTo, useHelpData, type HJob, type HMessage, type HSession } from "./live/helpData";
 import { logEvent } from "./live/analyticsData";
 import { naira, uid, useApp } from "./store";
-import { Avatar, Btn, Sheet, TopBar, scrollToEnd } from "./ui";
+import { Btn, Sheet, scrollToEnd } from "./ui";
 
 const initials = (n: string) => n.split(" ").filter((x) => !/^dr\.?$/i.test(x)).map((x) => x[0]).join("").slice(0, 2).toUpperCase();
 const PALETTE = ["#A63FBD", "#4C6EF5", "#D9467E", "#7C4DDB"];
@@ -21,10 +22,9 @@ const colorOf = (s: string) => PALETTE[[...s].reduce((a, c) => a + c.charCodeAt(
 const first = (n: string) => (n.startsWith("Dr.") ? n.split(" ")[1] : n.split(" ")[0]);
 
 export default function HelpLive({ active, onBack }: { active: boolean; onBack?: () => void }) {
-  const { setWalletOpen, flash, helpIntent, clearHelpIntent, refreshWallet, grantCourseAccess } = useApp();
+  const { setWalletOpen, flash, helpIntent, clearHelpIntent, refreshWallet, grantCourseAccess, profile } = useApp();
   const [activeId, setActiveId] = useViewState<string | null>("help.chat", null);
   const [courseShare, setCourseShare] = useState(false);
-  const [attachMenu, setAttachMenu] = useState(false);
   const { sessions, messages, jobs, loading, reload } = useHelpData(activeId);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -52,7 +52,7 @@ export default function HelpLive({ active, onBack }: { active: boolean; onBack?:
       id = data as string; await reload();
     }
     if (courseId) { const err = await grantCourseAccess(courseId, "view", { session: id }); if (err) flash("Couldn't attach the course"); }
-    setActiveId(id);
+    setActiveId(id); setHome(false);
   }
   useEffect(() => {
     if (!helpIntent) return;
@@ -103,61 +103,140 @@ export default function HelpLive({ active, onBack }: { active: boolean; onBack?:
   }
   async function openAttachment(path: string) { const u = await signedUrl("session-uploads", path); if (u) openUrl(u); else flash("Couldn't open that file"); }
 
-  // Unisupport Help is one chat with the desk, who hand you to a writer when you need one. Writer chats
-  // are their own rows in Chats; tutorials, printing, internships and Just Do It are Mini Programs.
-  const opening = useRef(false);
+  // Unisupport Help is a folder, like Courses: the help desk and every writer they handed you to.
+  // Tapping one opens its chat; the desk chat becomes your writer's chat when they assign one.
+  const [home, setHome] = useState(true);
+  useBackLayer(!home, () => setHome(true));
+  const wasActive = useRef(active);
   useEffect(() => {
-    if (!active || s || loading || helpIntent || opening.current) return;
-    opening.current = true;
-    void Promise.resolve().then(() => openDesk()).finally(() => { opening.current = false; });
-  }, [active, s, loading, helpIntent]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (!s) return (
-    <div className="flex h-full flex-col">
-      <TopBar left={onBack && <button onClick={onBack} aria-label="Back" className="flex h-9 w-9 items-center justify-center rounded-xl active:bg-[var(--paper-dim)]"><ArrowLeft size={19} /></button>} title={<h2 className="disp text-[20px] font-bold text-[var(--text)]">Unisupport Help</h2>} />
-      <p className="py-10 text-center text-[13px] text-[var(--dim)]">Opening your chat...</p>
-    </div>
-  );
+    if (active && !wasActive.current && !helpIntent) void Promise.resolve().then(() => setHome(true));
+    wasActive.current = active;
+  }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (helpIntent) void Promise.resolve().then(() => setHome(false)); }, [helpIntent]);
+  const [panel, setPanel] = useState<null | "emoji" | "plus">(null);
+  useBackLayer(!!panel, () => setPanel(null));
+  const photoIn = useRef<HTMLInputElement>(null);
+  const meName = profile.name || "Me";
+
+  if (home || !s) {
+    const writerChats = sessions.filter((x) => x.writers);
+    const pastDesk = sessions.filter((x) => !x.writers && x.id !== deskChat?.id);
+    const deskLine = busy ? "Opening..." : deskChat ? (deskChat.phase === "fee" ? "Waiting to connect you to a writer" : "Continue your chat") : "Tell us what you need. We'll get it done.";
+    return (
+      <div className="flex h-full min-h-0 flex-col bg-[var(--we-bg)]">
+        <WeHeader onBack={onBack} title="Unisupport Help" />
+        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-10">
+          <div className="px-4 pt-2">
+            <div className="mb-3 text-[13px] text-[var(--we-sub)]">Your help</div>
+            <div className="no-scrollbar -mx-4 flex gap-4 overflow-x-auto px-4">
+              <button onClick={() => void openDesk()} className="flex w-[60px] shrink-0 flex-col items-center gap-1.5"><DeskAvatar size={52} round /><span className="max-w-full truncate text-[12px] text-[var(--we-sub)]">Help Desk</span></button>
+              {writerChats.map((w) => (
+                <button key={w.id} onClick={() => { setActiveId(w.id); setHome(false); }} className="flex w-[60px] shrink-0 flex-col items-center gap-1.5">
+                  <span className="flex h-[52px] w-[52px] items-center justify-center rounded-full text-[16px] font-semibold text-white" style={{ background: colorOf(w.writers!.display_name) }}>{initials(w.writers!.display_name)}</span>
+                  <span className="max-w-full truncate text-[12px] text-[var(--we-sub)]">{first(w.writers!.display_name)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-3 px-3 pt-4">
+            <button onClick={() => void openDesk()} disabled={busy} className="block w-full overflow-hidden rounded-[8px] bg-[var(--we-cell)] text-left active:opacity-90">
+              <div className="flex items-center gap-2.5 px-4 pt-3"><DeskAvatar size={24} round /><span className="flex-1 text-[14px] text-[var(--we-link)]">Help Desk</span>{deskChat && <span className="text-[12px] text-[var(--we-hint)]">{clock(deskChat.created_at)}</span>}</div>
+              <div className="px-4 pb-3 pt-2"><div className="text-[16px] font-semibold text-[var(--we-text)]">{deskChat?.title || "Chat with Unisupport"}</div><div className="mt-1 text-[13.5px] text-[var(--we-sub)]">{deskLine}</div></div>
+            </button>
+            {writerChats.map((w) => (
+              <button key={w.id} onClick={() => { setActiveId(w.id); setHome(false); }} className="block w-full overflow-hidden rounded-[8px] bg-[var(--we-cell)] text-left active:opacity-90">
+                <div className="flex items-center gap-2.5 px-4 pt-3">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white" style={{ background: colorOf(w.writers!.display_name) }}>{initials(w.writers!.display_name)}</span>
+                  <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--we-link)]">{w.writers!.display_name}</span>
+                  <span className="text-[12px] text-[var(--we-hint)]">{clock(w.created_at)}</span>
+                </div>
+                <div className="px-4 pb-3 pt-2"><div className="line-clamp-2 text-[16px] font-semibold text-[var(--we-text)]">{w.title || "Your work"}</div><div className="mt-1 text-[13.5px] text-[var(--we-sub)]">Your writer · {w.writers!.specialization ?? "Unisupport"}</div></div>
+              </button>
+            ))}
+            {loading && sessions.length === 0 && <p className="py-2 text-center text-[12.5px] text-[var(--we-sub)]">Loading your chats...</p>}
+            {pastDesk.length > 0 && (
+              <details className="px-1"><summary className="cursor-pointer py-2 text-[13px] text-[var(--we-sub)]">Earlier chats ({pastDesk.length})</summary>
+                <div className="overflow-hidden rounded-[8px] bg-[var(--we-cell)]">{pastDesk.map((x) => (
+                  <button key={x.id} onClick={() => { setActiveId(x.id); setHome(false); }} className="block w-full border-b border-[var(--we-sep)] px-4 py-3 text-left last:border-0">
+                    <div className="truncate text-[15px] text-[var(--we-text)]">{x.title || "Earlier chat"}</div><div className="text-[12px] text-[var(--we-hint)]">{new Date(x.created_at).toLocaleDateString()}</div>
+                  </button>
+                ))}</div>
+              </details>
+            )}
+            <p className="px-6 pt-2 text-center text-[12px] leading-snug text-[var(--we-sub)]">Tutorials, printing, internships and Just Do It are in Discover &gt; Mini Programs.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ---------------- CHAT ----------------
   const wname = writer?.display_name;
+  const them = (role: HMessage["sender_role"]) => (role === "writer" && wname ? <SqAvatar name={wname} color={colorOf(wname)} size={40} /> : <DeskAvatar size={40} />);
+  const sendDraft = () => { const t = draft.trim(); if (!t) return; void send(t); setDraft(""); };
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex shrink-0 items-center gap-3 border-b border-[var(--line)] bg-[var(--paper)] px-4 pb-2.5 pt-1">
-        <button onClick={() => onBack?.()} aria-label="Back" className="flex h-9 w-9 items-center justify-center rounded-xl active:scale-90"><ArrowLeft size={19} /></button>
-        <AnimatePresence mode="wait">
-          <motion.div key={wname ?? "desk"} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex min-w-0 flex-1 items-center gap-3">
-            {wname ? <Avatar initials={initials(wname)} color={colorOf(wname)} size={38} online /> : <div className="disp relative flex h-[38px] w-[38px] items-center justify-center rounded-full bg-[var(--ink)] text-[16px] font-bold text-[var(--birdie)]">U<span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[var(--paper)] bg-[#3FB56B]" /></div>}
-            <div className="min-w-0"><div className="truncate text-[14.5px] font-bold leading-tight">{wname ?? "Unisupport Help"}</div><div className="truncate text-[11.5px] text-[var(--dim)]">{wname ? writer?.specialization ?? "Your writer" : s.phase === "fee" ? "Connecting you to a writer" : "Online · we're here to help"}</div></div>
-          </motion.div>
-        </AnimatePresence>
-        <HoldButton item={{ kind: "helpchat", title: wname ? `Chat with ${wname}` : "Unisupport Help", sessionId: s.id }} className="flex h-9 w-9 items-center justify-center rounded-xl text-[var(--dim)] active:scale-90" />
-        {s.phase === "writer" && <button onClick={() => setMenu(true)} aria-label="Options" className="flex h-9 w-9 items-center justify-center rounded-xl text-[var(--dim)] active:scale-90"><MoreVertical size={18} /></button>}
-      </div>
+    <div className="flex h-full min-h-0 flex-col bg-[var(--we-chat)]">
+      <WeHeader onBack={navBack} title={<span className="block truncate">{wname ?? "Unisupport Help"}<span className="block truncate text-[11.5px] font-normal text-[var(--we-sub)]">{wname ? writer?.specialization ?? "Your writer" : s.phase === "fee" ? "Connecting you to a writer" : "Help Desk · online"}</span></span>}
+        right={<>
+          <HoldButton item={{ kind: "helpchat", title: wname ? `Chat with ${wname}` : "Unisupport Help", sessionId: s.id }} className="flex h-10 w-9 items-center justify-center text-[var(--we-text)]" />
+          {s.phase === "writer" && <MoreBtn onClick={() => setMenu(true)} />}
+        </>} />
 
-      <div className="no-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto bg-[#F0E9F6] px-4 py-3">
-        {messages.map((x) => x.sender_role === "system" ? (
-          <div key={x.id} className="mx-auto w-fit max-w-[88%] rounded-full bg-[#ddd2e8] px-3.5 py-1.5 text-center text-[11.5px] text-[#5b4b70]">{x.body}</div>
-        ) : x.card ? (
-          <Card key={x.id} m={x} s={s} job={jobs.find((j) => j.id === x.job_id)} onPayFee={() => void rpc("pay_session_fee", { p_session: s.id })} onView={(j) => void view_(j)} onPayWork={(j) => void rpc("pay_work_fee", { p_job: j.id })} onDownload={(j) => void download(j)} onAccept={(j) => void rpc("accept_job", { p_job: j.id }, "Accepted")} onRate={(j, n) => void rpc("rate_job", { p_job: j.id, p_rating: n }, "Thanks for rating")} />
-        ) : (
-          <motion.div key={x.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className={`flex ${x.sender_role === "student" ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-[14px] leading-snug shadow-sm ${x.sender_role === "student" ? "rounded-tr-md bg-[#EBD3F5]" : "rounded-tl-md bg-white"} text-[var(--text)]`}>
-              {x.attachment_path ? <button onClick={() => void openAttachment(x.attachment_path!)} className="flex items-center gap-2 text-left underline decoration-dotted"><Paperclip size={13} />{x.body.replace(/^📎\s*/, "")}</button> : <Linkified text={x.body} />}
-              <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-[#8a7fa0]">{clock(x.created_at)}{x.sender_role === "student" && <CheckCheck size={12} className="text-[#7C4DDB]" />}</div>
+      <div onClick={() => setPanel(null)} className="no-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3">
+        {messages.map((x, i) => {
+          const prev = messages[i - 1];
+          const time = !prev || new Date(x.created_at).getTime() - new Date(prev.created_at).getTime() > 5 * 60_000 ? <div className="pb-3 text-center text-[12px] text-[var(--we-sub)]">{clock(x.created_at)}</div> : null;
+          if (x.sender_role === "system") return <div key={x.id}>{time}<div className="mx-auto w-fit max-w-[80%] rounded-[4px] bg-black/10 px-2 py-0.5 text-center text-[12px] text-[var(--we-sub)]">{x.body}</div></div>;
+          if (x.card) return <div key={x.id}>{time}<Card m={x} s={s} job={jobs.find((j) => j.id === x.job_id)} onPayFee={() => void rpc("pay_session_fee", { p_session: s.id })} onView={(j) => void view_(j)} onPayWork={(j) => void rpc("pay_work_fee", { p_job: j.id })} onDownload={(j) => void download(j)} onAccept={(j) => void rpc("accept_job", { p_job: j.id }, "Accepted")} onRate={(j, n) => void rpc("rate_job", { p_job: j.id, p_rating: n }, "Thanks for rating")} /></div>;
+          const mine = x.sender_role === "student";
+          return (
+            <div key={x.id}>
+              {time}
+              <div className={`flex items-start gap-2.5 ${mine ? "flex-row-reverse" : ""}`}>
+                {mine ? <SqAvatar name={meName} color="#8A2FA3" size={40} /> : them(x.sender_role)}
+                <div className={`relative max-w-[72%] rounded-[4px] px-3 py-[9px] text-[16px] leading-[1.4] ${mine ? "bg-[var(--we-mine)] text-[var(--we-mine-text)]" : "bg-[var(--we-bubble)] text-[var(--we-text)]"}`}>
+                  <span className={`absolute top-[13px] h-2.5 w-2.5 rotate-45 ${mine ? "-right-1 bg-[var(--we-mine)]" : "-left-1 bg-[var(--we-bubble)]"}`} />
+                  <span className="relative block break-words">{x.attachment_path ? <button onClick={() => void openAttachment(x.attachment_path!)} className="flex items-center gap-2 text-left underline decoration-dotted"><Paperclip size={14} />{x.body.replace(/^📎\s*/, "")}</button> : <Linkified text={x.body} />}</span>
+                </div>
+              </div>
             </div>
-          </motion.div>
-        ))}
+          );
+        })}
         <div ref={endRef} />
       </div>
 
-      {messages.length <= 1 && s.phase === "desk" && (<div className="no-scrollbar flex shrink-0 gap-2 overflow-x-auto bg-[#F0E9F6] px-4 pb-2">{["How does this work?", "How much does it cost?", "I need help understanding a course", "Final year project, 40 pages, 2 weeks"].map((c) => (<button key={c} onClick={() => void send(c)} className="shrink-0 rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[var(--text)] active:scale-95">{c}</button>))}</div>)}
-      <div className="flex shrink-0 items-center gap-2 bg-[var(--paper)] px-4 pb-4 pt-2.5">
-        <input ref={fileIn} type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void attach(f); if (fileIn.current) fileIn.current.value = ""; }} />
-        <button onClick={() => setAttachMenu(true)} aria-label="Attach" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--paper-dim)] text-[var(--dim)] active:scale-90"><Paperclip size={17} /></button>
-        <input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && draft.trim()) { void send(draft); setDraft(""); } }} placeholder="Message" className="min-w-0 flex-1 rounded-full bg-[var(--paper-dim)] px-4 py-3 text-[14px] outline-none placeholder:text-[#a99fb8]" />
-        <button onClick={() => { void send(draft); setDraft(""); }} disabled={!draft.trim()} aria-label="Send" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--uni)] text-white transition active:scale-90 disabled:opacity-40"><Send size={17} /></button>
+      {messages.length <= 1 && s.phase === "desk" && (<div className="no-scrollbar flex shrink-0 gap-2 overflow-x-auto px-3 pb-2">{["How does this work?", "How much does it cost?", "I need help understanding a course", "Final year project, 40 pages, 2 weeks"].map((c) => (<button key={c} onClick={() => void send(c)} className="shrink-0 rounded-full bg-[var(--we-cell)] px-3 py-1.5 text-[13px] text-[var(--we-text)] active:opacity-70">{c}</button>))}</div>)}
+      <div className="flex shrink-0 items-end gap-2 border-t border-[var(--we-sep)] bg-[var(--we-bar)] px-2 pb-2 pt-2 text-[var(--we-text)]">
+        <input ref={fileIn} type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void attach(f); e.target.value = ""; }} />
+        <input ref={photoIn} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void attach(f); e.target.value = ""; }} />
+        <button onClick={() => dictate((t) => setDraft((d) => (d ? d + " " : "") + t), flash)} aria-label="Voice input" className="mb-[3px] shrink-0 active:opacity-60"><VoiceCircle /></button>
+        <textarea value={draft} onChange={(e) => setDraft(e.target.value)} onFocus={() => setPanel(null)} rows={1} aria-label="Message"
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendDraft(); } }}
+          className="max-h-28 min-h-9 min-w-0 flex-1 resize-none rounded-[4px] bg-[var(--we-input)] px-2.5 py-[7px] text-[16px] leading-snug text-[var(--we-text)] outline-none" />
+        <button onClick={() => setPanel((p) => (p === "emoji" ? null : "emoji"))} aria-label={panel === "emoji" ? "Keyboard" : "Emoji"} className="mb-[3px] shrink-0 active:opacity-60">{panel === "emoji" ? <KeyboardCircle /> : <EmojiCircle />}</button>
+        {draft.trim()
+          ? <button onClick={sendDraft} className="mb-[2px] h-8 shrink-0 rounded-[4px] bg-[var(--we-accent)] px-3 text-[14px] font-medium text-white">Send</button>
+          : <button onClick={() => setPanel((p) => (p === "plus" ? null : "plus"))} aria-label="More" className="mb-[3px] shrink-0 active:opacity-60"><PlusCircle /></button>}
       </div>
-
+      {panel === "emoji" && (
+        <div className="no-scrollbar grid h-[230px] shrink-0 grid-cols-8 gap-1 overflow-y-auto bg-[var(--we-bar)] px-3 py-3 text-[26px]">
+          {EMOJIS.map((e) => <button key={e} onClick={() => setDraft((d) => d + e)} className="flex h-10 items-center justify-center active:scale-90">{e}</button>)}
+        </div>
+      )}
+      {panel === "plus" && (
+        <div className="grid h-[150px] shrink-0 grid-cols-4 gap-y-3 border-t border-[var(--we-sep)] bg-[var(--we-bar)] px-4 pt-4">
+          {[
+            { label: "Album", Icon: ImageIcon, run: () => photoIn.current?.click() },
+            { label: "File", Icon: FileText, run: () => fileIn.current?.click() },
+            { label: "Course", Icon: BookOpen, run: () => setCourseShare(true) },
+          ].map(({ label, Icon, run }) => (
+            <button key={label} onClick={() => { setPanel(null); run(); }} className="flex flex-col items-center gap-1.5">
+              <span className="flex h-[58px] w-[58px] items-center justify-center rounded-[14px] bg-[var(--we-cell)] text-[var(--we-text)]"><Icon size={26} strokeWidth={1.5} /></span>
+              <span className="text-[12px] text-[var(--we-sub)]">{label}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <Sheet open={!!previewJob} onClose={() => setPreviewJob(null)} title="Preview (view only)">
         {previewJob && (<>
           <div className="mb-4 space-y-3">
@@ -172,12 +251,6 @@ export default function HelpLive({ active, onBack }: { active: boolean; onBack?:
         </>)}
       </Sheet>
 
-      <Sheet open={attachMenu} onClose={() => setAttachMenu(false)} title="Attach">
-        <div className="space-y-2">
-          <Btn variant="ghost" onClick={() => { setAttachMenu(false); fileIn.current?.click(); }}><span className="inline-flex items-center gap-2"><Paperclip size={15} /> A file or photo</span></Btn>
-          <Btn variant="ghost" onClick={() => { setAttachMenu(false); setCourseShare(true); }}><span className="inline-flex items-center gap-2"><BookOpen size={15} /> One of my courses</span></Btn>
-        </div>
-      </Sheet>
       <CourseShareSheet open={courseShare} onClose={() => { setCourseShare(false); void reload(); }} to={{ session: s.id }} who={wname ? first(wname) : "Unisupport"} />
 
       <Sheet open={menu} onClose={() => setMenu(false)} title={wname}>
@@ -236,3 +309,21 @@ function Card({ m, s, job, onPayFee, onView, onPayWork, onDownload, onAccept, on
   );
   return null;
 }
+
+const EMOJIS = "😀 😂 🤣 😊 😍 😎 🥳 🙂 😉 😋 😜 🤔 😐 🙄 😏 😬 😴 😱 😭 😢 😤 😡 🥺 😳 🤗 🙏 👍 👎 👏 🙌 💪 🤝 👌 ✌️ 🤞 👀 💯 🔥 ✨ 🎉 ❤️ 💔 💜 ⭐ 📚 ✏️ 📝 🎓 💻 📱 💸 💰 ⏰".split(" ");
+
+function DeskAvatar({ size, round }: { size: number; round?: boolean }) {
+  return <span className={`flex shrink-0 items-center justify-center bg-[#1F1A2B] font-bold text-[#E6B3F2] ${round ? "rounded-full" : "rounded-[6px]"}`} style={{ width: size, height: size, fontSize: size * 0.4 }}>U</span>;
+}
+
+/** Speech to text into the message box (where the browser supports it). */
+function dictate(onText: (t: string) => void, flash: (m: string) => void) {
+  const W = window as unknown as { SpeechRecognition?: new () => SpeechRec; webkitSpeechRecognition?: new () => SpeechRec };
+  const R = W.SpeechRecognition ?? W.webkitSpeechRecognition;
+  if (!R) { flash("Voice typing isn't available on this phone. Use the microphone on your keyboard."); return; }
+  const r = new R(); r.lang = "en-NG"; r.interimResults = false;
+  r.onresult = (e) => onText(e.results[0][0].transcript);
+  r.onerror = () => flash("Couldn't hear that. Try again.");
+  flash("Listening..."); r.start();
+}
+type SpeechRec = { lang: string; interimResults: boolean; start: () => void; onresult: (e: { results: { [i: number]: { [j: number]: { transcript: string } } } }) => void; onerror: () => void };

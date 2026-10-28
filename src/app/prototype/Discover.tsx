@@ -3,7 +3,7 @@
 // Discover, laid out like WeChat's: Moments, Channels, Scan, Shake, Top Stories, Search, People at your
 // school and Mini Programs. Each opens full screen (the bottom bar hides) and Back returns to the list.
 import jsQR from "jsqr";
-import { BookOpen, Bot, Briefcase, Package, PenLine, Presentation, Printer, Search, Smartphone, Zap } from "lucide-react";
+import { BookOpen, Bot, Briefcase, ImagePlus, Package, PenLine, Presentation, Printer, Search, Smartphone, Zap } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Head, ListRow } from "./Chats";
 import Explore from "./Explore";
@@ -11,6 +11,7 @@ import MomentsScreen from "./Moments";
 import { OALogo, OAPostView, OAProfileView } from "./Official";
 import { momentsFeed, peopleAtSchool, searchAll, shake, topStories, type ArticleCard, type ChatPerson, type Moment } from "./live/chatData";
 import { JustDoIt } from "./JustDoIt";
+import { groupPreview, joinGroup } from "./live/groupData";
 import { navBack, useBackLayer } from "./nav";
 import { InternshipCard, usePlacements } from "./Sponsored";
 import { TutorialsSection } from "./Tutorials";
@@ -91,44 +92,90 @@ function OAProfileWrap({ k }: { k: string }) {
     onPost={(id) => go({ k: "post", id })} onManage={(id) => { go(null); setTab("chats"); setChatView({ k: "manage", id }); }} />;
 }
 
-/** Points the camera at a Birdie QR code (someone's profile or a group invite) and opens it. */
+/** Scan: points the camera at a QR code (or reads one from a photo). On Android, Chrome's built-in
+ *  barcode detector runs on Google's scanner; other phones use our own decoder. Birdie codes (someone's
+ *  profile, a group invite) open inside the app; anything else is shown first, never opened blindly. */
+type Detector = { detect: (src: CanvasImageSource) => Promise<{ rawValue: string }[]> };
+const BIRDIE_HOSTS = ["unisupportorg.vercel.app", "getunisupport.xyz", "www.getunisupport.xyz"];
+
+function makeDetector(): Detector | null {
+  const W = window as unknown as { BarcodeDetector?: new (o: { formats: string[] }) => Detector };
+  try { return W.BarcodeDetector ? new W.BarcodeDetector({ formats: ["qr_code"] }) : null; } catch { return null; }
+}
+async function decode(det: Detector | null, src: HTMLVideoElement | HTMLImageElement, canvas: HTMLCanvasElement): Promise<string | null> {
+  if (det) { try { const r = await det.detect(src); if (r[0]?.rawValue) return r[0].rawValue; } catch { /* fall through */ } }
+  const w0 = src instanceof HTMLVideoElement ? src.videoWidth : src.naturalWidth, h0 = src instanceof HTMLVideoElement ? src.videoHeight : src.naturalHeight;
+  if (!w0 || !h0) return null;
+  const w = Math.min(800, w0), h = Math.round((h0 / w0) * w);
+  const ctx = canvas.getContext("2d", { willReadFrequently: true }); if (!ctx) return null;
+  canvas.width = w; canvas.height = h; ctx.drawImage(src, 0, 0, w, h);
+  return jsQR(ctx.getImageData(0, 0, w, h).data, w, h)?.data ?? null;
+}
+
 function Scan({ onBack }: { onBack: () => void }) {
-  const { openByHandle, flash } = useApp();
+  const { openByHandle, flash, setChatView, setDiscoverView } = useApp();
   const video = useRef<HTMLVideoElement>(null);
+  const photo = useRef<HTMLInputElement>(null);
   const [err, setErr] = useState<string | null>(null);
-  const done = useRef(false);
-  function handle(text: string) {
-    if (done.current) return;
-    let u: URL;
-    try { u = new URL(text, window.location.origin); } catch { return; }
-    if (u.origin !== window.location.origin) { done.current = true; flash("That QR code isn't a Birdie code"); onBack(); return; }
-    const user = u.pathname.match(/^\/u\/([\w.]+)/)?.[1] ?? u.searchParams.get("u");
-    done.current = true;
-    if (user) { onBack(); void openByHandle(user).then((ok) => { if (!ok) flash(`No one on Birdie is called @${user}`); }); return; }
-    window.location.href = u.href; // group invites and other Birdie links go through the normal link handling
-  }
-  useEffect(() => {
-    let stream: MediaStream | null = null, raf = 0, on = true;
-    const canvas = document.createElement("canvas"), ctx = canvas.getContext("2d", { willReadFrequently: true });
-    const tick = () => {
-      const v = video.current;
-      if (!on || !v || !ctx) return;
-      if (v.readyState >= 2 && v.videoWidth) {
-        const w = 480, h = Math.round((v.videoHeight / v.videoWidth) * w);
-        canvas.width = w; canvas.height = h; ctx.drawImage(v, 0, 0, w, h);
-        const code = jsQR(ctx.getImageData(0, 0, w, h).data, w, h);
-        if (code?.data) { handle(code.data); return; }
+  const [result, setResult] = useState<null | { kind: "group"; code: string; name: string; members: number; joined: boolean; id: string } | { kind: "link"; url: string } | { kind: "text"; text: string }>(null);
+  const [paused, setPaused] = useState(false);
+  const busy = useRef(false);
+  const pausedRef = useRef(false);
+  useEffect(() => { pausedRef.current = paused; }, [paused]);
+
+  async function handle(text: string) {
+    if (busy.current) return;
+    busy.current = true; setPaused(true); navigator.vibrate?.(60);
+    try {
+      let u: URL | null = null;
+      try { u = new URL(text, window.location.origin); } catch { u = null; }
+      const ours = !!u && /^https?:$/.test(u.protocol) && (u.host === window.location.host || BIRDIE_HOSTS.includes(u.host));
+      if (u && ours) {
+        const user = u.pathname.match(/^\/u\/([\w.]+)/)?.[1] ?? u.searchParams.get("u");
+        if (user) { const ok = await openByHandle(user); if (ok) { setDiscoverView(null); return; } flash(`No one on Birdie is called @${user}`); setPaused(false); return; }
+        const code = u.pathname.match(/^\/g\/([A-Za-z0-9]+)/)?.[1] ?? u.searchParams.get("join");
+        if (code) {
+          const g = await groupPreview(code);
+          if (!g) { flash("That group link has expired"); setPaused(false); return; }
+          setResult({ kind: "group", code, name: g.name, members: g.members, joined: g.joined, id: g.id }); return;
+        }
       }
-      raf = requestAnimationFrame(tick);
+      if (u && /^https?:$/.test(u.protocol) && /^https?:\/\//i.test(text)) { setResult({ kind: "link", url: u.href }); return; }
+      setResult({ kind: "text", text });
+    } finally { busy.current = false; }
+  }
+  const again = () => { setResult(null); setPaused(false); };
+
+  useEffect(() => {
+    let stream: MediaStream | null = null, on = true, timer: ReturnType<typeof setTimeout> | null = null;
+    const det = makeDetector(), canvas = document.createElement("canvas");
+    const tick = async () => {
+      const v = video.current;
+      if (!on) return;
+      if (v && !pausedRef.current && v.readyState >= 2) { const t = await decode(det, v, canvas); if (t && on) void handle(t); }
+      timer = setTimeout(() => void tick(), det ? 180 : 250);
     };
-    navigator.mediaDevices?.getUserMedia({ video: { facingMode: "environment" } }).then((s) => {
+    navigator.mediaDevices?.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 } } }).then((s) => {
       if (!on) { s.getTracks().forEach((t) => t.stop()); return; }
       stream = s;
       if (video.current) { video.current.srcObject = s; void video.current.play(); }
-      raf = requestAnimationFrame(tick);
-    }).catch(() => setErr("Birdie needs your camera to scan. Allow it in your browser settings."));
-    return () => { on = false; cancelAnimationFrame(raf); stream?.getTracks().forEach((t) => t.stop()); };
+      void tick();
+    }).catch(() => setErr("Birdie needs your camera to scan. Allow it in your phone's settings, or pick a photo of the code."));
+    return () => { on = false; if (timer) clearTimeout(timer); stream?.getTracks().forEach((t) => t.stop()); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function fromPhoto(f?: File) {
+    if (!f) return;
+    const img = new Image(); const url = URL.createObjectURL(f);
+    img.onload = async () => { const t = await decode(makeDetector(), img, document.createElement("canvas")); URL.revokeObjectURL(url); if (t) void handle(t); else flash("No QR code found in that photo"); };
+    img.src = url;
+  }
+  async function join(code: string) {
+    const r = await joinGroup(code);
+    if (r.error || !r.id) return flash(r.error === "group_full" ? "That group is full" : "Couldn't join that group");
+    setDiscoverView(null); setChatView({ k: "group", id: r.id });
+  }
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col bg-black text-white">
       <div className="absolute inset-x-0 top-0 z-10"><WeHeader onBack={onBack} transparent /></div>
@@ -136,10 +183,39 @@ function Scan({ onBack }: { onBack: () => void }) {
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
         <span className="relative h-60 w-60 overflow-hidden">
           {["left-0 top-0 border-l-[3px] border-t-[3px]", "right-0 top-0 border-r-[3px] border-t-[3px]", "bottom-0 left-0 border-b-[3px] border-l-[3px]", "bottom-0 right-0 border-b-[3px] border-r-[3px]"].map((c) => <span key={c} className={`absolute h-6 w-6 border-[var(--we-accent)] ${c}`} />)}
-          <span className="scanline absolute inset-x-3 h-0.5 bg-[var(--we-accent)] shadow-[0_0_12px_var(--we-accent)]" />
+          {!paused && <span className="scanline absolute inset-x-3 h-0.5 bg-[var(--we-accent)] shadow-[0_0_12px_var(--we-accent)]" />}
         </span>
         <p className="mt-6 px-10 text-center text-[14px] text-white/80">{err ?? "Scan a classmate's Birdie QR code or a group invite"}</p>
       </div>
+      <div className="absolute inset-x-0 bottom-10 flex justify-center">
+        <button onClick={() => photo.current?.click()} className="flex flex-col items-center gap-1.5 text-[12px] text-white/90"><span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15"><ImagePlus size={22} /></span>Album</button>
+      </div>
+      <input ref={photo} type="file" accept="image/*" hidden onChange={(e) => { void fromPhoto(e.target.files?.[0]); e.target.value = ""; }} />
+
+      {result && (
+        <div className="absolute inset-x-0 bottom-0 z-20 rounded-t-[14px] bg-[var(--we-cell)] px-5 pb-8 pt-5 text-[var(--we-text)]">
+          {result.kind === "group" && (<>
+            <div className="text-[13px] text-[var(--we-sub)]">Group invite</div>
+            <div className="mt-1 text-[18px] font-semibold">{result.name}</div>
+            <div className="text-[13px] text-[var(--we-sub)]">{result.members} member{result.members === 1 ? "" : "s"}</div>
+            <button onClick={() => (result.joined ? (setDiscoverView(null), setChatView({ k: "group", id: result.id })) : void join(result.code))} className="mt-4 w-full rounded-[6px] bg-[var(--we-accent)] py-3 text-[16px] font-medium text-white">{result.joined ? "Open Chat" : "Join Group"}</button>
+          </>)}
+          {result.kind === "link" && (<>
+            <div className="text-[13px] text-[var(--we-sub)]">This code is a link to another website</div>
+            <div className="mt-1 break-all text-[15px] text-[var(--we-link)]">{result.url}</div>
+            <div className="mt-4 flex gap-2">
+              <button onClick={() => { void navigator.clipboard?.writeText(result.url); flash("Copied"); }} className="flex-1 rounded-[6px] bg-[var(--we-bg)] py-3 text-[15px]">Copy</button>
+              <button onClick={() => window.open(result.url, "_blank", "noopener")} className="flex-1 rounded-[6px] bg-[var(--we-accent)] py-3 text-[15px] font-medium text-white">Open Link</button>
+            </div>
+          </>)}
+          {result.kind === "text" && (<>
+            <div className="text-[13px] text-[var(--we-sub)]">Scanned text</div>
+            <div className="mt-1 max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-[15px]">{result.text}</div>
+            <button onClick={() => { void navigator.clipboard?.writeText(result.text); flash("Copied"); }} className="mt-4 w-full rounded-[6px] bg-[var(--we-accent)] py-3 text-[15px] font-medium text-white">Copy</button>
+          </>)}
+          <button onClick={again} className="mt-2 w-full py-2.5 text-[15px] text-[var(--we-link)]">Scan Again</button>
+        </div>
+      )}
     </div>
   );
 }

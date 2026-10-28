@@ -11,6 +11,8 @@ import { askAI } from "./aiClient";
 import ChatInfo, { chatBackground, clearedAt, showNames } from "./ChatInfo";
 import { CourseShareSheet } from "./CourseShare";
 import { Linkified } from "./Linkified";
+import { Rich } from "./Rich";
+import { groupMembers, type GroupMember } from "./live/groupData";
 import { GiveawayOpen, GiveawaySheet, PacketCard, TransferCard, TransferSheet } from "./Money";
 import { whileVisible } from "./perf";
 import { chatMediaUrl, clock, deleteMessage, dmMessages, dmThread, forwardMedia, groupMessages, myDms, myGroups, sendMessage, uploadChatMedia, uploadSticker, type ChatMsg, type ChatPerson, type GroupRow, type MsgKind, type Scope } from "./live/chatData";
@@ -97,7 +99,8 @@ type Panel = null | "emoji" | "plus";
 type Pop = { m: ChatMsg; x: number; y: number; above: boolean };
 
 export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
-  const { flash, setOverlay, openDm, setWalletOpen, profile, goBirdie, chatBadge } = useApp();
+  const { flash, setOverlay, openDm, setWalletOpen, profile, goBirdie, chatBadge, courses, settings, auth } = useApp();
+  const meName = profile.name || "Me";
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [other, setOther] = useState<ChatPerson | null>(null);
@@ -114,6 +117,17 @@ export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
   const [openGift, setOpenGift] = useState<string | null>(null);
   const [opened, setOpened] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
+  // @mentions: people (and @All in groups, for owners and admins) get notified; @Birdie answers,
+  // either privately (only you see it, e.g. "what should I reply?") or in the chat for everyone.
+  const [members, setMembers] = useState<GroupMember[]>([]);
+  const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
+  const [everyone, setEveryone] = useState(false);
+  const [askBirdie, setAskBirdie] = useState<null | "private" | "public">(null);
+  const [priv, setPriv] = useState<Priv[]>([]);
+  const privKey = `birdie-private-${scope}-${id}`;
+  useEffect(() => { try { const raw = localStorage.getItem(privKey); void Promise.resolve().then(() => setPriv(raw ? JSON.parse(raw) : [])); } catch { /* ignore */ } }, [privKey]);
+  const savePriv = (next: Priv[]) => { setPriv(next); try { localStorage.setItem(privKey, JSON.stringify(next.slice(-50))); } catch { /* full */ } };
+  useEffect(() => { if (scope === "group") void groupMembers(id).then(setMembers); }, [scope, id]);
   useBackLayer(info, () => setInfo(false));
   useBackLayer(!!panel, () => setPanel(null));
   useBackLayer(!!pop, () => setPop(null));
@@ -167,8 +181,78 @@ export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
   async function sendText() {
     const t = draft.trim(); if (!t) return;
     setDraft("");
-    if (!(await post("text", t))) setDraft(t);
+    if (askBirdie && /@Birdie\b/i.test(t)) { const mode = askBirdie; setAskBirdie(null); void birdie(t, mode); return; }
+    const meta: Record<string, unknown> = {};
+    const ids = [...new Set(tags.filter((x) => t.includes(`@${x.name}`)).map((x) => x.id))];
+    if (ids.length) meta.mentions = ids;
+    if (everyone && t.includes("@All")) meta.everyone = true;
+    setTags([]); setEveryone(false); setAskBirdie(null);
+    if (!(await post("text", t, meta))) setDraft(t);
   }
+  /** Ask Birdie inside this chat. It knows the recent messages and who you are (name, school, courses). */
+  async function birdie(text: string, mode: "private" | "public") {
+    const q = text.replace(/@Birdie\b/gi, "").trim() || "What should I say here?";
+    const where = scope === "dm" ? `a one-to-one chat with ${other?.name ?? "a classmate"}` : `the group chat "${group?.name ?? "a group"}"`;
+    const recent = shown.filter((m) => m.kind === "text").slice(-25).map((m) => `${(m.meta as { birdie?: boolean }).birdie ? "Birdie AI" : m.mine ? meName : (scope === "group" ? m.name : other?.name) ?? "Someone"}: ${m.body}`).join("\n");
+    const about = [profile.name && `Name: ${profile.name}`, profile.institution && `School: ${profile.institution}`, profile.level && `Level: ${profile.level}`, profile.program && `Course of study: ${profile.program}`,
+      courses.length ? `Courses: ${courses.slice(0, 15).map((c) => `${c.code} ${c.name}`).join(", ")}` : ""].filter(Boolean).join(". ");
+    const system = mode === "private"
+      ? `You are Birdie AI inside the Birdie student app. ${meName} is in ${where} and asked you privately: only they see your answer. Help them directly. If they want to know what to reply, give the exact message they can send, in their own voice, then nothing else. Be brief and warm. Use what you know about them where it helps. About them: ${about}.\n\nRecent messages:\n${recent}`
+      : `You are Birdie AI, answering in ${where} where everyone can read your reply. ${meName} asked you. Be helpful, brief and friendly, like a smart classmate. Don't share private details about anyone. About who asked: ${about}.\n\nRecent messages:\n${recent}`;
+    if (mode === "private") {
+      const item: Priv = { id: Math.random().toString(36).slice(2), at: new Date().toISOString(), q, a: null };
+      const next = [...priv, item]; savePriv(next);
+      const r = await askAI({ brain: "spark", tier: settings.aiTier, feature: "chat", system, messages: [{ role: "user", content: q }] });
+      savePriv(next.map((x) => (x.id === item.id ? { ...x, a: r.ok ? r.text.trim() : "I couldn't answer right now. Try again." } : x)));
+      return;
+    }
+    if (!(await post("text", text))) return;
+    setBusy("Birdie is answering...");
+    const r = await askAI({ brain: "spark", tier: settings.aiTier, feature: "chat", system, messages: [{ role: "user", content: q }] });
+    setBusy(null);
+    if (!r.ok) return flash("Birdie couldn't answer right now");
+    await post("text", r.text.trim().slice(0, 3900), { birdie: true, asked_by: meName });
+  }
+  // Typing "@" opens the picker: Birdie (private / in the chat), All, and the people in this chat.
+  const atMatch = /(^|\s)@([^\s@]*)$/.exec(draft);
+  const atQuery = atMatch ? atMatch[2].toLowerCase() : null;
+  const canAll = scope === "group" && (group?.role === "owner" || group?.role === "admin");
+  const people: { id: string; name: string; color: string }[] = scope === "group"
+    ? members.filter((x) => x.user_id !== auth.userId).map((x) => ({ id: x.user_id, name: x.name, color: x.color }))
+    : other ? [{ id: other.id, name: other.name, color: other.color }] : [];
+  function pickMention(kind: "birdie-private" | "birdie-public" | "all" | { id: string; name: string }) {
+    const name = kind === "all" ? "All" : typeof kind === "string" ? "Birdie" : kind.name;
+    setDraft((d) => d.replace(/@([^\s@]*)$/, `@${name} `));
+    if (kind === "birdie-private") setAskBirdie("private");
+    else if (kind === "birdie-public") setAskBirdie("public");
+    else if (kind === "all") setEveryone(true);
+    else setTags((t) => [...t, kind]);
+  }
+  const mentionNames = useMemo(() => ["Birdie", "All", ...members.map((x) => x.name), ...(other ? [other.name] : []), meName].filter(Boolean).sort((a, b) => b.length - a.length), [members, other, meName]);
+  const privAfter = useMemo(() => {
+    const out: Record<string, Priv[]> = {};
+    for (const p of priv) {
+      const anchor = [...shown].reverse().find((m) => !m.system && m.kind !== "recalled" && m.created_at <= p.at);
+      (out[anchor?.id ?? "__start"] ??= []).push(p);
+    }
+    return out;
+  }, [priv, shown]);
+  const renderPriv = (p: Priv) => (
+    <div key={p.id} className="mt-4 flex items-start gap-2.5">
+      <BirdieAvatar />
+      <div className="min-w-0 max-w-[78%]">
+        <div className="mb-1 text-[12px] text-[var(--we-sub)]">Birdie AI · only you can see this</div>
+        <div className="rounded-[4px] border border-dashed border-[var(--we-accent)] bg-[var(--we-bubble)] px-3 py-[9px] text-[15px] leading-[1.45] text-[var(--we-text)]">
+          <div className="mb-1.5 text-[12.5px] text-[var(--we-sub)]">You asked: {p.q}</div>
+          {p.a === null ? <span className="text-[var(--we-sub)]">Thinking...</span> : <Rich text={p.a} />}
+        </div>
+        {p.a && <div className="mt-1 flex gap-4 text-[12.5px] text-[var(--we-link)]">
+          <button onClick={() => { setDraft(p.a!.replace(/[*_`#>]/g, "").trim()); setPanel(null); }}>Use as reply</button>
+          <button onClick={() => savePriv(priv.filter((x) => x.id !== p.id))}>Dismiss</button>
+        </div>}
+      </div>
+    </div>
+  );
   async function sendFiles(files: FileList | null, kind: "image" | "file") {
     if (!files?.length) return;
     setPanel(null);
@@ -270,7 +354,6 @@ export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
   // The server only allows unsending your own message within 10 minutes (admins: any message in their group).
   const canUnsend = (m: ChatMsg) => !["transfer", "packet", "recalled"].includes(m.kind) && (m.mine || (scope === "group" && isGroupAdmin));
   const title = scope === "dm" ? other?.name ?? "" : group ? `${group.remark || group.name}(${group.members})` : "";
-  const meName = profile.name || "Me";
 
   function content(m: ChatMsg): ReactNode {
     const meta = m.meta as Record<string, unknown>;
@@ -296,7 +379,7 @@ export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
           <div className="border-t border-[var(--we-sep)] pt-1 text-[11px] text-[var(--we-sub)]">Birdie course</div>
         </a>
       );
-      default: return <Linkified text={m.body} />;
+      default: return <WithMentions text={m.body} names={mentionNames} />;
     }
   }
   function sticker(m: ChatMsg): ReactNode {
@@ -323,6 +406,23 @@ export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
           const time = showTime ? <div className="pb-3 text-center text-[12px] text-[var(--we-sub)]">{stamp(m.created_at)}</div> : null;
           if (m.system) return <div key={m.id}>{time}<div className="mx-auto w-fit max-w-[80%] rounded-[4px] bg-black/10 px-2 py-0.5 text-center text-[12px] text-[var(--we-sub)]">{m.body}</div></div>;
           if (m.kind === "recalled") return <div key={m.id}>{time}<div className="text-center text-[12px] text-[var(--we-sub)]">{m.mine ? "You recalled a message" : `"${scope === "group" ? m.name : other?.name}" recalled a message`}</div></div>;
+          const bm = m.meta as { birdie?: boolean; asked_by?: string };
+          if (bm.birdie) return (
+            <div key={m.id}>
+              {time}
+              <div className="flex items-start gap-2.5">
+                <BirdieAvatar />
+                <div className="min-w-0 max-w-[78%]">
+                  <div className="mb-1 text-[12px] text-[var(--we-sub)]">Birdie AI{bm.asked_by ? ` · for ${bm.asked_by}` : ""}</div>
+                  <div {...holdProps(m)} className="relative select-none rounded-[4px] bg-[var(--we-bubble)] px-3 py-[9px] text-[15px] leading-[1.45] text-[var(--we-text)]">
+                    <span className="absolute -left-1 top-[13px] h-2.5 w-2.5 rotate-45 bg-[var(--we-bubble)]" />
+                    <div className="relative"><Rich text={m.body} /></div>
+                  </div>
+                </div>
+              </div>
+              {privAfter[m.id]?.map(renderPriv)}
+            </div>
+          );
           const who = scope === "group" ? { name: m.name ?? "", color: m.color ?? "#7C4DDB" } : { name: other?.name ?? "", color: other?.color ?? "#7C4DDB" };
           return (
             <div key={m.id}>
@@ -347,9 +447,11 @@ export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
                   {m.reply && <div className="mt-1 max-w-full truncate rounded-[3px] bg-black/5 px-2 py-1 text-[12.5px] text-[var(--we-sub)]">{m.reply.mine ? meName : m.reply.name ?? other?.name}: {m.reply.text}</div>}
                 </div>
               </div>
+              {privAfter[m.id]?.map(renderPriv)}
             </div>
           );
         })}
+        {privAfter.__start?.map(renderPriv)}
         {loaded && shown.length === 0 && <div className="pt-20 text-center text-[13px] text-[var(--we-sub)]">{scope === "dm" ? "Say hi" : "Say hi to the group"}</div>}
       </div>
 
@@ -382,6 +484,27 @@ export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
         <div className="flex shrink-0 items-center gap-2 bg-[var(--we-bar)] px-3 pt-2 text-[12.5px] text-[var(--we-sub)]">
           <span className="min-w-0 flex-1 truncate rounded-[3px] bg-black/5 px-2 py-1">{reply.mine ? meName : reply.name ?? other?.name}: {reply.kind === "text" ? reply.body : `[${reply.kind}]`}</span>
           <button onClick={() => setReply(null)} aria-label="Cancel quote" className="text-[18px] leading-none">×</button>
+        </div>
+      )}
+      {atQuery !== null && !voice && (
+        <div role="listbox" aria-label="Mention" className="no-scrollbar max-h-[260px] shrink-0 overflow-y-auto border-t border-[var(--we-sep)] bg-[var(--we-cell)]">
+          {[
+            { key: "bp", show: "birdie".startsWith(atQuery) || atQuery === "", node: <BirdieAvatar size={34} />, label: "Birdie AI", sub: "Only you see the answer", run: () => pickMention("birdie-private") },
+            { key: "bq", show: "birdie".startsWith(atQuery) || atQuery === "", node: <BirdieAvatar size={34} />, label: "Birdie AI", sub: "Answers in the chat for everyone", run: () => pickMention("birdie-public") },
+            { key: "all", show: canAll && ("all".startsWith(atQuery) || atQuery === ""), node: <span className="flex h-[34px] w-[34px] items-center justify-center rounded-[4px] bg-[var(--we-accent)] text-[13px] font-bold text-white">@</span>, label: "All", sub: "Notify everyone in the group", run: () => pickMention("all") },
+            ...people.filter((x) => x.name.toLowerCase().includes(atQuery)).map((x) => ({ key: x.id, show: true, node: <SqAvatar name={x.name} color={x.color} size={34} />, label: x.name, sub: "", run: () => pickMention(x) })),
+          ].filter((x) => x.show).map((x) => (
+            <button key={x.key} onClick={x.run} className="flex w-full items-center gap-3 border-b border-[var(--we-sep)] px-4 py-2 text-left last:border-0 active:bg-black/5">
+              {x.node}<span className="min-w-0"><span className="block truncate text-[15px] text-[var(--we-text)]">{x.label}</span>{x.sub && <span className="block truncate text-[12px] text-[var(--we-sub)]">{x.sub}</span>}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {askBirdie && (
+        <div className="flex shrink-0 items-center gap-2 bg-[var(--we-bar)] px-3 pt-2 text-[12.5px] text-[var(--we-sub)]">
+          <BirdieAvatar size={18} /><span className="flex-1">{askBirdie === "private" ? "Asking Birdie privately. Only you will see the answer." : "Birdie will answer in the chat for everyone."}</span>
+          <button onClick={() => setAskBirdie((a) => (a === "private" ? "public" : "private"))} className="text-[var(--we-link)]">{askBirdie === "private" ? "Make public" : "Make private"}</button>
+          <button onClick={() => { setAskBirdie(null); setDraft((d) => d.replace(/@Birdie\s?/gi, "")); }} aria-label="Cancel" className="text-[18px] leading-none">×</button>
         </div>
       )}
       <div className="flex shrink-0 items-end gap-2 border-t border-[var(--we-sep)] bg-[var(--we-bar)] px-2 pb-2 pt-2 text-[var(--we-text)]">
@@ -568,4 +691,18 @@ function ForwardSheet({ msg, onClose, onSend }: { msg: ChatMsg | null; onClose: 
       ))}</div>
     </Sheet>
   );
+}
+
+type Priv = { id: string; at: string; q: string; a: string | null };
+
+const BirdieAvatar = ({ size = 40 }: { size?: number }) => (
+  <span className="flex shrink-0 items-center justify-center rounded-[6px] bg-gradient-to-br from-[#C05BD6] to-[#8A2FA3] font-bold text-white" style={{ width: size, height: size, fontSize: size * 0.45 }}>B</span>
+);
+
+/** Message text with @mentions of people in the chat (and @All, @Birdie) shown in the link colour. */
+function WithMentions({ text, names }: { text: string; names: string[] }) {
+  if (!text.includes("@") || !names.length) return <Linkified text={text} />;
+  const re = new RegExp(`(@(?:${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")}))`, "g");
+  const parts = text.split(re);
+  return <>{parts.map((p, i) => (i % 2 ? <span key={i} className="text-[var(--we-link)]">{p}</span> : p && <Linkified key={i} text={p} />))}</>;
 }

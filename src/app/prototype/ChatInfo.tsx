@@ -10,7 +10,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { shrink } from "./ChatRoom";
 import { reportThing } from "./live/socialData";
 import { createGroup, groupAdd, groupLeave, groupLink, groupMembers, groupUpdate, type GroupMember } from "./live/groupData";
-import { dmSet, groupSetMe, searchChat, type ChatPerson, type GroupRow, type Scope } from "./live/chatData";
+import { dmSet, groupDisband, groupSetMe, searchChat, type ChatPerson, type GroupRow, type Scope } from "./live/chatData";
 import { useApp, type Person } from "./store";
 import { Cell, CellGroup, SqAvatar, Switch, WeHeader } from "./we";
 
@@ -59,6 +59,17 @@ export default function ChatInfo({ scope, id, other, dmState, group, onClose, on
     const { error } = await groupLeaveSafe(id);
     if (error) return flash(error);
     flash("You left the group"); onLeft();
+  }
+  async function disband() {
+    if (!confirm(`Delete "${group?.name}" for everyone in it? This can't be undone.`)) return;
+    const e = await groupDisband(id);
+    if (e) return flash(e === "course_group" ? "Course chats can't be deleted" : "Couldn't delete the group");
+    flash("Group deleted"); onLeft();
+  }
+  async function deleteChat() {
+    if (!confirm(`Delete your chat with ${other?.name ?? "them"}? It comes back if they message you.`)) return;
+    await dmSet(id, { clear: true });
+    flash("Chat deleted"); onLeft();
   }
   async function newGroupWith() {
     if (!other) return;
@@ -135,7 +146,9 @@ export default function ChatInfo({ scope, id, other, dmState, group, onClose, on
           <Cell label="Clear Chat History" onClick={() => void clear()} />
           <Cell label="Report" onClick={() => void report()} />
         </CellGroup>
-        {scope === "group" && !course && group?.role !== "owner" && <CellGroup><Cell label="Leave" danger center onClick={() => void leave()} /></CellGroup>}
+        {scope === "group" && !course && group?.role !== "owner" && <CellGroup><Cell label="Delete and Leave" danger center onClick={() => void leave()} /></CellGroup>}
+        {scope === "group" && !group?.is_course && group?.role === "owner" && <CellGroup><Cell label="Delete Group" danger center onClick={() => void disband()} /></CellGroup>}
+        {scope === "dm" && <CellGroup><Cell label="Delete Chat" danger center onClick={() => void deleteChat()} /></CellGroup>}
         {scope === "dm" && other && <CellGroup><Cell label="Send Message" center onClick={() => { onClose(); onOpenDm(other.id); }} /></CellGroup>}
       </div>
     </div>
