@@ -3,13 +3,14 @@
 // Me, laid out like WeChat's: you (name, Birdie ID, QR code), then Services (Money, Wallet, campus
 // services), Favorites, My Posts, Cards & Offers, Sticker Gallery and Settings. Nothing that already
 // lives in Chats or Discover.
-import { ChevronRight, CreditCard, FileText, Crown, Images, QrCode, Settings as Cog, Smile, Star, Trash2, CircleCheckBig } from "lucide-react";
+import { Bell, ChevronRight, CreditCard, FileText, Crown, Images, QrCode, Settings as Cog, Smile, Star, Trash2, Trophy, CircleCheckBig } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { favText, readFavs, writeFavs, type Fav } from "./ChatRoom";
 import { chatMediaUrl, hasPin, setPin } from "./live/chatData";
 import { MyProfilePage, MyQrPage, ServicesPage } from "./MeServices";
 import MomentsScreen from "./Moments";
 import { MyCvPage } from "./MyCv";
+import { openAchievements, openNotifications, useUnreadCount } from "./Notifications";
 import { useBackLayer } from "./nav";
 import { useApp } from "./store";
 import { Btn, Sheet } from "./ui";
@@ -18,7 +19,8 @@ import { Cell, CellGroup, SqAvatar, WeHeader } from "./we";
 const ic = (n: ReactNode, color: string) => <span className="flex h-6 w-6 items-center justify-center" style={{ color }}>{n}</span>;
 
 export default function Me({ active }: { active: boolean }) {
-  const { profile, auth, plus, openPlus, setOverlay, setAuthOpen, refreshWallet } = useApp();
+  const { profile, auth, plus, openPlus, setOverlay, setAuthOpen, refreshWallet, streak } = useApp();
+  const unread = useUnreadCount();
   const [pinOpen, setPinOpen] = useState(false);
   const [cvOpen, setCvOpen] = useState(false);
   const [sub, setSub] = useState<null | "favorites" | "stickers" | "services" | "profile" | "qr" | "posts">(null);
@@ -52,6 +54,10 @@ export default function Me({ active }: { active: boolean }) {
 
       <CellGroup>
         <Cell icon={ic(<CircleCheckBig size={22} />, "#2AAE67")} label="Services" onClick={() => setSub("services")} />
+      </CellGroup>
+      <CellGroup>
+        <Cell icon={ic(<Bell size={22} />, "#E2553F")} label="Notifications" value={unread ? <span className="rounded-full bg-[var(--we-red)] px-1.5 text-[12px] leading-[18px] text-white">{unread > 99 ? "99+" : unread}</span> : undefined} onClick={openNotifications} />
+        <Cell icon={ic(<Trophy size={22} />, "#F5A623")} label="Achievements" value={streak ? `${streak}-day streak` : undefined} onClick={openAchievements} />
       </CellGroup>
       <CellGroup>
         <Cell icon={ic(<Star size={22} />, "#F5A623")} label="Favorites" onClick={() => setSub("favorites")} />

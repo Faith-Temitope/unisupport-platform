@@ -287,5 +287,5 @@ export async function momentMediaUrl(path: string): Promise<string | null> {
 export type ArticleCard = OAPostCard & { account: OAccount; following?: boolean };
 export const topStories = async (before?: string) => (await call<ArticleCard[]>("top_stories", { p_before: before ?? null })).data ?? [];
 export const searchAll = async (q: string) => (await call<{ people: (ChatPerson & { school: string | null; is_friend: boolean })[]; accounts: OAccount[]; articles: ArticleCard[] }>("search_all", { p_q: q })).data ?? { people: [], accounts: [], articles: [] };
-export const peopleAtSchool = async () => (await call<(ChatPerson & { school: string | null; program: string | null; level: string | null; is_friend: boolean })[]>("people_at_school")).data ?? [];
+export const peopleAtSchool = async () => (await call<(ChatPerson & { school: string | null; program: string | null; level: string | null; status: string | null; is_friend: boolean })[]>("people_at_school")).data ?? [];
 export const shake = async () => (await call<(ChatPerson & { school: string | null; is_friend: boolean }) | null>("shake")).data;

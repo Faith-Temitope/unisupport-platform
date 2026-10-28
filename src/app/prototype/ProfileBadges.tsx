@@ -3,8 +3,6 @@
 import { Award, BadgeCheck, BookOpen, Crown, Feather, Flame, GraduationCap, Heart, Megaphone, MessagesSquare, ShieldCheck, Sparkles, Star, Users, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
-import { BADGES } from "./badges";
-import { useApp } from "./store";
 import { Sheet } from "./ui";
 
 /** Every badge Birdie can show on a channel, like Discord/Webnovel profile badges. */
@@ -34,14 +32,12 @@ export const GRANTABLE = ["team_plus", "founding_creator", "verified", "top_help
 
 type Earned = { id: string; at: string | null; note: string | null };
 
-/** Badges for a channel. Own channel also shows study achievements (streaks, quizzes...). */
-export function ProfileBadges({ userId, isMe }: { userId?: string; isMe: boolean }) {
-  const { unlocked } = useApp();
+/** Badges a channel has earned. (Study achievements live in Me > Achievements.) */
+export function ProfileBadges({ userId }: { userId?: string; isMe?: boolean }) {
   const [earned, setEarned] = useState<Earned[]>([]);
-  const [open, setOpen] = useState<{ label: string; desc: string; note?: string | null; at?: string | null; Icon?: LucideIcon; bg?: string; emoji?: string } | null>(null);
+  const [open, setOpen] = useState<{ label: string; desc: string; note?: string | null; at?: string | null; Icon: LucideIcon; bg: string } | null>(null);
   useEffect(() => { if (userId) void createClient().rpc("user_badges", { p_user: userId }).then(({ data }) => setEarned(((data ?? []) as Earned[]).filter((b) => BADGE_INFO[b.id]))); }, [userId]);
-  const local = isMe ? BADGES.filter((b) => unlocked.includes(b.id)) : [];
-  if (!earned.length && !local.length) return null;
+  if (!earned.length) return null;
   // Rarest first: founding, team, then the rest.
   const order = Object.keys(BADGE_INFO);
   const sorted = [...earned].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
@@ -49,18 +45,15 @@ export function ProfileBadges({ userId, isMe }: { userId?: string; isMe: boolean
     <>
       <div className="flex flex-wrap gap-1.5">
         {sorted.map((b) => { const i = BADGE_INFO[b.id]; return (
-          <button key={b.id} onClick={() => setOpen({ ...i, note: b.note, at: b.at })} className="flex items-center gap-1.5 rounded-full bg-[var(--paper-dim)] py-1 pl-1 pr-2.5 text-[11.5px] font-bold active:scale-95">
+          <button key={b.id} onClick={() => setOpen({ ...i, note: b.note, at: b.at })} className="flex items-center gap-1.5 rounded-full bg-[var(--we-bg)] py-1 pl-1 pr-2.5 text-[12px] text-[var(--we-text)] active:opacity-70">
             <span className="flex h-5 w-5 items-center justify-center rounded-full text-white" style={{ background: i.bg }}><i.Icon size={11} strokeWidth={2.6} /></span>{i.label}
           </button>
         ); })}
-        {local.map((b) => (
-          <button key={b.id} onClick={() => setOpen({ label: b.label, desc: b.desc, emoji: b.emoji })} title={b.label} className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--paper-dim)] text-[14px] active:scale-95">{b.emoji}</button>
-        ))}
       </div>
       <Sheet open={!!open} onClose={() => setOpen(null)} title={open?.label ?? ""}>
         {open && (
           <div className="flex items-start gap-3.5">
-            {open.Icon ? <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-white shadow" style={{ background: open.bg }}><open.Icon size={26} /></span> : <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[var(--paper-dim)] text-[28px]">{open.emoji}</span>}
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-white shadow" style={{ background: open.bg }}><open.Icon size={26} /></span>
             <div>
               <p className="text-[14px] leading-snug">{open.desc}</p>
               {open.note && <p className="mt-1 text-[12.5px] text-[var(--dim)]">{open.note}</p>}

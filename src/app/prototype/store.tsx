@@ -5,6 +5,7 @@ import { isLowEndDevice } from "./perf";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase";
 import { recommend, type Recommendation } from "./engine";
+import { notifySelf } from "./live/notifyData";
 import {
   createRemoteFile, createRemoteNote, createRemoteRecording,
   deleteRemoteFile, deleteRemoteNote, deleteRemoteRecording,
@@ -42,7 +43,7 @@ export interface Course { id: string; code: string; name: string; color: string;
 export interface Folder { id: string; name: string; parentId: string | null }
 export interface Tx { id: string; label: string; amount: number; t: string }
 export interface Deadline { id: string; title: string; date: string; courseId: string | null; done: boolean }
-export interface Notice { id: string; title: string; body?: string; t: string; read: boolean }
+export interface Notice { id: string; title: string; body?: string; t: string; read: boolean; link?: string; at?: number }
 
 export interface BAction { label: string; run: "note" | "file" | "test" | "writer" | "study" | "topup" | "spark" | "brain" | "retry" | "plus"; payload?: string }
 export interface BMsg { id: string; from: "me" | "bird"; text: string; cite?: string; cards?: { q: string; a: string }[]; actions?: BAction[]; done?: boolean; t: string; at: number; meta?: string; /** A picture Birdie drew (study-files path). */ img?: string; /** A photo the student asked about. */ photo?: string; /** The student's 👍 / 👎. */ rating?: 1 | -1 }
@@ -133,7 +134,7 @@ interface AppCtx {
   recommendation: Recommendation | null; dismissRec: () => void; skipHours: (h: number) => void;
   deadlines: Deadline[]; addDeadline: (title: string, date: string, courseId: string | null) => void; toggleDeadline: (id: string) => void; deleteDeadline: (id: string) => void;
   activity: Record<string, number>; streak: number; todayCount: number; stats: Stats; unlocked: string[]; logChat: () => void;
-  notices: Notice[]; notify: (title: string, body?: string) => void; markNoticesRead: () => void; clearNotices: () => void;
+  notices: Notice[]; /** An in-app notice; `push` also sends it to the phone (the server allows 3 a day). */ notify: (title: string, body?: string, o?: { link?: string; push?: boolean }) => void; markNoticesRead: () => void; clearNotices: () => void;
   focusEndsAt: number | null; startFocus: (minutes: number) => void; stopFocus: (completed?: boolean) => void;
   mascotEvent: MascotEvent | null; emote: (kind: Emote, text?: string) => void;
   balance: number; txs: Tx[]; walletLive: boolean; refreshWallet: () => Promise<void>; spend: (amount: number, label: string) => boolean; topUp: (amount: number) => void; spendWallet: (amount: number, label: string) => Promise<boolean>; topUpLive: (amount: number) => Promise<string | null>;
@@ -632,7 +633,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const flash = useCallback((t: string) => { setToast(t); later(() => setToast(null), 2400); }, []);
   const now = useCallback(() => Date.now() + skew, [skew]);
   const emote = useCallback((kind: Emote, text?: string) => setMascotEvent({ id: uid(), kind, text }), []);
-  const notify = useCallback((title: string, body?: string) => setNotices((n) => [{ id: uid(), title, body, t: nowTime(), read: false }, ...n].slice(0, 40)), []);
+  const notify = useCallback((title: string, body?: string, o?: { link?: string; push?: boolean }) => {
+    setNotices((n) => [{ id: uid(), title, body, t: nowTime(), read: false, link: o?.link, at: Date.now() }, ...n].slice(0, 40));
+    if (o?.push) void notifySelf(title, body, o.link);
+  }, []);
   const logActivity = useCallback(() => setActivity((a) => ({ ...a, [dayKey()]: (a[dayKey()] ?? 0) + 1 })), []);
 
   // ---------- 12-hour recommendation ----------
@@ -641,7 +645,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const t = now();
     if (t - lastRecAt < 12 * HOUR) return;
     const rec = recommend(chats, courses, lastRecAt, t);
-    if (rec) { setRecommendation(rec); setLastRecAt(t); if (settings.notifRec) notify("Birdie has a recommendation", rec.title); }
+    if (rec) { setRecommendation(rec); setLastRecAt(t); if (settings.notifRec) notify(`Birdie recommends: ${rec.title}`, rec.body, { push: true, link: rec.action.go === "test" ? `/prototype?quiz=${rec.courseId}` : `/prototype?course=${rec.courseId}&ctab=notes` }); }
   }, [chats, courses, skew, tab, settings.recs12h, settings.notifRec, lastRecAt, now, notify]);
 
   // ---------- streak + badges ----------
@@ -654,7 +658,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!loaded.current) return;
     const fresh = BADGES.filter((b) => b.test(stats) && !unlocked.includes(b.id));
-    if (fresh.length) { setUnlocked((u) => [...u, ...fresh.map((b) => b.id)]); const b = fresh[0]; emote("love", `New badge: ${b.label}!`); notify(`Badge unlocked: ${b.label}`, b.desc); }
+    if (fresh.length) { setUnlocked((u) => [...u, ...fresh.map((b) => b.id)]); const b = fresh[0]; emote("love", `New badge: ${b.label}!`); notify(`Badge unlocked: ${b.label}`, b.desc, { push: true, link: "/prototype?achievements=1" }); }
   }, [stats, unlocked, emote, notify]);
 
   // ---------- focus timer ----------

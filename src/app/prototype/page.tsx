@@ -18,6 +18,7 @@ import { logEvent } from "./live/analyticsData";
 import { accentVars, useDark } from "./theme";
 import { TabChats, TabCourses, TabDiscover, TabMe } from "./we";
 import { PayToHost, payTo } from "./MeServices";
+import { NoticesHost, openAchievements, openNotifications } from "./Notifications";
 
 // Screens load only when first opened, so a cheap phone downloads and runs less at startup.
 const Discover = dynamic(() => import("./Discover"), { ssr: false });
@@ -44,7 +45,7 @@ const NAV: [TabId, string, typeof TabChats][] = [["chats", "Chats", TabChats], [
 const ZOOM = { s: 0.92, m: 1, l: 1.1 } as const;
 
 function Shell() {
-  const { tab, setTab, chatView, setChatView, discoverView, setDiscoverView, watch, chatBadge, toast, setPhone, setSlot, settings, resetAll, resetKey, skipHours, recommendation, flash, refreshWallet, setWalletOpen, auth, openByHandle, setAuthOpen, plus, setOverlay, profile, boot, setTourOpen, overlay, watching, tourOpen, recorderOpen, pocketOpen, viewFile } = useApp();
+  const { tab, setTab, chatView, setChatView, discoverView, setDiscoverView, watch, chatBadge, toast, setPhone, setSlot, settings, resetAll, resetKey, skipHours, flash, goBirdie, goStudy, refreshWallet, setWalletOpen, auth, openByHandle, setAuthOpen, plus, setOverlay, profile, boot, setTourOpen, overlay, watching, minimizeWatch, tourOpen, recorderOpen, pocketOpen, viewFile } = useApp();
   const seen = { explore: useEver(tab === "explore"), chats: useEver(tab === "chats" || auth.status === "in"), me: useEver(tab === "me"), settings: useEver(overlay?.t === "settings"), overlays: useEver((!!overlay && overlay.t !== "settings") || !!watching), player: useEver(!!watching), tour: useEver(tourOpen), recorder: useEver(recorderOpen), pocket: useEver(pocketOpen), viewer: useEver(!!viewFile) };
   const show = (id: TabId) => ({ display: tab === id ? "flex" : "none" });
   // Internal tools (staff app links, timer skip, reset) stay reachable at ?dev=1 for us; real
@@ -92,6 +93,7 @@ function Shell() {
     const q = new URL(href, window.location.origin).searchParams;
     const t = q.get("tab"); const chat = q.get("chat"); const group = q.get("group");
     setOverlay(null);
+    if (!q.get("watch")) minimizeWatch(); // the link wins over a video that's open full screen
     if (t === "study" || t === "explore" || t === "chats" || t === "me" || t === "birdie" || t === "help") setTab(t);
     if (t === "chats" && !group && !q.get("dm") && !q.get("oa") && !q.get("oa_inbox") && !q.get("friends") && !q.get("oa_post")) setChatView(null); // a link to Chats lands on the list
     if (group) setChatView({ k: "group", id: group });
@@ -105,12 +107,16 @@ function Shell() {
     if (q.get("payto")) payTo(q.get("payto")!, Number(q.get("amount") ?? 0) || undefined);
     if (q.get("oa_post")) setChatView({ k: "post", id: q.get("oa_post")! });
     if (q.get("watch")) watch(q.get("watch")!);
+    if (q.get("notifications")) openNotifications();
+    if (q.get("achievements")) { setTab("me"); openAchievements(); }
+    if (q.get("quiz")) goBirdie({ courseId: q.get("quiz")!, mode: "test" });
+    if (q.get("course")) goStudy({ courseId: q.get("course")!, tab: q.get("ctab") ?? "materials" });
     if (t === "explore" || q.get("moments")) { setTab("explore"); setDiscoverView(q.get("moments") ? { k: "moments" } : null); }
   };
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     // After saved screens are restored (a microtask), so the link wins over the last screen.
-    if (["tab", "chat", "group", "dm", "oa", "oa_inbox", "moments", "oa_post", "watch", "friends", "payto", "schedule", "campus"].some((k) => q.get(k))) { const href = window.location.href; window.history.replaceState(null, "", window.location.pathname); setTimeout(() => openLink(href), 0); }
+    if (["tab", "chat", "group", "dm", "oa", "oa_inbox", "moments", "oa_post", "watch", "friends", "payto", "schedule", "campus", "notifications", "achievements", "quiz", "course"].some((k) => q.get(k))) { const href = window.location.href; window.history.replaceState(null, "", window.location.pathname); setTimeout(() => openLink(href), 0); }
     const onMsg = (e: MessageEvent) => { if (e.data?.type === "open-link") openLink(e.data.url); };
     const onLink = (e: Event) => { const href = String((e as CustomEvent).detail ?? ""); const u = new URL(href, window.location.origin); if (u.pathname.startsWith("/u/")) void openByHandle(u.pathname.slice(3)); else openLink(href); };
     navigator.serviceWorker?.addEventListener("message", onMsg);
@@ -175,7 +181,6 @@ function Shell() {
                     const on = tab === id;
                     // Tapping Chats or Discover while already there goes back to its list.
                     return (<button key={id} onClick={() => { if (id === "chats" && tab === "chats") setChatView(null); else if (id === "explore" && tab === "explore") setDiscoverView(null); else setTab(id); }} className={`relative flex flex-1 flex-col items-center gap-0.5 py-1 text-[11px] transition ${on ? "text-[var(--we-accent)]" : "text-[var(--we-text)]"}`}><Icon on={on} />{label}
-                      {id === "study" && recommendation && tab !== "study" && <span className="absolute left-1/2 top-0.5 ml-3 h-2 w-2 rounded-full bg-[var(--we-red)]" />}
                       {id === "chats" && chatBadge > 0 && <span className="absolute left-1/2 top-0 ml-2.5 min-w-[17px] rounded-full bg-[var(--we-red)] px-1 text-center text-[10px] font-bold leading-[17px] text-white">{chatBadge > 99 ? "99+" : chatBadge}</span>}</button>);
                   })}
                 </div>
@@ -183,6 +188,7 @@ function Shell() {
 
               <Mascot />
               <PayToHost />
+              <NoticesHost />
               {seen.recorder && <Recorder />}
               <Sheets />
               {seen.overlays && <Overlays />}

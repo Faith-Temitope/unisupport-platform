@@ -3,7 +3,7 @@
 // Discover, laid out like WeChat's: Moments, Channels, Scan, Shake, Top Stories, Search, People at your
 // school and Mini Programs. Each opens full screen (the bottom bar hides) and Back returns to the list.
 import jsQR from "jsqr";
-import { BookOpen, Bot, Briefcase, Camera, QrCode, Tag, ImagePlus, LayoutGrid, Plus, ScanLine, Search, Smartphone, Zap } from "lucide-react";
+import { BedDouble, BookOpen, Bot, Briefcase, Camera, Heart, PenLine, QrCode, SearchCheck, Tag, ImagePlus, LayoutGrid, Plus, ScanLine, Search, Smartphone, Zap } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Head, ListRow } from "./Chats";
 import Campus, { hasNewCampusUpdate } from "./Campus";
@@ -13,11 +13,14 @@ import MomentsScreen, { hasNewMomentNotices } from "./Moments";
 import { OALogo, OAPostView, OAProfileView } from "./Official";
 import { momentsFeed, peopleAtSchool, searchAll, shake, topStories, type ArticleCard, type ChatPerson, type Moment } from "./live/chatData";
 import { JustDoIt } from "./JustDoIt";
+import { Board } from "./Boards";
+import { friendsHeartsRecent } from "./live/notifyData";
 import { payTo } from "./MeServices";
 import { groupPreview, joinGroup } from "./live/groupData";
 import { navBack, useBackLayer } from "./nav";
 import { InternshipCard, usePlacements } from "./Sponsored";
 import { useApp } from "./store";
+import { Page } from "./ui";
 import { Badge, Cell, CellGroup, ChannelsIcon, MiniProgramsIcon, MomentsIcon, PeopleNearbyIcon, ScanIcon, SearchSparkIcon, ShakeIcon, SqAvatar, TopStoriesIcon, WeHeader } from "./we";
 import { ago } from "./Moments";
 
@@ -31,6 +34,7 @@ export default function Discover({ active }: { active: boolean }) {
   const [seenAt, setSeenAt] = useState("");
   const [notices, setNotices] = useState(false);
   const [campusNew, setCampusNew] = useState(false);
+  const [hearts, setHearts] = useState<Awaited<ReturnType<typeof friendsHeartsRecent>>>({ friends: 0, latest: null });
   const [menu, setMenu] = useState(false);
   useBackLayer(menu, () => setMenu(false));
   const signedIn = auth.status === "in";
@@ -39,6 +43,7 @@ export default function Discover({ active }: { active: boolean }) {
     void momentsFeed().then((l) => setLatest(l.find((m) => !m.mine) ?? null));
     void hasNewMomentNotices().then(setNotices);
     void hasNewCampusUpdate().then(setCampusNew);
+    void friendsHeartsRecent().then(setHearts);
     try { void Promise.resolve().then(() => setSeenAt(localStorage.getItem(SEEN_KEY) ?? "")); } catch { /* ignore */ }
   }, [active, view, signedIn]);
   const open = (v: NonNullable<typeof view>) => {
@@ -95,7 +100,8 @@ export default function Discover({ active }: { active: boolean }) {
             right={latest ? <span className="relative mr-1"><SqAvatar name={latest.author.name} color={latest.author.color} size={34} />{fresh && <span className="absolute -right-1 -top-1"><Badge dot /></span>}</span> : undefined} />
         </CellGroup>
         <CellGroup>
-          <Cell icon={icon(<ChannelsIcon />)} label="Channels" onClick={() => open({ k: "channels" })} />
+          <Cell icon={icon(<ChannelsIcon />)} label="Channels" onClick={() => open({ k: "channels" })}
+            right={hearts.friends > 0 && hearts.latest ? <span className="mr-1 flex items-center gap-1.5 text-[13px] text-[var(--we-sub)]"><span className="relative"><SqAvatar name={hearts.latest.name} color={hearts.latest.color} size={30} /><Heart size={13} className="absolute -bottom-1 -right-1 fill-[#FA5151] text-[#FA5151]" /></span>{hearts.friends > 1 ? `${hearts.friends} friends` : ""}</span> : undefined} />
         </CellGroup>
         <CellGroup>
           <Cell icon={icon(<BookOpen size={22} className="text-[#2F9E5B]" />)} label="Shared Courses" onClick={() => open({ k: "sharedCourses" })} />
@@ -382,25 +388,39 @@ function SearchAll({ onBack }: { onBack: () => void }) {
 }
 
 function School({ onBack }: { onBack: () => void }) {
-  const { setOverlay, profile } = useApp();
+  const { setOverlay, profile, setProfile, flash } = useApp();
+  const [editing, setEditing] = useState(false);
+  const [status, setStatus] = useState("");
   const [items, setItems] = useState<Awaited<ReturnType<typeof peopleAtSchool>> | null>(null);
   useEffect(() => { void peopleAtSchool().then(setItems); }, []);
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[var(--we-bg)]">
       <WeHeader onBack={onBack} title="People at Your School" />
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-10">
+        <button onClick={() => { setStatus(profile.bio ?? ""); setEditing(true); }} className="mt-1 flex w-full items-center gap-3 bg-[var(--we-cell)] px-4 py-3 text-left active:bg-[var(--we-bg)]">
+          <PenLine size={20} className="shrink-0 text-[var(--we-accent)]" />
+          <span className="min-w-0 flex-1"><span className="block text-[15.5px] text-[var(--we-text)]">My Status</span><span className="block truncate text-[13px] text-[var(--we-sub)]">{profile.bio || "What's up? Classmates see it here"}</span></span>
+        </button>
         {items === null ? <p className="py-10 text-center text-[13px] text-[var(--we-sub)]">Loading...</p>
           : items.length === 0 ? <p className="px-10 py-16 text-center text-[14px] leading-relaxed text-[var(--we-sub)]">{profile.institution ? "No one else from your school is on Birdie yet." : "Add your school in Settings to see classmates on Birdie."}</p>
           : <>
             <div className="px-4 pb-1.5 pt-3 text-[13px] text-[var(--we-sub)]">{items[0]?.school ?? profile.institution}</div>
-            <div className="bg-[var(--we-cell)]">{items.map((p) => <ListRow key={p.id} avatar={<SqAvatar name={p.name} color={p.color} size={44} />} name={p.name} last={[p.program, p.level && `${p.level} level`].filter(Boolean).join(" · ") || (p.handle ? `@${p.handle}` : "")} onClick={() => setOverlay({ t: "contact", id: p.id })} />)}</div>
+            <div className="bg-[var(--we-cell)]">{items.map((p) => <ListRow key={p.id} avatar={<SqAvatar name={p.name} color={p.color} size={44} />} name={p.name} last={p.status || [p.program, p.level && `${p.level} level`].filter(Boolean).join(" · ") || (p.handle ? `@${p.handle}` : "")} onClick={() => setOverlay({ t: "contact", id: p.id })} />)}</div>
           </>}
       </div>
+      <Page open={editing} onClose={() => setEditing(false)} title="My Status"
+        right={<button onClick={() => { setProfile({ bio: status.trim() }); setEditing(false); flash(status.trim() ? "Status set" : "Status cleared"); }} className="mr-2 rounded-[4px] bg-[var(--we-accent)] px-3 py-1.5 text-[14px] font-medium text-white">Done</button>}>
+        <div className="mt-2 bg-[var(--we-cell)] px-4 py-3">
+          <input autoFocus value={status} onChange={(e) => setStatus(e.target.value.slice(0, 60))} placeholder="e.g. Exams szn, Looking for a CSC 301 study partner" className="w-full bg-transparent text-[16px] text-[var(--we-text)] outline-none placeholder:text-[var(--we-hint)]" />
+        </div>
+        <div className="flex flex-wrap gap-2 px-4 pt-3">{["Exams szn", "Looking for a study partner", "In the library", "Selling my old textbooks", "Need a roommate"].map((t) => <button key={t} onClick={() => setStatus(t)} className="rounded-full bg-[var(--we-cell)] px-3 py-1.5 text-[13.5px] text-[var(--we-text)]">{t}</button>)}</div>
+        <p className="px-4 pt-3 text-[12.5px] text-[var(--we-hint)]">{status.length}/60 · Shows on your channel and to people at your school</p>
+      </Page>
     </div>
   );
 }
 
-type MiniSub = null | "internships" | "jdi";
+type MiniSub = null | "internships" | "jdi" | "hostel" | "lostfound";
 
 /** Birdie's tools. (Printing and tutorials are in Me > Services.) */
 function Mini({ onBack }: { onBack: () => void }) {
@@ -413,10 +433,13 @@ function Mini({ onBack }: { onBack: () => void }) {
 
   if (sub === "jdi") return <JustDoIt onBack={close} />;
   if (sub === "internships") return <Internships onBack={close} />;
+  if (sub === "hostel" || sub === "lostfound") return <Board board={sub} onBack={close} />;
 
   const apps: { label: string; color: string; icon: ReactNode; run: () => void }[] = [
     { label: "Internships & SIWES", color: "#7C4DDB", icon: <Briefcase size={26} />, run: () => setSub("internships") },
     { label: "Just Do It", color: "#E2553F", icon: <Zap size={26} />, run: need(() => setSub("jdi")) },
+    { label: "Hostel & Roommates", color: "#1B8A85", icon: <BedDouble size={26} />, run: () => setSub("hostel") },
+    { label: "Lost & Found", color: "#F5A623", icon: <SearchCheck size={26} />, run: () => setSub("lostfound") },
     { label: "Birdie AI", color: "#8A2FA3", icon: <Bot size={26} />, run: () => goBirdie({ courseId: "general" }) },
     { label: "Shared Courses", color: "#2F9E5B", icon: <BookOpen size={26} />, run: () => go({ k: "sharedCourses" }) },
     { label: "My Courses", color: "#D9467E", icon: <BookOpen size={26} />, run: () => { go(null); setTab("study"); } },

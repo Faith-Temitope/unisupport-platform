@@ -2,7 +2,7 @@
 
 // One conversation, laid out like WeChat: square avatars on both sides, bubbles with tails, the
 // [voice] [input] [emoji] [+] bar, the emoji/sticker panel, the two-page + panel, and the dark
-// long-press menu (Copy, Forward, Favorite, Delete, Quote, Unsend, Translate, Search).
+// long-press menu (Copy, Forward, Favorite, Delete, Quote, Unsend, To Text, Translate, Search).
 import { useBackLayer } from "./nav";
 import { AnimatePresence, motion } from "framer-motion";
 import { AudioLines, BellOff, BookOpen, Camera, Contact, Copy, CornerUpLeft, FileText, Forward, Gift, Image as ImageIcon, Languages, MapPin, Mic, Plus, Search, Smile, Sparkles, Star, Trash2, Undo2, Wallet } from "lucide-react";
@@ -134,6 +134,8 @@ export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
   useBackLayer(!!pop, () => setPop(null));
   const [more, setMore] = useState(true);
   const [translated, setTranslated] = useState<Record<string, string>>({});
+  // Voice notes turned into text (kept on this phone, so it isn't transcribed twice).
+  const [spoken, setSpoken] = useState<Record<string, string>>(() => { try { return JSON.parse(localStorage.getItem("birdie-voice-text") ?? "{}"); } catch { return {}; } });
   const [prefsTick, setPrefsTick] = useState(0);
   const root = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -367,6 +369,16 @@ export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
     const r = await askAI({ brain: "spark", tier: "quick", feature: "chat", system: "Translate the user's message into clear English. If it is already English, translate it into Nigerian Pidgin. Reply with only the translation.", messages: [{ role: "user", content: m.body }] });
     setTranslated((t) => ({ ...t, [m.id]: r.ok ? r.text.trim() : "Couldn't translate right now" }));
   }
+  async function toText(m: ChatMsg) {
+    setPop(null);
+    if (spoken[m.id] && !spoken[m.id].endsWith("...")) return;
+    setSpoken((t) => ({ ...t, [m.id]: "Converting..." }));
+    const r = await fetch("/api/chat/voice-text", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: (m.meta as { path?: string }).path }) }).then((x) => x.json()).catch(() => ({ error: "failed" }));
+    const text = r.text ? String(r.text) : r.text === "" ? "(No speech heard)" : r.error === "too_long" ? "Too long to convert" : "Couldn't convert it right now";
+    if (r.text !== undefined) try { const keep = Object.fromEntries(Object.entries({ ...JSON.parse(localStorage.getItem("birdie-voice-text") ?? "{}"), [m.id]: text }).slice(-300)); localStorage.setItem("birdie-voice-text", JSON.stringify(keep)); } catch { /* private mode */ }
+    setSpoken((t) => ({ ...t, [m.id]: text }));
+  }
+
   function favorite(m: ChatMsg) {
     setPop(null);
     writeFavs([{ id: m.id, kind: m.kind, body: m.body, meta: m.meta, from: m.mine ? profile.name || "Me" : (scope === "group" ? m.name : other?.name) ?? "", at: m.created_at }, ...readFavs().filter((f) => f.id !== m.id)]);
@@ -466,6 +478,7 @@ export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
                         </div>
                       )}
                   </div>
+                  {spoken[m.id] && <div className="mt-1 max-w-[260px] rounded-[4px] bg-[var(--we-bubble)] px-2.5 py-1.5 text-[14px] text-[var(--we-text)]">{spoken[m.id]}</div>}
                   {translated[m.id] && <div className="mt-1 max-w-full rounded-[4px] bg-[var(--we-bubble)] px-2.5 py-1.5 text-[13px] text-[var(--we-text)]"><span className="text-[11px] text-[var(--we-sub)]">Translation · </span>{translated[m.id]}</div>}
                   {m.reply && <div className="mt-1 max-w-full truncate rounded-[3px] bg-black/5 px-2 py-1 text-[12.5px] text-[var(--we-sub)]">{m.reply.mine ? meName : m.reply.name ?? other?.name}: {m.reply.text}</div>}
                 </div>
@@ -490,6 +503,7 @@ export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
               { label: "Delete", Icon: Trash2, run: () => void del(pop.m, false) },
               !["transfer", "packet"].includes(pop.m.kind) && { label: "Quote", Icon: CornerUpLeft, run: () => { setReply(pop.m); setPop(null); setVoice(false); } },
               canUnsend(pop.m) && { label: pop.m.mine ? "Unsend" : "Remove", Icon: Undo2, run: () => void del(pop.m, true) },
+              pop.m.kind === "voice" && { label: "To Text", Icon: AudioLines, run: () => void toText(pop.m) },
               pop.m.kind === "text" && { label: "Translate", Icon: Languages, run: () => void translate(pop.m) },
               pop.m.kind === "text" && { label: "Search", Icon: Sparkles, run: () => { setPop(null); goBirdie({ courseId: "general", prompt: pop.m.body }); } },
               pop.m.kind === "packet" && { label: "Open", Icon: Gift, run: () => { setOpenGift(String((pop.m.meta as { giveaway_id?: string }).giveaway_id)); setPop(null); } },

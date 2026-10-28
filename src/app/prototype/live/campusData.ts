@@ -28,15 +28,18 @@ export const looksLikeEvent = (t: string) =>
   && /\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*\b|\btoday\b|\btomorrow\b|\bnext week\b|\b\d{1,2}(:\d{2})?\s*(am|pm)\b|\b\d{1,2}(st|nd|rd|th)\b|\b\d{1,2}[/-]\d{1,2}\b|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/i.test(t);
 
 // ---------- Campus Updates and Campus Gist
+export type BoardKind = "hostel" | "lost" | "found";
 export interface CampusPost {
-  id: string; kind: "update" | "gist"; title: string | null; body: string; important: boolean; created_at: string;
+  id: string; kind: "update" | "gist" | BoardKind; title: string | null; body: string; important: boolean; created_at: string;
   author: ChatPerson | null; account: { id: string; handle: string; name: string; logo_url: string | null; color: string } | null;
   likes: number; liked: boolean; comments: number; mine: boolean;
 }
 export interface CampusComment { id: string; body: string; created_at: string; user: ChatPerson; mine: boolean }
-export const campusFeed = async (kind: "update" | "gist", before?: string) => (await call<CampusPost[]>("campus_feed", { p_kind: kind, p_before: before ?? null })).data ?? [];
+export const campusFeed = async (kind: CampusPost["kind"], before?: string) => (await call<CampusPost[]>("campus_feed", { p_kind: kind, p_before: before ?? null })).data ?? [];
 export const postCampusUpdate = (oa: string, title: string, body: string, important: boolean) => call<CampusPost>("post_campus_update", { p_oa: oa, p_title: title || null, p_body: body, p_important: important });
 export const postGist = (title: string, body: string) => call<CampusPost>("post_gist", { p_title: title || null, p_body: body });
+/** Hostel & roommates, Lost & found: any student at the school, 5 a day per board. */
+export const postBoard = (kind: BoardKind, title: string, body: string) => call<CampusPost>("post_board", { p_kind: kind, p_title: title, p_body: body });
 export const deleteCampusPost = (id: string) => call("delete_campus_post", { p_id: id });
 export const campusLike = (id: string, on: boolean) => call<CampusPost>("campus_like", { p_id: id, p_on: on });
 export const campusComment = (id: string, body: string) => call<CampusPost>("campus_comment", { p_id: id, p_body: body });

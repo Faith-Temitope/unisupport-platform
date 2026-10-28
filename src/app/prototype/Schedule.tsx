@@ -62,6 +62,27 @@ function Row({ it, onDelete }: { it: Item; onDelete?: () => void }) {
   );
 }
 
+const lagosMin = (d: Date) => { const [h, m] = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ }).split(":").map(Number); return h * 60 + m; };
+const hhmmMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+const what = (it: { course: string; kind: string }) => `${it.course} ${(KIND[it.kind]?.label ?? "class").toLowerCase()}`;
+
+/** One short line: what's on now, what's next today, or the next test. */
+function hintOf(s: Schedule, items: Item[], now: Date) {
+  const n = lagosMin(now);
+  const live = items.filter((it) => !it.cancelled && it.kind !== "cancelled").map((it) => {
+    const start = it.slot ? hhmmMin(it.slot.starts) : lagosMin(new Date(it.event!.starts_at));
+    const end = it.slot ? hhmmMin(it.slot.ends) : it.event?.ends_at ? lagosMin(new Date(it.event.ends_at)) : start + 60;
+    return { it, start, end };
+  });
+  const on = live.find((x) => x.start <= n && n < x.end);
+  if (on) return `${what(on.it)} is on now${on.it.venue ? ` · ${on.it.venue}` : ""}`;
+  const next = live.filter((x) => x.start > n).sort((a, b) => a.start - b.start)[0];
+  if (next) { const d = next.start - n; return `Time for ${what(next.it)} ${d < 60 ? `in ${d} min` : d < 180 ? `in ${Math.round(d / 60)} hour${Math.round(d / 60) === 1 ? "" : "s"}` : `at ${next.it.time.split(" – ")[0]}`}`; }
+  const test = s.events.find((e) => ["test", "exam", "deadline"].includes(e.kind) && new Date(e.starts_at) > now && daysUntil(e.starts_at) <= 7);
+  if (test) { const d = daysUntil(test.starts_at); return `${what(test)} ${d <= 0 ? "today" : d === 1 ? "tomorrow" : `in ${d} days`}`; }
+  return live.length ? "Done for today" : "Nothing on today";
+}
+
 /** The card at the top of Courses. */
 export function TodaySchedule({ onOpen }: { onOpen: () => void }) {
   const { auth, tab } = useApp();
@@ -69,22 +90,20 @@ export function TodaySchedule({ onOpen }: { onOpen: () => void }) {
   if (auth.status !== "in") return null;
   const today = new Date();
   const items = s ? dayItems(s, today) : [];
-  const next = (s?.events ?? []).filter((e) => e.kind !== "cancelled" && new Date(e.starts_at) > today && !sameDay(new Date(e.starts_at), today) && daysUntil(e.starts_at) <= 14).slice(0, 3);
+  const next = (s?.events ?? []).filter((e) => e.kind !== "cancelled" && new Date(e.starts_at) > today && !sameDay(new Date(e.starts_at), today) && daysUntil(e.starts_at) <= 14).slice(0, 2);
   return (
     <div className="overflow-hidden rounded-[10px] bg-[var(--we-cell)]">
-      <button onClick={onOpen} className="flex w-full items-center gap-2 px-4 pb-1 pt-3 text-left">
-        <CalendarDays size={18} className="text-[var(--we-accent)]" />
-        <span className="flex-1 text-[15.5px] font-medium text-[var(--we-text)]">Today · {today.toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" })}</span>
-        <span className="flex items-center text-[13px] text-[var(--we-link)]">Timetable<ChevronRight size={16} /></span>
+      <button onClick={onOpen} className="flex w-full items-center gap-3 px-4 py-3 text-left">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-[var(--we-accent)] text-white"><CalendarDays size={21} /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[16px] font-medium text-[var(--we-text)]">My Schedule</span>
+          <span className="block truncate text-[13.5px] text-[var(--we-sub)]">{s ? hintOf(s, items, today) : " "}</span>
+        </span>
+        <ChevronRight size={18} className="shrink-0 text-[var(--we-hint)]" />
       </button>
-      <div className="px-4 pb-2">
-        {s === null ? <p className="py-3 text-[13.5px] text-[var(--we-hint)]">Loading...</p>
-          : items.length ? items.map((it) => <Row key={it.key} it={it} />)
-          : <p className="py-3 text-[13.5px] text-[var(--we-sub)]">{s.slots.length || s.events.length ? "No classes today." : "Your class timetable shows here once your course rep adds it in the course chat (or you add your own)."}</p>}
-      </div>
+      {items.length > 0 && <div className="border-t border-[var(--we-sep)] px-4">{items.map((it) => <Row key={it.key} it={it} />)}</div>}
       {next.length > 0 && (
-        <div className="border-t border-[var(--we-sep)] px-4 pb-2 pt-2">
-          <div className="pb-1 text-[12.5px] text-[var(--we-sub)]">Coming up</div>
+        <div className="border-t border-[var(--we-sep)] px-4 pt-1">
           {next.map((e) => <Row key={e.id} it={{ key: e.id, time: when(e.starts_at), sort: "", course: e.course, kind: e.kind, title: e.title, venue: e.venue }} />)}
         </div>
       )}
