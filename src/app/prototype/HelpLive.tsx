@@ -5,16 +5,13 @@
 import { HoldButton } from "./Pocket";
 import { Linkified } from "./Linkified";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, BookOpen, Check, CheckCheck, Download, Eye, FileText, Lock, MoreVertical, Paperclip, PenLine, Pin, Printer, Send, Star, Wallet, Zap } from "lucide-react";
+import { ArrowLeft, BookOpen, Check, CheckCheck, Download, Eye, FileText, Lock, MoreVertical, Paperclip, Send, Star } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
-import { JustDoIt } from "./JustDoIt";
 import { CourseShareSheet } from "./CourseShare";
 import { useViewState } from "./persist";
 import { ACCESS_LABEL, DL_LABEL, SERVICE_LABEL, UNIT_LABEL, clock, listFolder, openUrl, rpcError, safeName, sendMessage, signedUrl, uploadTo, useHelpData, type HJob, type HMessage, type HSession } from "./live/helpData";
 import { logEvent } from "./live/analyticsData";
-import { InternshipCard, SlotAd, usePlacements } from "./Sponsored";
-import { TutorialsSection } from "./Tutorials";
 import { naira, uid, useApp } from "./store";
 import { Avatar, Btn, Sheet, TopBar, scrollToEnd } from "./ui";
 
@@ -24,10 +21,7 @@ const colorOf = (s: string) => PALETTE[[...s].reduce((a, c) => a + c.charCodeAt(
 const first = (n: string) => (n.startsWith("Dr.") ? n.split(" ")[1] : n.split(" ")[0]);
 
 export default function HelpLive({ active, onBack }: { active: boolean; onBack?: () => void }) {
-  const { setWalletOpen, balance, flash, helpIntent, clearHelpIntent, refreshWallet, openPrint, grantCourseAccess } = useApp();
-  const internships = usePlacements("internship", undefined, active);
-  const [jobsOpen, setJobsOpen] = useState(false);
-  const [view, setView] = useViewState<"hub" | "chat" | "jdi">("help.view", "hub");
+  const { setWalletOpen, flash, helpIntent, clearHelpIntent, refreshWallet, grantCourseAccess } = useApp();
   const [activeId, setActiveId] = useViewState<string | null>("help.chat", null);
   const [courseShare, setCourseShare] = useState(false);
   const [attachMenu, setAttachMenu] = useState(false);
@@ -42,7 +36,7 @@ export default function HelpLive({ active, onBack }: { active: boolean; onBack?:
 
   const s = sessions.find((x) => x.id === activeId) ?? null;
   const writer = s?.writers ?? null;
-  useEffect(() => { scrollToEnd(endRef.current); }, [messages.length, view]);
+  useEffect(() => { scrollToEnd(endRef.current); }, [messages.length, activeId]);
 
   // One Unisupport chat: reopen the open help-desk conversation, or start one. The desk handles
   // everything from there (and connects you to a writer when you need one).
@@ -58,11 +52,11 @@ export default function HelpLive({ active, onBack }: { active: boolean; onBack?:
       id = data as string; await reload();
     }
     if (courseId) { const err = await grantCourseAccess(courseId, "view", { session: id }); if (err) flash("Couldn't attach the course"); }
-    setActiveId(id); setView("chat");
+    setActiveId(id);
   }
   useEffect(() => {
     if (!helpIntent) return;
-    if (helpIntent.sessionId) { setActiveId(helpIntent.sessionId); setView("chat"); } else void openDesk(helpIntent.courseId);
+    if (helpIntent.sessionId) setActiveId(helpIntent.sessionId); else void openDesk(helpIntent.courseId);
     clearHelpIntent();
   }, [helpIntent]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -109,82 +103,27 @@ export default function HelpLive({ active, onBack }: { active: boolean; onBack?:
   }
   async function openAttachment(path: string) { const u = await signedUrl("session-uploads", path); if (u) openUrl(u); else flash("Couldn't open that file"); }
 
-  // ---------------- HUB ----------------
-  if (view === "jdi") return <JustDoIt onBack={() => setView("hub")} />;
-  if (view === "hub" || !s) {
-    const writerChats = sessions.filter((x) => x.writers);
-    const pastDesk = sessions.filter((x) => !x.writers && x.id !== deskChat?.id);
-    const row = (x: HSession) => (
-      <button key={x.id} onClick={() => { setActiveId(x.id); setView("chat"); }} className="flex w-full items-center gap-3 border-b border-[var(--line)] p-3 text-left last:border-0 active:bg-[var(--paper-dim)]">
-        {x.writers ? <Avatar initials={initials(x.writers.display_name)} color={colorOf(x.writers.display_name)} size={46} /> : <div className="disp flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full bg-[var(--ink)] text-[17px] font-bold text-[var(--birdie)]">U</div>}
-        <div className="min-w-0 flex-1">
-          <div className="flex justify-between gap-2"><span className="flex min-w-0 items-center gap-1.5 truncate text-[14.5px] font-semibold text-[var(--text)]">{x.writers ? x.writers.display_name : "Unisupport Help"}{x.writers && <Pin size={12} className="shrink-0 text-[var(--dim)]" />}</span><span className="shrink-0 text-[11px] text-[var(--dim)]">{clock(x.created_at)}</span></div>
-          <div className="truncate text-[12.5px] text-[var(--dim)]">{x.writers ? `Your writer · ${x.writers.specialization ?? x.title}` : x.phase === "fee" ? "Waiting to connect you to a writer" : x.title || "Earlier chat"}</div>
-        </div>
-      </button>
-    );
-    return (
-      <div className="flex h-full flex-col">
-        <TopBar left={onBack && <button onClick={onBack} aria-label="Back" className="flex h-9 w-9 items-center justify-center rounded-xl active:bg-[var(--paper-dim)]"><ArrowLeft size={19} /></button>} title={<h2 className="disp text-[22px] font-bold text-[var(--text)]">Unisupport Help</h2>} right={<button onClick={() => setWalletOpen(true)} className="flex items-center gap-2 rounded-full border border-[var(--line)] bg-white py-1.5 pl-2.5 pr-3.5 text-[13px] font-semibold active:scale-95"><Wallet size={15} className="text-[var(--birdie)]" />{naira(balance)}</button>} />
-        <div className="no-scrollbar flex-1 space-y-5 overflow-y-auto px-5 pb-28">
-          <section>
-            <div className="overflow-hidden rounded-2xl border border-[var(--line)] bg-white">
-              {/* Unisupport Help is always on top, like a pinned chat. */}
-              <button onClick={() => void openDesk()} disabled={busy} className="flex w-full items-center gap-3 border-b border-[var(--line)] p-3 text-left last:border-0 active:bg-[var(--paper-dim)]">
-                <div className="disp relative flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full bg-[var(--ink)] text-[17px] font-bold text-[var(--birdie)]">U<span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-[#3FB56B]" /></div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 text-[14.5px] font-semibold text-[var(--text)]">Unisupport Help <Pin size={12} className="text-[var(--dim)]" /></div>
-                  <div className="truncate text-[12.5px] text-[var(--dim)]">{busy ? "Opening..." : deskChat ? "Continue your chat" : "Tell us what you need. We're here to help."}</div>
-                </div>
-              </button>
-              {writerChats.map(row)}
-            </div>
-            {loading && sessions.length === 0 && <div className="py-2 text-center text-[12.5px] text-[var(--dim)]">Loading your chats...</div>}
-            {pastDesk.length > 0 && (
-              <details className="mt-2"><summary className="cursor-pointer text-[12px] font-semibold text-[var(--dim)]">Earlier chats ({pastDesk.length})</summary>
-                <div className="mt-2 overflow-hidden rounded-2xl border border-[var(--line)] bg-white">{pastDesk.map(row)}</div>
-              </details>
-            )}
-            <p className="mt-2 text-center text-[11.5px] leading-snug text-[var(--dim)]">Writers the help desk connects you with are pinned here. Share a course in any chat with the clip button.</p>
-          </section>
-
-          <TutorialsSection active={active} />
-
-          <section className="space-y-2.5">
-            <div className="flex items-center justify-between"><span className="disp text-[16px] font-bold text-[var(--text)]">Print &amp; deliver</span><button onClick={() => openPrint({ kind: "orders" })} className="text-[12.5px] font-bold text-[var(--uni)]">My orders</button></div>
-            <button onClick={() => openPrint({ kind: "print" })} className="flex w-full items-start gap-3.5 rounded-[18px] border border-[var(--line)] bg-white p-3.5 text-left active:scale-[0.98]"><Printer className="mt-0.5 shrink-0 text-[var(--uni)]" size={21} /><div><div className="disp text-[15px] font-bold">Print my project or assignment</div><div className="text-[12px] leading-snug text-[var(--dim)]">Printed and bound by a print shop near you. Pick up or get it delivered.</div></div></button>
-            <button onClick={() => openPrint({ kind: "handwrite" })} className="flex w-full items-start gap-3.5 rounded-[18px] border border-[var(--line)] bg-white p-3.5 text-left active:scale-[0.98]"><PenLine className="mt-0.5 shrink-0 text-[var(--uni)]" size={21} /><div><div className="disp text-[15px] font-bold">Handwrite my assignment</div><div className="text-[12px] leading-snug text-[var(--dim)]">Send the softcopy. It&apos;s written out with your name and matric number.</div></div></button>
-            <a href="/partner" className="block text-center text-[12px] font-semibold text-[var(--dim)] underline decoration-dotted">Own a print shop? Become a Birdie print partner</a>
-          </section>
-
-          <section className="space-y-2.5">
-            <div className="flex items-center justify-between"><span className="disp text-[16px] font-bold text-[var(--text)]">Internships &amp; SIWES</span>{internships.length > 2 && <button onClick={() => setJobsOpen(true)} className="text-[12.5px] font-bold text-[var(--uni)]">See all ({internships.length})</button>}</div>
-            {internships.length === 0 ? <p className="text-[12.5px] leading-snug text-[var(--dim)]">Placements and internships for students in your area will show up here. Make sure your school and region are on your profile.</p>
-              : internships.slice(0, 2).map((p) => <InternshipCard key={p.id} p={p} />)}
-            <a href="/internships" className="block text-center text-[12px] font-semibold text-[var(--dim)] underline decoration-dotted">Hiring interns? Post a placement on Birdie</a>
-          </section>
-
-          <SlotAd surface="help" active={active} />
-
-          {/* Deliberately last and low-key: Birdie should teach first, not do the work. */}
-          <button onClick={() => setView("jdi")} className="flex w-full items-center gap-3 rounded-2xl p-3 text-left opacity-80 active:scale-[0.98]">
-            <Zap className="shrink-0 text-[var(--dim)]" size={17} />
-            <div><div className="text-[13.5px] font-semibold text-[var(--text)]">Birdie: Just Do It</div><div className="text-[11.5px] leading-snug text-[var(--dim)]">Snap or pick a question and Birdie answers it</div></div>
-          </button>
-        </div>
-        <Sheet open={jobsOpen} onClose={() => setJobsOpen(false)} title="Internships & SIWES">
-          <div className="space-y-3">{internships.map((p) => <InternshipCard key={p.id} p={p} />)}</div>
-        </Sheet>
-      </div>
-    );
-  }
+  // Unisupport Help is one chat with the desk, who hand you to a writer when you need one. Writer chats
+  // are their own rows in Chats; tutorials, printing, internships and Just Do It are Mini Programs.
+  const opening = useRef(false);
+  useEffect(() => {
+    if (!active || s || loading || helpIntent || opening.current) return;
+    opening.current = true;
+    void Promise.resolve().then(() => openDesk()).finally(() => { opening.current = false; });
+  }, [active, s, loading, helpIntent]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!s) return (
+    <div className="flex h-full flex-col">
+      <TopBar left={onBack && <button onClick={onBack} aria-label="Back" className="flex h-9 w-9 items-center justify-center rounded-xl active:bg-[var(--paper-dim)]"><ArrowLeft size={19} /></button>} title={<h2 className="disp text-[20px] font-bold text-[var(--text)]">Unisupport Help</h2>} />
+      <p className="py-10 text-center text-[13px] text-[var(--dim)]">Opening your chat...</p>
+    </div>
+  );
 
   // ---------------- CHAT ----------------
   const wname = writer?.display_name;
   return (
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center gap-3 border-b border-[var(--line)] bg-[var(--paper)] px-4 pb-2.5 pt-1">
-        <button onClick={() => { setView("hub"); setActiveId(null); }} aria-label="Back" className="flex h-9 w-9 items-center justify-center rounded-xl active:scale-90"><ArrowLeft size={19} /></button>
+        <button onClick={() => onBack?.()} aria-label="Back" className="flex h-9 w-9 items-center justify-center rounded-xl active:scale-90"><ArrowLeft size={19} /></button>
         <AnimatePresence mode="wait">
           <motion.div key={wname ?? "desk"} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex min-w-0 flex-1 items-center gap-3">
             {wname ? <Avatar initials={initials(wname)} color={colorOf(wname)} size={38} online /> : <div className="disp relative flex h-[38px] w-[38px] items-center justify-center rounded-full bg-[var(--ink)] text-[16px] font-bold text-[var(--birdie)]">U<span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[var(--paper)] bg-[#3FB56B]" /></div>}

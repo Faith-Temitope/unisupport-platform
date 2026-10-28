@@ -19,6 +19,7 @@ import { clearViewState, useViewState } from "./persist";
 import { fetchForYou, fetchMyTopics, logPostEvent, type Ranked } from "./live/recData";
 import { DEMO_PEOPLE, DEMO_POSTS, DEMO_SHARED, DEMO_REPLIES } from "./demo";
 import { BADGES, dayKey, streakOf, type Stats } from "./badges";
+import { navInit, navScreen } from "./nav";
 
 export type TabId = "study" | "chats" | "explore" | "me";
 /** What's open inside the Chats tab (null = the chat list). Birdie AI and Unisupport Help live here now. */
@@ -267,6 +268,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (o?.t === "thread") { void openDm(o.id); return; }
     setOverlayState(o);
   }, [setOverlayState, setChatView, openDm]);
+  // The phone's Back button walks back through these screens (see nav.ts).
+  const navSnap = JSON.stringify([tab, tab === "chats" ? chatView : null, tab === "explore" ? discoverView : null, overlay]);
+  useEffect(() => navInit({
+    apply: (snap) => {
+      const [t, cv, dv, ov] = JSON.parse(snap) as [TabId, ChatView, DiscoverView, Overlay];
+      setTabState(t);
+      if (t === "chats") setChatViewState(cv);
+      if (t === "explore") setDiscoverView(dv);
+      setOverlayState(ov);
+    },
+    isRoot: (snap) => { const a = JSON.parse(snap); return a[1] === null && a[2] === null && a[3] === null; },
+    rootOf: (snap) => JSON.stringify([JSON.parse(snap)[0], null, null, null]),
+  }), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => navScreen(navSnap), [navSnap]);
   const [watching, setWatching] = useViewState<{ id: string; mini: boolean } | null>("watching", null);
   const [phone, setPhone] = useState<HTMLElement | null>(null);
   const [slot, setSlot] = useState<HTMLElement | null>(null);

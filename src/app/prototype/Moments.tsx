@@ -3,6 +3,7 @@
 // Moments, like WeChat's: a cover photo with your name and avatar, then your friends' posts newest first
 // (no algorithm). Up to 9 photos per post. Likes and comments only show from people who are your
 // friends too. Tap the camera to post; hold it to post text only.
+import { useBackLayer } from "./nav";
 import { AnimatePresence, motion } from "framer-motion";
 import { Camera, ChevronLeft, Heart, MapPin, MessageSquare, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -36,6 +37,9 @@ export default function MomentsScreen({ userId, onBack }: { userId?: string; onB
   const [commenting, setCommenting] = useState<{ id: string; replyTo?: { id: string; name: string } } | null>(null);
   const [draft, setDraft] = useState("");
   const [composer, setComposer] = useState<null | { textOnly: boolean; files: File[] }>(null);
+  useBackLayer(!!composer, () => setComposer(null));
+  useBackLayer(!!commenting, () => setCommenting(null));
+  useBackLayer(!!popFor, () => setPopFor(null));
   const [more, setMore] = useState(true);
   const [solid, setSolid] = useState(false);
   const pick = useRef<HTMLInputElement>(null), coverIn = useRef<HTMLInputElement>(null);

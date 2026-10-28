@@ -3,6 +3,7 @@
 // Chats > Courses, laid out like WeChat's Subscriptions folder: "Frequently Read" across the top, a
 // notifications pill, then a card per course with its latest message. Tapping a course opens that
 // course's group chat (a normal chat, with Chat Info and all).
+import { useBackLayer } from "./nav";
 import { Search, UserRound } from "lucide-react";
 import { useState } from "react";
 import { listTime, type CourseChat } from "./live/chatData";
@@ -18,6 +19,8 @@ function Round({ c, size = 52 }: { c: CourseChat; size?: number }) {
 export default function CourseFolder({ rows, onBack, onOpen }: { rows: CourseChat[]; onBack: () => void; onOpen: (groupId: string) => void }) {
   const [searching, setSearching] = useState(false);
   const [all, setAll] = useState(false);
+  useBackLayer(all, () => setAll(false));
+  useBackLayer(searching, () => setSearching(false));
   const [q, setQ] = useState("");
   const shown = rows.filter((r) => !q.trim() || `${r.code} ${r.name}`.toLowerCase().includes(q.trim().toLowerCase()));
   const unread = rows.filter((r) => r.unread > 0);

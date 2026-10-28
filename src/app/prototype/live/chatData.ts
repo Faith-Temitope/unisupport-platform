@@ -15,10 +15,10 @@ export interface ChatMsg {
 export interface DmRow { id: string; other: ChatPerson; pinned: boolean; muted: boolean; last_at: string; last: string; unread: number }
 export interface GroupRow {
   id: string; name: string; about: string | null; role: "owner" | "admin" | "member"; muted: boolean; invite_code: string | null; members: number; last: string | null; last_at: string | null; unread: number;
-  pinned: boolean; remark: string | null; alias: string | null; is_course: boolean; shared_id: string | null; avatars: { name: string; color: string }[];
+  pinned: boolean; remark: string | null; alias: string | null; is_course: boolean; shared_id: string | null; course_key?: string | null; avatars: { name: string; color: string }[];
 }
 export interface CourseChat {
-  group_id: string; shared_id: string; course_id: string | null; code: string; name: string; owner: ChatPerson; mine: boolean; members: number; muted: boolean; pinned: boolean;
+  group_id: string; shared_id: string | null; course_id: string | null; course_key: string | null; code: string; name: string; owner: ChatPerson; mine: boolean; members: number; muted: boolean; pinned: boolean;
   last: string | null; last_at: string; unread: number; notice: { body: string; created_at: string; pinned: boolean } | null;
 }
 export interface OAccount { id: string; handle: string; name: string; about: string | null; category: string; logo_url: string | null; color: string; school: string | null; menu: OMenu[]; verified: true }
@@ -48,6 +48,8 @@ async function call<T>(fn: string, args: Record<string, unknown> = {}): Promise<
 export const myDms = async () => (await call<DmRow[]>("my_dms")).data ?? [];
 export const myGroups = async () => (await call<GroupRow[]>("my_groups2")).data ?? [];
 export const myCourseChats = async () => (await call<CourseChat[]>("my_course_chats")).data ?? [];
+/** Every course gets a course chat: send the student's courses so the server makes the missing ones. */
+export const syncCourseChats = (courses: { key: string; code: string; name: string; shared: string | null }[]) => call("sync_course_chats", { p_courses: courses });
 export const courseGroupId = async (shared: string) => (await call<string>("course_group_id", { p_shared: shared })).data;
 export const groupSetMe = (id: string, p: { pinned?: boolean; alias?: string; remark?: string }) => call("group_set_me", { p_group: id, p_pinned: p.pinned ?? null, p_alias: p.alias ?? null, p_remark: p.remark ?? null });
 export const searchChat = async (scope: Scope, id: string, q: string) => (await call<{ id: string; body: string; created_at: string; mine: boolean; name: string }[]>("search_chat", { p_scope: scope, p_id: id, p_q: q })).data ?? [];

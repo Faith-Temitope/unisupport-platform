@@ -3,6 +3,7 @@
 // WeChat's "Chat Info" (the ··· in a chat), full screen: members grid with + and −, group name, QR code,
 // notice, manage, remark, search history, mute, sticky on top, my alias, on-screen names, background,
 // clear history, report, leave. One-to-one chats get the shorter version.
+import { useBackLayer } from "./nav";
 import { Check, ImagePlus, Minus, Plus, QrCode, Search } from "lucide-react";
 import QRCode from "qrcode";
 import { useEffect, useState, type ReactNode } from "react";
@@ -31,13 +32,15 @@ export default function ChatInfo({ scope, id, other, dmState, group, onClose, on
 }) {
   const { flash, setOverlay, setChatView, profile } = useApp();
   const [sub, setSub] = useState<Sub>(null);
+  useBackLayer(!!sub, () => setSub(null));
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [names, setNames] = useState(true);
   useEffect(() => { void Promise.resolve().then(() => setNames(showNames(id))); }, [id]);
   const loadMembers = () => { if (scope === "group") void groupMembers(id).then(setMembers); };
   useEffect(loadMembers, [scope, id]); // eslint-disable-line react-hooks/exhaustive-deps
   const isAdmin = group?.role === "owner" || group?.role === "admin";
-  const course = !!group?.is_course;
+  // Shared course chats follow the course's members; your own course's chat works like any group.
+  const course = !!group?.shared_id;
   const back = () => setSub(null);
 
   async function clear() {
@@ -105,14 +108,14 @@ export default function ChatInfo({ scope, id, other, dmState, group, onClose, on
 
         {scope === "group" && (
           <CellGroup>
-            <Cell label="Group Name" value={group?.name} onClick={() => (isAdmin && !course ? setSub("name") : undefined)} chevron={isAdmin && !course} />
+            <Cell label="Group Name" value={group?.name} onClick={() => (isAdmin && !group?.is_course ? setSub("name") : undefined)} chevron={isAdmin && !group?.is_course} />
             {!course && <Cell label="Group QR Code" right={<QrCode size={18} className="text-[var(--we-sub)]" />} onClick={() => setSub("qr")} />}
             <Cell label="Group Notice" sub={group?.about ? <span className="line-clamp-3">{group.about}</span> : undefined} value={group?.about ? undefined : "Not set"} onClick={() => setSub("notice")} />
             {isAdmin && !course && <Cell label="Manage Group" onClick={() => setSub("manage")} />}
             <Cell label="Remark" value={group?.remark ?? ""} onClick={() => setSub("remark")} />
           </CellGroup>
         )}
-        {course && group?.shared_id && onOpenCourse && <CellGroup><Cell label="Course" value="Open notes and files" onClick={() => onOpenCourse(group.shared_id!)} /></CellGroup>}
+        {group?.is_course && (group.shared_id || group.course_key) && onOpenCourse && <CellGroup><Cell label="Course" value="Open notes and files" onClick={() => onOpenCourse((group.shared_id ?? group.course_key)!)} /></CellGroup>}
         <CellGroup><Cell label="Search Chat History" onClick={() => setSub("search")} /></CellGroup>
         <CellGroup>
           {scope === "dm"

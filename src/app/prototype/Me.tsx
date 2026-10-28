@@ -2,6 +2,7 @@
 
 // Me, laid out like WeChat's: you (with your Birdie ID and QR code), then Services (wallet), Favorites,
 // Moments, your channel, Stickers, verified accounts, and Settings.
+import { useBackLayer } from "./nav";
 import QRCode from "qrcode";
 import { BadgeCheck, ChevronRight, Crown, HelpCircle, Images, KeyRound, QrCode, Settings as Cog, ShieldCheck, Smile, Star, Trash2, Tv, Wallet } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
@@ -21,6 +22,7 @@ export default function Me({ active }: { active: boolean }) {
   const [pinOpen, setPinOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [sub, setSub] = useState<null | "favorites" | "stickers">(null);
+  useBackLayer(!!sub, () => setSub(null));
   const signedIn = auth.status === "in";
   const load = useCallback(() => { if (signedIn) void myManagedOfficials().then(setManaged); }, [signedIn]);
   useEffect(() => { if (active) void Promise.resolve().then(() => { load(); if (signedIn) void refreshWallet(); }); }, [active, load]); // eslint-disable-line react-hooks/exhaustive-deps

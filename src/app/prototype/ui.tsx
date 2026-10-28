@@ -1,5 +1,6 @@
 "use client";
 
+import { useBackLayer } from "./nav";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
@@ -9,6 +10,7 @@ import { useApp } from "./store";
 /** Bottom sheet that always covers the whole phone screen (portalled into the phone). */
 export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title?: string; children: ReactNode }) {
   const { phone } = useApp();
+  useBackLayer(open, onClose);
   if (!phone) return null;
   return createPortal(
     <AnimatePresence>

@@ -3,6 +3,7 @@
 // One conversation, laid out like WeChat: square avatars on both sides, bubbles with tails, the
 // [voice] [input] [emoji] [+] bar, the emoji/sticker panel, the two-page + panel, and the dark
 // long-press menu (Copy, Forward, Favorite, Delete, Quote, Unsend, Translate, Search).
+import { useBackLayer } from "./nav";
 import { AnimatePresence, motion } from "framer-motion";
 import { AudioLines, BellOff, BookOpen, Camera, Contact, Copy, CornerUpLeft, FileText, Forward, Gift, Image as ImageIcon, Languages, MapPin, Mic, Plus, Search, Smile, Sparkles, Star, Trash2, Undo2, Wallet } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -113,6 +114,9 @@ export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
   const [openGift, setOpenGift] = useState<string | null>(null);
   const [opened, setOpened] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
+  useBackLayer(info, () => setInfo(false));
+  useBackLayer(!!panel, () => setPanel(null));
+  useBackLayer(!!pop, () => setPop(null));
   const [more, setMore] = useState(true);
   const [translated, setTranslated] = useState<Record<string, string>>({});
   const [prefsTick, setPrefsTick] = useState(0);

@@ -2,6 +2,7 @@
 
 // A person's profile, WeChat style: name, Birdie ID, region; Edit Contact (remark), Privacy (Chats,
 // Moments, etc. / Chats Only, Hide My Posts, Hide Their Posts), Moments, Channels, More, Send Message.
+import { useBackLayer } from "./nav";
 import { Check, MessageCircle } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { contactInfo, momentMediaUrl, setContactPrefs, type ContactInfo } from "./live/chatData";
@@ -21,6 +22,7 @@ export default function Contact({ id, onBack }: { id: string; onBack: () => void
   const { openDm, setOverlay, flash, setTab, setDiscoverView } = useApp();
   const [c, setC] = useState<ContactInfo | null | undefined>(undefined);
   const [sub, setSub] = useState<Sub>(null);
+  useBackLayer(!!sub, () => setSub(null));
   const load = useCallback(() => contactInfo(id).then(setC), [id]);
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
   if (c === undefined) return <div className="flex flex-1 flex-col bg-[var(--we-bg)]"><WeHeader onBack={onBack} /></div>;

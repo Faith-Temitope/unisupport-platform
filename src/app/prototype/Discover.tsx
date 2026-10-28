@@ -3,13 +3,17 @@
 // Discover, laid out like WeChat's: Moments, Channels, Scan, Shake, Top Stories, Search, People at your
 // school and Mini Programs. Each opens full screen (the bottom bar hides) and Back returns to the list.
 import jsQR from "jsqr";
-import { BookOpen, Bot, Headset, PenLine, Printer, Search, Smartphone, UserRound } from "lucide-react";
+import { BookOpen, Bot, Briefcase, Package, PenLine, Presentation, Printer, Search, Smartphone, Zap } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Head, ListRow } from "./Chats";
 import Explore from "./Explore";
 import MomentsScreen from "./Moments";
 import { OALogo, OAPostView, OAProfileView } from "./Official";
 import { momentsFeed, peopleAtSchool, searchAll, shake, topStories, type ArticleCard, type ChatPerson, type Moment } from "./live/chatData";
+import { JustDoIt } from "./JustDoIt";
+import { navBack, useBackLayer } from "./nav";
+import { InternshipCard, usePlacements } from "./Sponsored";
+import { TutorialsSection } from "./Tutorials";
 import { useApp } from "./store";
 import { Badge, Cell, CellGroup, ChannelsIcon, MiniProgramsIcon, MomentsIcon, PeopleNearbyIcon, ScanIcon, SearchSparkIcon, ShakeIcon, SqAvatar, TopStoriesIcon, WeHeader } from "./we";
 import { ago } from "./Moments";
@@ -31,7 +35,7 @@ export default function Discover({ active }: { active: boolean }) {
     if (v.k === "moments" && latest) { try { localStorage.setItem(SEEN_KEY, latest.created_at); } catch { /* ignore */ } setSeenAt(latest.created_at); }
     go(v);
   };
-  const back = () => go(null);
+  const back = navBack;
   const fresh = !!latest && latest.created_at > seenAt;
 
   if (view) return (
@@ -45,7 +49,7 @@ export default function Discover({ active }: { active: boolean }) {
       {view.k === "search" && <SearchAll onBack={back} />}
       {view.k === "school" && <School onBack={back} />}
       {view.k === "mini" && <Mini onBack={back} />}
-      {view.k === "post" && <OAPostView key={view.id} id={view.id} onBack={() => go({ k: "stories" })} onProfile={(key) => go({ k: "oaProfile", key })} />}
+      {view.k === "post" && <OAPostView key={view.id} id={view.id} onBack={back} onProfile={(key) => go({ k: "oaProfile", key })} />}
       {view.k === "oaProfile" && <OAProfileWrap k={view.key} />}
     </div>
   );
@@ -83,7 +87,7 @@ export default function Discover({ active }: { active: boolean }) {
 
 function OAProfileWrap({ k }: { k: string }) {
   const { setDiscoverView: go, setTab, setChatView } = useApp();
-  return <OAProfileView key={k} keyOrId={k} onBack={() => go(null)} onChat={(id) => { go(null); setTab("chats"); setChatView({ k: "oa", id }); }}
+  return <OAProfileView key={k} keyOrId={k} onBack={navBack} onChat={(id) => { go(null); setTab("chats"); setChatView({ k: "oa", id }); }}
     onPost={(id) => go({ k: "post", id })} onManage={(id) => { go(null); setTab("chats"); setChatView({ k: "manage", id }); }} />;
 }
 
@@ -256,15 +260,42 @@ function School({ onBack }: { onBack: () => void }) {
   );
 }
 
+type MiniSub = null | "tutorials" | "print" | "internships" | "jdi";
+
+/** Birdie's tools. Tutorials, printing, internships and Just Do It used to sit inside Unisupport Help. */
 function Mini({ onBack }: { onBack: () => void }) {
-  const { openPrint, goBirdie, goHelp, setDiscoverView: go, setTab, auth, setAuthOpen } = useApp();
+  const { openPrint, goBirdie, setDiscoverView: go, setTab, auth, setAuthOpen } = useApp();
+  const [sub, setSub] = useState<MiniSub>(null);
+  useBackLayer(!!sub, () => setSub(null));
   const need = (f: () => void) => () => (auth.status === "in" ? f() : setAuthOpen(true));
+  const close = () => setSub(null);
+
+  if (sub === "jdi") return <JustDoIt onBack={close} />;
+  if (sub === "tutorials") return (
+    <div className="flex min-h-0 flex-1 flex-col bg-[var(--paper)]">
+      <WeHeader onBack={close} title="Tutorials" />
+      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pb-24 pt-2"><TutorialsSection active /></div>
+    </div>
+  );
+  if (sub === "print") return (
+    <div className="flex min-h-0 flex-1 flex-col bg-[var(--we-bg)]">
+      <WeHeader onBack={close} title="Print & Deliver" />
+      <CellGroup gap={false}>
+        <Cell icon={<Printer size={22} className="text-[#3D83F7]" />} label="Print a Document" sub="We print it and deliver it to you" onClick={need(() => openPrint({ kind: "print" }))} />
+        <Cell icon={<PenLine size={22} className="text-[#E2553F]" />} label="Handwrite My Work" sub="A real person writes it out by hand" onClick={need(() => openPrint({ kind: "handwrite" }))} />
+        <Cell icon={<Package size={22} className="text-[#F5A623]" />} label="My Orders" onClick={need(() => openPrint({ kind: "orders" }))} />
+      </CellGroup>
+      <a href="/partner" className="mt-5 block text-center text-[13px] text-[var(--we-link)]">Own a print shop? Become a Birdie print partner</a>
+    </div>
+  );
+  if (sub === "internships") return <Internships onBack={close} />;
+
   const apps: { label: string; color: string; icon: ReactNode; run: () => void }[] = [
-    { label: "Print", color: "#3D83F7", icon: <Printer size={26} />, run: need(() => openPrint({ kind: "print" })) },
-    { label: "Handwriting", color: "#E2553F", icon: <PenLine size={26} />, run: need(() => openPrint({ kind: "handwrite" })) },
+    { label: "Tutorials", color: "#1B8A85", icon: <Presentation size={26} />, run: () => setSub("tutorials") },
+    { label: "Print & Deliver", color: "#3D83F7", icon: <Printer size={26} />, run: () => setSub("print") },
+    { label: "Internships & SIWES", color: "#7C4DDB", icon: <Briefcase size={26} />, run: () => setSub("internships") },
+    { label: "Just Do It", color: "#E2553F", icon: <Zap size={26} />, run: need(() => setSub("jdi")) },
     { label: "Birdie AI", color: "#8A2FA3", icon: <Bot size={26} />, run: () => goBirdie({ courseId: "general" }) },
-    { label: "Tutor", color: "#1B8A85", icon: <Headset size={26} />, run: need(() => goHelp({ mode: "mentor", courseId: null })) },
-    { label: "Assignment Help", color: "#F5A623", icon: <UserRound size={26} />, run: need(() => goHelp({ mode: "full", courseId: null })) },
     { label: "Shared Courses", color: "#2F9E5B", icon: <BookOpen size={26} />, run: () => go({ k: "channels" }) },
     { label: "My Courses", color: "#D9467E", icon: <BookOpen size={26} />, run: () => { go(null); setTab("study"); } },
   ];
@@ -273,11 +304,25 @@ function Mini({ onBack }: { onBack: () => void }) {
       <WeHeader onBack={onBack} title="Mini Programs" />
       <div className="px-4 pb-2 pt-3 text-[13px] text-[var(--we-sub)]">Birdie tools</div>
       <div className="grid grid-cols-4 gap-y-5 bg-[var(--we-cell)] px-2 py-5">{apps.map((a) => (
-        <button key={a.label} onClick={a.run} className="flex flex-col items-center gap-2 active:opacity-70">
+        <button key={a.label} onClick={a.run} className="flex min-w-0 flex-col items-center gap-2 active:opacity-70">
           <span className="flex h-14 w-14 items-center justify-center rounded-full text-white" style={{ background: a.color }}>{a.icon}</span>
-          <span className="max-w-full truncate px-1 text-[12px] text-[var(--we-text)]">{a.label}</span>
+          <span className="line-clamp-2 max-w-full px-1 text-center text-[12px] leading-tight text-[var(--we-text)]">{a.label}</span>
         </button>
       ))}</div>
+    </div>
+  );
+}
+
+function Internships({ onBack }: { onBack: () => void }) {
+  const list = usePlacements("internship", undefined, true);
+  return (
+    <div className="flex min-h-0 flex-1 flex-col bg-[var(--paper)]">
+      <WeHeader onBack={onBack} title="Internships & SIWES" />
+      <div className="no-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-24 pt-2">
+        {list.length === 0 ? <p className="px-4 py-12 text-center text-[13.5px] leading-relaxed text-[var(--we-sub)]">Placements and internships for students in your area show up here. Make sure your school and region are on your profile.</p>
+          : list.map((p) => <InternshipCard key={p.id} p={p} />)}
+        <a href="/internships" className="block pt-2 text-center text-[13px] text-[var(--we-link)]">Hiring interns? Post a placement on Birdie</a>
+      </div>
     </div>
   );
 }

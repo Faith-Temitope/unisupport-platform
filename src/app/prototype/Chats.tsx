@@ -3,6 +3,9 @@
 // The Chats tab, laid out like WeChat's: title with search and ⊕, rows with square avatars (groups get
 // the 3x3 member grid), red badges on the avatar, the time top-right and a muted bell. Birdie AI and
 // Unisupport Help are pinned on top. Courses sit in their own folder, like WeChat's Subscriptions.
+import { useHelpData } from "./live/helpData";
+import { navBack, useBackLayer } from "./nav";
+import { syncCourseChats } from "./live/chatData";
 import { AnimatePresence, motion } from "framer-motion";
 import { BadgeCheck, BellOff, Hash, Plus, ScanLine, Search, UserPlus, Users } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -22,17 +25,18 @@ const Help = dynamic(() => import("./Help"), { ssr: false });
 const OfficialManage = dynamic(() => import("./OfficialManage"), { ssr: false });
 
 type Row = { key: string; view: ChatView; name: string; last: string; at: string; unread: number; muted: boolean; pinned: boolean; avatar: ReactNode; tick?: boolean; dot?: boolean;
-  menu?: { kind: "dm" | "group" | "oa"; id: string } };
+  menu?: { kind: "dm" | "group" | "oa"; id: string }; onOpen?: () => void };
 
 export default function Chats({ active }: { active: boolean }) {
-  const { chatView, setChatView, auth, setAuthOpen, setChatBadge, chats: birdieChats, courses, goStudy, flash } = useApp();
+  const { chatView, setChatView, auth, setAuthOpen, setChatBadge, chats: birdieChats, courses, goStudy, goHelp, flash } = useApp();
   const signedIn = auth.status === "in";
   const [dms, setDms] = useState<DmRow[]>([]);
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [oas, setOas] = useState<OARow[]>([]);
   const [courseChats, setCourseChats] = useState<CourseChat[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const history = useRef<ChatView[]>([]);
+  // Writers the Unisupport desk handed you to: each is its own chat, like any other.
+  const { sessions } = useHelpData(null, signedIn);
   const [seenBirdie, setSeenBirdie] = useState(false);
   const [seenHelp, setSeenHelp] = useState(false);
   if (chatView?.k === "birdie" && !seenBirdie) setSeenBirdie(true);
@@ -49,8 +53,18 @@ export default function Chats({ active }: { active: boolean }) {
     return () => clearInterval(t);
   }, [load, active, chatView]);
   useEffect(() => { if (!chatView) void Promise.resolve().then(load); }, [chatView, load]);
+  // Each of your courses has a course chat (made on the server the first time it's seen).
+  const courseList = useMemo(() => courses.map((c) => ({ key: c.id, code: c.code, name: c.name, shared: c.sharedId ?? null })), [courses]);
+  const courseSig = JSON.stringify(courseList);
+  useEffect(() => {
+    if (!signedIn || !courseList.length) return;
+    const t = setTimeout(() => void syncCourseChats(courseList).then(() => load()), 1200);
+    return () => clearTimeout(t);
+  }, [signedIn, courseSig]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A course you deleted keeps its chat on the server, but it leaves your Courses folder.
+  const liveCourseChats = useMemo(() => courseChats.filter((c) => !c.course_key || !c.mine || courses.some((x) => x.id === c.course_key)), [courseChats, courses]);
 
-  const courseUnread = courseChats.filter((c) => !c.muted).reduce((a, c) => a + c.unread, 0);
+  const courseUnread = liveCourseChats.filter((c) => !c.muted).reduce((a, c) => a + c.unread, 0);
   const rows: Row[] = useMemo(() => {
     const r: Row[] = [
       ...dms.map((d) => ({ key: "dm" + d.id, view: { k: "dm", id: d.id } as ChatView, name: d.other.name, last: d.last, at: d.last_at, unread: d.unread, muted: d.muted, pinned: d.pinned,
@@ -61,20 +75,25 @@ export default function Chats({ active }: { active: boolean }) {
       ...oas.map((o) => ({ key: "oa" + o.id, view: { k: "oa", id: o.id } as ChatView, name: o.name, last: o.last ?? o.about ?? "", at: o.last_at, unread: o.unread, muted: o.muted, pinned: o.pinned,
         avatar: <OALogo a={o} size={48} />, tick: true, menu: { kind: "oa" as const, id: o.id } })),
     ];
-    if (courseChats.length) {
-      const c = courseChats[0];
+    for (const w of sessions.filter((x) => x.writers)) {
+      r.push({ key: "w" + w.id, view: { k: "help" }, onOpen: () => goHelp({ mode: w.mode, courseId: null, sessionId: w.id }), name: w.writers!.display_name,
+        last: `Your writer · ${w.writers!.specialization ?? w.title}`, at: w.created_at, unread: 0, muted: false, pinned: false,
+        avatar: <SqAvatar name={w.writers!.display_name} color="#7C4DDB" size={48} /> });
+    }
+    if (liveCourseChats.length) {
+      const c = liveCourseChats[0];
       r.push({ key: "courses", view: { k: "courses" }, name: "Courses", last: `${courseUnread > 1 ? `[${courseUnread} message(s)] ` : ""}${c.code}: ${c.last ?? c.notice?.body ?? "Course chat"}`, at: c.last_at, unread: 0, dot: courseUnread > 0, muted: false, pinned: false, avatar: <CoursesFolderIcon size={48} /> });
     }
     return r.sort((a, b) => Number(b.pinned) - Number(a.pinned) || (b.at || "").localeCompare(a.at || ""));
-  }, [dms, groups, oas, courseChats, courseUnread]);
+  }, [dms, groups, oas, liveCourseChats, courseUnread, sessions, goHelp]);
   const total = rows.filter((r) => !r.muted).reduce((a, r) => a + r.unread, 0) + courseUnread;
   useEffect(() => { setChatBadge(total); }, [total, setChatBadge]);
 
-  const go = (v: ChatView) => { history.current.push(chatView); setChatView(v); };
-  const back = () => { const prev = history.current.pop(); setChatView(prev ?? null); };
-  function openCourse(sharedId: string) {
-    const cc = courseChats.find((c) => c.shared_id === sharedId);
-    const local = courses.find((c) => c.sharedId === sharedId || (cc?.course_id && (c.sourceCourseId === cc.course_id || c.id === cc.course_id)));
+  const go = (v: ChatView) => setChatView(v);
+  const back = navBack;
+  function openCourse(sharedOrKey: string) {
+    const cc = liveCourseChats.find((c) => c.shared_id === sharedOrKey);
+    const local = courses.find((c) => c.id === sharedOrKey || c.sharedId === sharedOrKey || (cc?.course_id && (c.sourceCourseId === cc.course_id || c.id === cc.course_id)));
     if (!local) return flash("Open this course from Courses");
     goStudy({ courseId: local.id, tab: "board" });
   }
@@ -83,16 +102,16 @@ export default function Chats({ active }: { active: boolean }) {
 
   return (
     <div className="relative flex h-full flex-col bg-[var(--we-bg)]">
-      {seenBirdie && <div className="absolute inset-0 z-10 flex-col bg-[var(--paper)]" style={{ display: view?.k === "birdie" ? "flex" : "none" }}><Birdie active={active && view?.k === "birdie"} onBack={back} /></div>}
-      {seenHelp && <div className="absolute inset-0 z-10 flex-col bg-[var(--paper)]" style={{ display: view?.k === "help" ? "flex" : "none" }}><Help active={active && view?.k === "help"} onBack={back} /></div>}
+      {seenBirdie && <div className="absolute inset-0 z-40 flex-col bg-[var(--paper)]" style={{ display: view?.k === "birdie" ? "flex" : "none" }}><Birdie active={active && view?.k === "birdie"} onBack={back} /></div>}
+      {seenHelp && <div className="absolute inset-0 z-40 flex-col bg-[var(--paper)]" style={{ display: view?.k === "help" ? "flex" : "none" }}><Help active={active && view?.k === "help"} onBack={back} /></div>}
       {view && view.k !== "birdie" && view.k !== "help" && (
-        <div className="absolute inset-0 z-10 flex flex-col bg-[var(--we-bg)]">
+        <div className="absolute inset-0 z-40 flex flex-col bg-[var(--we-bg)]">
           {view.k === "dm" && <ChatRoom key={`dm${view.id}`} scope="dm" id={view.id} onBack={back} />}
           {view.k === "group" && <ChatRoom key={`g${view.id}`} scope="group" id={view.id} onBack={back} onOpenCourse={openCourse} />}
           {view.k === "oa" && <OAChat key={view.id} id={view.id} onBack={back} onProfile={(key) => go({ k: "oaProfile", key })} onPost={(id) => go({ k: "post", id })} />}
           {view.k === "oaProfile" && <OAProfileView key={view.key} keyOrId={view.key} onBack={back} onChat={(id) => go({ k: "oa", id })} onPost={(id) => go({ k: "post", id })} onManage={(id) => go({ k: "manage", id })} />}
           {view.k === "post" && <OAPostView key={view.id} id={view.id} onBack={back} onProfile={(key) => go({ k: "oaProfile", key })} />}
-          {view.k === "courses" && <CourseFolder rows={courseChats} onBack={back} onOpen={(gid) => go({ k: "group", id: gid })} />}
+          {view.k === "courses" && <CourseFolder rows={liveCourseChats} onBack={back} onOpen={(gid) => go({ k: "group", id: gid })} />}
           {view.k === "verified" && <VerifiedDirectory onBack={back} onProfile={(key) => go({ k: "oaProfile", key })} />}
           {view.k === "manage" && <OfficialManage id={view.id} onBack={back} onPost={(id) => go({ k: "post", id })} />}
         </div>
@@ -105,9 +124,12 @@ export default function Chats({ active }: { active: boolean }) {
 function ChatList({ rows, loaded, signedIn, birdieLast, open, onSignIn, reload }: {
   rows: Row[]; loaded: boolean; signedIn: boolean; birdieLast: string; open: (v: ChatView) => void; onSignIn: () => void; reload: () => void;
 }) {
-  const { flash, setTab, setDiscoverView } = useApp();
+  const { flash, setTab, setDiscoverView, goHelp } = useApp();
+  const openHelp = () => goHelp({ mode: "full", courseId: null });
   const [menu, setMenu] = useState(false);
   const [searching, setSearching] = useState(false);
+  useBackLayer(searching, () => setSearching(false));
+  useBackLayer(menu, () => setMenu(false));
   const [sheet, setSheet] = useState<null | "add" | "group" | "join">(null);
   const [rowMenu, setRowMenu] = useState<Row | null>(null);
   const press = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -128,7 +150,7 @@ function ChatList({ rows, loaded, signedIn, birdieLast, open, onSignIn, reload }
 
   return (
     <div className="flex h-full flex-col">
-      <div className="relative flex h-12 shrink-0 items-center justify-center bg-[var(--we-bg)]">
+      <div className="relative z-30 flex h-12 shrink-0 items-center justify-center bg-[var(--we-bg)]">
         <span className="text-[16.5px] font-semibold text-[var(--we-text)]">Birdie</span>
         <div className="absolute right-2 flex items-center text-[var(--we-text)]">
           <button onClick={() => setSearching(true)} aria-label="Search" className="flex h-10 w-10 items-center justify-center"><Search size={21} /></button>
@@ -159,7 +181,7 @@ function ChatList({ rows, loaded, signedIn, birdieLast, open, onSignIn, reload }
         <ListRow pinned avatar={<span className="flex h-12 w-12 items-center justify-center rounded-[6px] bg-gradient-to-br from-[#C05BD6] to-[#8A2FA3] text-[21px] font-bold text-white">B</span>}
           name="Birdie AI" tick last={birdieLast} onClick={() => open({ k: "birdie" })} />
         <ListRow pinned avatar={<span className="flex h-12 w-12 items-center justify-center rounded-[6px] bg-[#1F1A2B] text-[18px] font-bold text-[#E6B3F2]">U</span>}
-          name="Unisupport Help" tick last="Writers, tutorials, printing, internships" onClick={() => (signedIn ? open({ k: "help" }) : onSignIn())} />
+          name="Unisupport Help" tick last="Tell us what you need. We'll get it done." onClick={() => (signedIn ? openHelp() : onSignIn())} />
         {!signedIn ? (
           <div className="px-8 py-16 text-center">
             <p className="text-[14px] leading-relaxed text-[var(--we-sub)]">Sign in to chat with classmates, make groups, send money and giveaways, and follow your SUG and companies offering SIWES.</p>
@@ -169,7 +191,7 @@ function ChatList({ rows, loaded, signedIn, birdieLast, open, onSignIn, reload }
           <p className="px-8 py-16 text-center text-[14px] leading-relaxed text-[var(--we-sub)]">No chats yet. Tap ⊕ to add classmates by their Birdie ID, start a group, or follow verified accounts.</p>
         ) : rows.map((r) => (
           <div key={r.key} {...hold(r)}>
-            <ListRow avatar={r.avatar} name={r.name} tick={r.tick} last={r.last} time={listTime(r.at)} unread={r.muted ? 0 : r.unread} dot={r.dot || (r.muted && r.unread > 0)} muted={r.muted} pinned={r.pinned} onClick={() => open(r.view)} />
+            <ListRow avatar={r.avatar} name={r.name} tick={r.tick} last={r.last} time={listTime(r.at)} unread={r.muted ? 0 : r.unread} dot={r.dot || (r.muted && r.unread > 0)} muted={r.muted} pinned={r.pinned} onClick={() => (r.onOpen ? r.onOpen() : open(r.view))} />
           </div>
         ))}
       </div>
@@ -220,7 +242,7 @@ function GlobalSearch({ rows, onClose, open }: { rows: Row[]; onClose: () => voi
         <button onClick={onClose} className="px-1 text-[15.5px] text-[var(--we-link)]">Cancel</button>
       </div>
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-10">
-        {chats.length > 0 && <><Head t="Chats" /><div className="bg-[var(--we-cell)]">{chats.map((r) => <ListRow key={r.key} avatar={r.avatar} name={r.name} last={r.last} onClick={() => open(r.view)} />)}</div></>}
+        {chats.length > 0 && <><Head t="Chats" /><div className="bg-[var(--we-cell)]">{chats.map((r) => <ListRow key={r.key} avatar={r.avatar} name={r.name} last={r.last} onClick={() => (r.onOpen ? r.onOpen() : open(r.view))} />)}</div></>}
         {res.people.length > 0 && <><Head t="People" /><div className="bg-[var(--we-cell)]">{res.people.map((p) => <ListRow key={p.id} avatar={<SqAvatar name={p.name} color={p.color} size={48} />} name={p.name} last={[p.handle && `Birdie ID: ${p.handle}`, p.school].filter(Boolean).join(" · ")} onClick={() => setOverlay({ t: "contact", id: p.id })} />)}</div></>}
         {res.accounts.length > 0 && <><Head t="Verified Accounts" /><div className="bg-[var(--we-cell)]">{res.accounts.map((a) => <ListRow key={a.id} avatar={<OALogo a={a} size={48} />} name={a.name} tick last={a.about ?? ""} onClick={() => open({ k: "oaProfile", key: a.handle })} />)}</div></>}
         {res.articles.length > 0 && <><Head t="Articles" /><div className="bg-[var(--we-cell)]">{res.articles.map((a) => <ListRow key={a.id} avatar={<OALogo a={a.account} size={48} />} name={a.title} last={a.account.name} onClick={() => open({ k: "post", id: a.id })} />)}</div></>}
