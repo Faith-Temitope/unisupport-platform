@@ -67,6 +67,7 @@ export interface SharedCourse { id: string; ownerId: string; ownerName?: string;
 
 export interface CvEntry { title: string; org: string; when: string; desc: string; link: string; final?: boolean }
 export interface Profile { name: string; handle: string; level: string; program: string; institution: string; country: string; region?: string; links?: Link[]; bio: string; onboarded: boolean;
+  /** Private: matric/student ID number (checked against the ID card), address, and what you're into. */ matric?: string; address?: string; interests?: string[];
   /** Me > My CV: what the student adds on top of what Birdie already knows. */
   cv?: { summary: string; projects: CvEntry[]; experience: CvEntry[]; skills: string[] } }
 export interface Settings {
@@ -572,7 +573,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
       const err = await upsertMyChannel(uidNow, channelFields(profile));
-      if (err === "handle_taken") await upsertMyChannel(uidNow, { ...channelFields(profile), handle: null });
+      // Taken, or changed too recently (once a week): save everything else and keep the old one.
+      if (err === "handle_taken" || err === "handle_weekly") await upsertMyChannel(uidNow, { ...channelFields(profile), handle: null });
     }, 1500);
     return () => clearTimeout(t);
   }, [auth.status, auth.userId, profile]);

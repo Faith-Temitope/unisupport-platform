@@ -19,6 +19,7 @@ import { accentVars, useDark } from "./theme";
 import { TabChats, TabCourses, TabDiscover, TabMe } from "./we";
 import { PayToHost, payTo } from "./MeServices";
 import { NoticesHost, openAchievements, openNotifications } from "./Notifications";
+import { RepDeskHost } from "./RepDesk";
 
 // Screens load only when first opened, so a cheap phone downloads and runs less at startup.
 const Discover = dynamic(() => import("./Discover"), { ssr: false });
@@ -189,6 +190,7 @@ function Shell() {
               <Mascot />
               <PayToHost />
               <NoticesHost />
+              <RepDeskHost />
               {seen.recorder && <Recorder />}
               <Sheets />
               {seen.overlays && <Overlays />}

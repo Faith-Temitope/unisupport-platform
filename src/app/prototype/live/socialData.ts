@@ -46,7 +46,7 @@ export async function upsertMyChannel(userId: string, c: Omit<Channel, "id" | "c
   const links = c.links.map((l) => ({ label: l.label.trim().slice(0, 40), url: cleanUrl(l.url) })).filter((l): l is Link => !!l.url).slice(0, 5);
   const { error } = await createClient().from("channels").upsert({ id: userId, ...c, handle: c.handle || null, links, updated_at: new Date().toISOString() });
   if (!error) return null;
-  return /channels_handle_key|duplicate key/i.test(error.message) ? "handle_taken" : error.message;
+  return /channels_handle_key|duplicate key/i.test(error.message) ? "handle_taken" : /handle_weekly/.test(error.message) ? "handle_weekly" : error.message;
 }
 
 export async function fetchChannelStats(id: string, me?: string): Promise<{ followers: number; likes: number; iFollow: boolean }> {

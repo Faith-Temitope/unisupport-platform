@@ -3,7 +3,7 @@
 // Discover, laid out like WeChat's: Moments, Channels, Scan, Shake, Top Stories, Search, People at your
 // school and Mini Programs. Each opens full screen (the bottom bar hides) and Back returns to the list.
 import jsQR from "jsqr";
-import { BedDouble, BookOpen, Bot, Briefcase, Camera, Heart, PenLine, QrCode, SearchCheck, Tag, ImagePlus, LayoutGrid, Plus, ScanLine, Search, Smartphone, Zap } from "lucide-react";
+import { BadgeCheck, BedDouble, BookOpen, Bot, Briefcase, Camera, Heart, PenLine, QrCode, SearchCheck, Tag, ImagePlus, LayoutGrid, Plus, ScanLine, Search, Smartphone, Zap } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Head, ListRow } from "./Chats";
 import Campus, { hasNewCampusUpdate } from "./Campus";
@@ -14,6 +14,8 @@ import { OALogo, OAPostView, OAProfileView } from "./Official";
 import { momentsFeed, peopleAtSchool, searchAll, shake, topStories, type ArticleCard, type ChatPerson, type Moment } from "./live/chatData";
 import { JustDoIt } from "./JustDoIt";
 import { Board } from "./Boards";
+import { SchoolVerifyPage } from "./Verify";
+import { mySchoolVerification } from "./live/verifyData";
 import { friendsHeartsRecent } from "./live/notifyData";
 import { payTo } from "./MeServices";
 import { groupPreview, joinGroup } from "./live/groupData";
@@ -391,6 +393,9 @@ function School({ onBack }: { onBack: () => void }) {
   const { setOverlay, profile, setProfile, flash } = useApp();
   const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState("");
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  const [verified, setVerified] = useState<boolean | null>(null);
+  useEffect(() => { void mySchoolVerification().then((v) => setVerified(v.current)); }, [verifyOpen]);
   const [items, setItems] = useState<Awaited<ReturnType<typeof peopleAtSchool>> | null>(null);
   useEffect(() => { void peopleAtSchool().then(setItems); }, []);
   return (
@@ -401,13 +406,20 @@ function School({ onBack }: { onBack: () => void }) {
           <PenLine size={20} className="shrink-0 text-[var(--we-accent)]" />
           <span className="min-w-0 flex-1"><span className="block text-[15.5px] text-[var(--we-text)]">My Status</span><span className="block truncate text-[13px] text-[var(--we-sub)]">{profile.bio || "What's up? Classmates see it here"}</span></span>
         </button>
+        {verified === false && profile.institution && (
+          <button onClick={() => setVerifyOpen(true)} className="flex w-full items-center gap-3 border-t border-[var(--we-sep)] bg-[var(--we-cell)] px-4 py-3 text-left active:bg-[var(--we-bg)]">
+            <BadgeCheck size={20} className="shrink-0 text-[#2AAE67]" />
+            <span className="min-w-0 flex-1"><span className="block text-[15.5px] text-[var(--we-text)]">Verify you go here</span><span className="block truncate text-[13px] text-[var(--we-sub)]">Snap your student ID card and get the tick</span></span>
+          </button>
+        )}
         {items === null ? <p className="py-10 text-center text-[13px] text-[var(--we-sub)]">Loading...</p>
           : items.length === 0 ? <p className="px-10 py-16 text-center text-[14px] leading-relaxed text-[var(--we-sub)]">{profile.institution ? "No one else from your school is on Birdie yet." : "Add your school in Settings to see classmates on Birdie."}</p>
           : <>
             <div className="px-4 pb-1.5 pt-3 text-[13px] text-[var(--we-sub)]">{items[0]?.school ?? profile.institution}</div>
-            <div className="bg-[var(--we-cell)]">{items.map((p) => <ListRow key={p.id} avatar={<SqAvatar name={p.name} color={p.color} size={44} />} name={p.name} last={p.status || [p.program, p.level && `${p.level} level`].filter(Boolean).join(" · ") || (p.handle ? `@${p.handle}` : "")} onClick={() => setOverlay({ t: "contact", id: p.id })} />)}</div>
+            <div className="bg-[var(--we-cell)]">{items.map((p) => <ListRow key={p.id} tick={!!p.verified} avatar={<SqAvatar name={p.name} color={p.color} size={44} />} name={p.name} last={p.status || [p.program, p.level && `${p.level} level`].filter(Boolean).join(" · ") || (p.handle ? `@${p.handle}` : "")} onClick={() => setOverlay({ t: "contact", id: p.id })} />)}</div>
           </>}
       </div>
+      <SchoolVerifyPage open={verifyOpen} onClose={() => setVerifyOpen(false)} />
       <Page open={editing} onClose={() => setEditing(false)} title="My Status"
         right={<button onClick={() => { setProfile({ bio: status.trim() }); setEditing(false); flash(status.trim() ? "Status set" : "Status cleared"); }} className="mr-2 rounded-[4px] bg-[var(--we-accent)] px-3 py-1.5 text-[14px] font-medium text-white">Done</button>}>
         <div className="mt-2 bg-[var(--we-cell)] px-4 py-3">

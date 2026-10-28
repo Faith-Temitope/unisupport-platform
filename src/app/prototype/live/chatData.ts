@@ -16,6 +16,7 @@ export interface DmRow { id: string; other: ChatPerson; pinned: boolean; muted: 
 export interface GroupRow {
   id: string; name: string; about: string | null; role: "owner" | "admin" | "member"; muted: boolean; invite_code: string | null; members: number; last: string | null; last_at: string | null; unread: number;
   pinned: boolean; remark: string | null; alias: string | null; is_course: boolean; shared_id: string | null; course_key?: string | null; avatars: { name: string; color: string }[];
+  rep_kind?: "info" | "general" | null; announce_only?: boolean;
 }
 export interface CourseChat {
   group_id: string; shared_id: string | null; course_id: string | null; course_key: string | null; code: string; name: string; owner: ChatPerson; mine: boolean; members: number; muted: boolean; pinned: boolean;
@@ -175,7 +176,7 @@ export const oaDeletePost = (id: string) => call("oa_delete_post", { p_id: id })
 export const oaUpdate = (id: string, p: Record<string, unknown>) => call<OAAdminInfo>("oa_update", { p_oa: id, p });
 export const oaAddAdmin = (id: string, handle: string) => call("oa_add_admin", { p_oa: id, p_handle: handle });
 export const oaRemoveAdmin = (id: string, user: string) => call("oa_remove_admin", { p_oa: id, p_user: user });
-export const applyOfficial = (p: Record<string, string>) => call<string>("apply_official", { p });
+export const applyOfficial = (p: Record<string, unknown>) => call<string>("apply_official", { p });
 export const myOfficialApplications = async () => (await call<{ id: string; name: string; status: string; created_at: string; oa_id: string | null }[]>("my_official_applications")).data ?? [];
 
 /** Upload a logo, cover photo or video for a verified account. Returns its public link. */
@@ -287,5 +288,5 @@ export async function momentMediaUrl(path: string): Promise<string | null> {
 export type ArticleCard = OAPostCard & { account: OAccount; following?: boolean };
 export const topStories = async (before?: string) => (await call<ArticleCard[]>("top_stories", { p_before: before ?? null })).data ?? [];
 export const searchAll = async (q: string) => (await call<{ people: (ChatPerson & { school: string | null; is_friend: boolean })[]; accounts: OAccount[]; articles: ArticleCard[] }>("search_all", { p_q: q })).data ?? { people: [], accounts: [], articles: [] };
-export const peopleAtSchool = async () => (await call<(ChatPerson & { school: string | null; program: string | null; level: string | null; status: string | null; is_friend: boolean })[]>("people_at_school")).data ?? [];
+export const peopleAtSchool = async () => (await call<(ChatPerson & { school: string | null; program: string | null; level: string | null; status: string | null; is_friend: boolean; verified?: boolean })[]>("people_at_school")).data ?? [];
 export const shake = async () => (await call<(ChatPerson & { school: string | null; is_friend: boolean }) | null>("shake")).data;

@@ -100,7 +100,7 @@ type Panel = null | "emoji" | "plus";
 type Pop = { m: ChatMsg; x: number; y: number; above: boolean };
 
 export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
-  const { flash, setOverlay, openDm, setWalletOpen, profile, goBirdie, chatBadge, courses, settings, auth } = useApp();
+  const { flash, setOverlay, openDm, setWalletOpen, profile, goBirdie, chatBadge, courses, settings, auth, isRep } = useApp();
   const meName = profile.name || "Me";
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -197,7 +197,7 @@ export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
   // it and puts it on everyone's class timetable, with reminders. The rep can undo it.
   const [added, setAdded] = useState<{ id: string; line: string } | null>(null);
   async function maybeEvent(text: string) {
-    if (scope !== "group" || !group?.is_course || (group.role !== "owner" && group.role !== "admin") || !looksLikeEvent(text)) return;
+    if (!isRep || scope !== "group" || !group?.is_course || (group.role !== "owner" && group.role !== "admin") || !looksLikeEvent(text)) return;
     const now = new Date();
     const today = now.toLocaleDateString("en-GB", { timeZone: "Africa/Lagos", weekday: "long", day: "numeric", month: "long", year: "numeric" });
     const r = await askAI({ brain: "spark", tier: "quick", feature: "chat",
@@ -386,6 +386,8 @@ export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
   }
 
   const isGroupAdmin = group?.role === "owner" || group?.role === "admin";
+  // A rep's Information group: only the rep (and Birdie, for them) posts.
+  const readOnlyGroup = scope === "group" && !!group?.announce_only && !isGroupAdmin;
   // The server only allows unsending your own message within 10 minutes (admins: any message in their group).
   const canUnsend = (m: ChatMsg) => !["transfer", "packet", "recalled"].includes(m.kind) && (m.mine || (scope === "group" && isGroupAdmin));
   const title = scope === "dm" ? other?.name ?? "" : group ? `${group.remark || group.name}(${group.members})` : "";
@@ -441,14 +443,14 @@ export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
           const time = showTime ? <div className="pb-3 text-center text-[12px] text-[var(--we-sub)]">{stamp(m.created_at)}</div> : null;
           if (m.system) return <div key={m.id}>{time}<div className="mx-auto w-fit max-w-[80%] rounded-[4px] bg-black/10 px-2 py-0.5 text-center text-[12px] text-[var(--we-sub)]">{m.body}</div></div>;
           if (m.kind === "recalled") return <div key={m.id}>{time}<div className="text-center text-[12px] text-[var(--we-sub)]">{m.mine ? "You recalled a message" : `"${scope === "group" ? m.name : other?.name}" recalled a message`}</div></div>;
-          const bm = m.meta as { birdie?: boolean; asked_by?: string };
+          const bm = m.meta as { birdie?: boolean; asked_by?: string; rep?: boolean };
           if (bm.birdie) return (
             <div key={m.id}>
               {time}
               <div className="flex items-start gap-2.5">
                 <BirdieAvatar />
                 <div className="min-w-0 max-w-[78%]">
-                  <div className="mb-1 text-[12px] text-[var(--we-sub)]">Birdie AI{bm.asked_by ? ` · for ${bm.asked_by}` : ""}</div>
+                  <div className="mb-1 text-[12px] text-[var(--we-sub)]">{bm.rep ? `Birdie · for ${bm.asked_by || "the course rep"}, course rep` : `Birdie AI${bm.asked_by ? ` · for ${bm.asked_by}` : ""}`}</div>
                   <div {...holdProps(m)} className="relative select-none rounded-[4px] bg-[var(--we-bubble)] px-3 py-[9px] text-[15px] leading-[1.45] text-[var(--we-text)]">
                     <span className="absolute -left-1 top-[13px] h-2.5 w-2.5 rotate-45 bg-[var(--we-bubble)]" />
                     <div className="relative"><Rich text={m.body} /></div>
@@ -563,6 +565,9 @@ export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
           <button onClick={() => { setAskBirdie(null); setDraft((d) => d.replace(/@Birdie\s?/gi, "")); }} aria-label="Cancel" className="text-[18px] leading-none">×</button>
         </div>
       )}
+      {readOnlyGroup ? (
+        <div className="shrink-0 border-t border-[var(--we-sep)] bg-[var(--we-bar)] px-4 py-3.5 text-center text-[14px] text-[var(--we-sub)]">Only the course rep posts here</div>
+      ) : (
       <div className="flex shrink-0 items-end gap-2 border-t border-[var(--we-sep)] bg-[var(--we-bar)] px-2 pb-2 pt-2 text-[var(--we-text)]">
         <button onClick={() => { setVoice((v) => !v); setPanel(null); }} aria-label={voice ? "Keyboard" : "Voice message"} className="mb-[3px] shrink-0 active:opacity-60">{voice ? <KeyboardCircle /> : <VoiceCircle />}</button>
         {voice ? (
@@ -584,6 +589,7 @@ export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
           ? <button onClick={() => void sendText()} className="mb-[2px] h-8 shrink-0 rounded-[4px] bg-[var(--we-accent)] px-3 text-[14px] font-medium text-white">Send</button>
           : <button onClick={() => setPanel((p) => (p === "plus" ? null : "plus"))} aria-label="More" className="mb-[3px] shrink-0 active:opacity-60"><PlusCircle /></button>}
       </div>
+      )}
       <AnimatePresence initial={false}>
         {panel === "emoji" && <motion.div key="emoji" initial={{ height: 0 }} animate={{ height: 270 }} exit={{ height: 0 }} className="shrink-0 overflow-hidden bg-[var(--we-bar)]"><EmojiPanel onEmoji={(e) => setDraft((d) => d + e)} onSend={() => void sendText()} canSend={!!draft.trim()} onBackspace={() => setDraft((d) => Array.from(d).slice(0, -1).join(""))} onSticker={(meta) => void post("sticker", "", meta)} /></motion.div>}
         {panel === "plus" && <motion.div key="plus" initial={{ height: 0 }} animate={{ height: 230 }} exit={{ height: 0 }} className="shrink-0 overflow-hidden bg-[var(--we-bar)]"><PlusPanel scope={scope} run={(t) => {
@@ -751,7 +757,7 @@ function ForwardSheet({ msg, onClose, onSend }: { msg: ChatMsg | null; onClose: 
 
 type Priv = { id: string; at: string; q: string; a: string | null };
 
-const BirdieAvatar = ({ size = 40 }: { size?: number }) => (
+export const BirdieAvatar = ({ size = 40 }: { size?: number }) => (
   <span className="flex shrink-0 items-center justify-center rounded-[6px] bg-gradient-to-br from-[#C05BD6] to-[#8A2FA3] font-bold text-white" style={{ width: size, height: size, fontSize: size * 0.45 }}>B</span>
 );
 

@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   ]);
   const pub = keys?.find((k) => k.key === "vapid_public")?.value, priv = keys?.find((k) => k.key === "vapid_private")?.value;
   if (!pub || !priv || !subs?.length) return NextResponse.json({ ok: true, skipped: true });
-  webpush.setVapidDetails("mailto:hello@getunisupport.xyz", pub, priv);
+  webpush.setVapidDetails("mailto:hello@theklvr.com", pub, priv);
 
   const payload = JSON.stringify({ title: n.title, body: n.body ?? "", url: n.link ?? "/prototype", tag: id });
   await Promise.all(subs.map(async (s) => {

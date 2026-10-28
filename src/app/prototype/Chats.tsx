@@ -7,7 +7,8 @@ import { useHelpData } from "./live/helpData";
 import { navBack, useBackLayer } from "./nav";
 import { friendRequests, friendRespond, groupDisband, syncCourseChats, type FriendRequest } from "./live/chatData";
 import { AnimatePresence, motion } from "framer-motion";
-import { BadgeCheck, BellOff, Hash, Plus, ScanLine, Search, UserPlus, Users } from "lucide-react";
+import { BadgeCheck, BellOff, Hash, Megaphone, Plus, ScanLine, Search, UserPlus, Users } from "lucide-react";
+import { openRepDesk } from "./RepDesk";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import ChatRoom from "./ChatRoom";
@@ -123,7 +124,7 @@ export default function Chats({ active }: { active: boolean }) {
 function ChatList({ rows, courseRow, requests, helpLast, loaded, signedIn, birdieLast, open, onSignIn, reload }: {
   rows: Row[]; courseRow: Row | null; requests: number; helpLast: string; loaded: boolean; signedIn: boolean; birdieLast: string; open: (v: ChatView) => void; onSignIn: () => void; reload: () => void;
 }) {
-  const { flash, setTab, setDiscoverView } = useApp();
+  const { flash, setTab, setDiscoverView, isRep } = useApp();
   const [menu, setMenu] = useState(false);
   const [searching, setSearching] = useState(false);
   useBackLayer(searching, () => setSearching(false));
@@ -184,6 +185,8 @@ function ChatList({ rows, courseRow, requests, helpLast, loaded, signedIn, birdi
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto bg-[var(--we-cell)] pb-28">
         <ListRow pinned avatar={<span className="flex h-12 w-12 items-center justify-center rounded-[6px] bg-gradient-to-br from-[#C05BD6] to-[#8A2FA3] text-[21px] font-bold text-white">B</span>}
           name="Birdie AI" tick last={birdieLast} onClick={() => open({ k: "birdie" })} />
+        {isRep && <ListRow pinned avatar={<span className="flex h-12 w-12 items-center justify-center rounded-[6px] bg-[#3D83F7] text-white"><Megaphone size={24} /></span>}
+          name="Rep Desk" last="Tell Birdie, it tells your class" onClick={openRepDesk} />}
         <ListRow pinned avatar={<span className="flex h-12 w-12 items-center justify-center rounded-[6px] bg-[#1F1A2B] text-[18px] font-bold text-[#E6B3F2]">U</span>}
           name="Unisupport Help" tick last={helpLast} onClick={() => (signedIn ? open({ k: "help" }) : onSignIn())} />
         {requests > 0 && <ListRow pinned avatar={<span className="flex h-12 w-12 items-center justify-center rounded-[6px] bg-[#FA9D3B] text-white"><UserPlus size={26} /></span>}

@@ -3,9 +3,10 @@
 // Courses > Today and the Timetable: classes, tests, exams and deadlines from every course chat you're in.
 // Reps (course owners and admins) add weekly classes and one-off events here, or just post them in the
 // course chat and Birdie adds them. Everyone gets a reminder the day before and an hour before.
-import { CalendarDays, ChevronRight, Trash2 } from "lucide-react";
+import { CalendarDays, ChevronRight, Megaphone, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { addCourseEvent, addCourseSlot, deleteCourseEvent, deleteCourseSlot, mySchedule, type CourseEvent, type CourseSlot, type EventKind, type Schedule } from "./live/campusData";
+import { openRepDesk } from "./RepDesk";
 import { useApp } from "./store";
 import { Page } from "./ui";
 
@@ -113,7 +114,7 @@ export function TodaySchedule({ onOpen }: { onOpen: () => void }) {
 
 /** The full timetable: this week day by day, everything upcoming, and the rep's tools. */
 export function TimetablePage({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { flash } = useApp();
+  const { flash, isRep } = useApp();
   const { s, load } = useSchedule(open);
   const [view, setView] = useState<"week" | "upcoming" | "manage">("week");
   const [since] = useState(() => Date.now() - 3600e3); // "upcoming" = from an hour ago
@@ -126,7 +127,8 @@ export function TimetablePage({ open, onClose }: { open: boolean; onClose: () =>
     const r = it.event ? await deleteCourseEvent(it.event.id) : it.slot ? await deleteCourseSlot(it.slot.id) : null;
     if (r?.error) flash("Couldn't remove it"); else void load();
   }
-  const canManage = (s?.manage.length ?? 0) > 0;
+  // Only approved course reps manage the timetable (the server checks too).
+  const canManage = isRep && (s?.manage.length ?? 0) > 0;
   return (
     <Page open={open} onClose={onClose} title="Timetable">
       <div className="flex gap-6 bg-[var(--we-bg)] px-4 pb-2 pt-1 text-[15px]">
@@ -177,7 +179,11 @@ function RepTools({ s, onChanged, onDelete }: { s: Schedule; onChanged: () => vo
   const slots = s.slots.filter((x) => x.group_id === group);
   return (
     <div className="pb-10">
-      <p className="px-4 pt-3 text-[12.5px] leading-snug text-[var(--we-sub)]">You can also just post it in the course chat (&quot;CSC 301 test Thursday 10am LT2&quot;) and Birdie adds it for everyone.</p>
+      <button onClick={openRepDesk} className="mt-2 flex w-full items-center gap-3 bg-[var(--we-cell)] px-4 py-3 text-left">
+        <span className="flex h-10 w-10 items-center justify-center rounded-[6px] bg-[#3D83F7] text-white"><Megaphone size={20} /></span>
+        <span className="min-w-0 flex-1"><span className="block text-[16px] text-[var(--we-text)]">Rep Desk</span><span className="block text-[13px] text-[var(--we-sub)]">Tell Birdie, it tells your class</span></span>
+        <ChevronRight size={18} className="text-[var(--we-hint)]" />
+      </button>
       <div className="px-4 pb-1.5 pt-3 text-[13px] text-[var(--we-sub)]">Course</div>
       <div className="bg-[var(--we-cell)] px-4 py-3"><select value={group} onChange={(e) => setGroup(e.target.value)} className={field}>{s.manage.map((m) => <option key={m.group_id} value={m.group_id}>{m.course}</option>)}</select></div>
 

@@ -1,17 +1,18 @@
 "use client";
 
-import { CountryPicker, RegionPicker, SchoolPicker } from "./PlacePicker";
 import { PushToggle } from "./PushToggle";
 import Buddy, { SKINS } from "@/components/brand/Buddy";
 import { Downloads } from "./Downloads";
-import { ChevronLeft, Bell, BookOpen, Bot as BotIcon, Compass, CreditCard, Eye, FileText, Download, Lock, Palette, ShieldCheck, Sparkles, Trash2, Type, UserRound, X } from "lucide-react";
-import { cleanUrl } from "./live/socialData";
+import { ChevronLeft, Bell, BookOpen, Bot as BotIcon, Compass, CreditCard, Eye, FileText, Download, Lock, Palette, ShieldCheck, Sparkles, Type, UserRound } from "lucide-react";
+import { pushTest } from "./live/verifyData";
+import { ProfileSettingsPage } from "./ProfileSettings";
+import { DataRows, SecurityRows } from "./Security";
 import { RepPanel } from "./RepPanel";
 import { useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase";
 import { initials } from "./PostCard";
 import { naira, useApp } from "./store";
-import { Avatar, Btn, Screen, Segmented, Sheet, TextField, Toggle } from "./ui";
+import { Avatar, Page, Screen, Segmented, Sheet, Toggle } from "./ui";
 import { BirdieSettings } from "./Companions";
 import { useBackLayer } from "./nav";
 import { ACCENTS } from "./theme";
@@ -32,20 +33,12 @@ const Row = ({ label, sub, onClick, danger }: { label: string; sub?: string; onC
 const Choice = ({ label, children }: { label: string; children: ReactNode }) => (<div className="border-b border-[var(--we-sep)] py-3.5 last:border-0"><div className="mb-2.5 text-[16px] text-[var(--we-text)]">{label}</div>{children}</div>);
 
 export default function Settings() {
-  const { overlay, setOverlay, profile, saveProfile, settings, setSetting, demoOn, setDemo, balance, setWalletOpen, courses, folders, resetAll, flash, auth, signOut, setAuthOpen, plus, openPlus, setTourOpen } = useApp();
-  const [sheet, setSheet] = useState<null | "profile" | "password" | "delete" | "about">(null);
-  const [draft, setDraft] = useState(profile);
-  const [saving, setSaving] = useState(false);
-  const [pw, setPw] = useState({ a: "", b: "", c: "" });
-  const [pwBusy, setPwBusy] = useState(false);
+  const { overlay, setOverlay, profile, settings, setSetting, demoOn, setDemo, balance, setWalletOpen, resetAll, flash, auth, signOut, setAuthOpen, plus, openPlus, setTourOpen } = useApp();
+  const [sheet, setSheet] = useState<null | "profile" | "about" | "logout">(null);
   const close = () => setOverlay(null);
   const [birdie, setBirdie] = useState(false);
   useBackLayer(birdie, () => setBirdie(false));
 
-  function exportData() {
-    const data = { exportedAt: new Date().toISOString(), profile, settings, folders, courses: courses.map((c) => ({ ...c, files: c.files.map(({ url, ...f }) => { void url; return f; }), recs: c.recs.map(({ url, ...r }) => { void url; return r; }) })) };
-    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })); a.download = "birdie-data.json"; a.click(); flash("Your data was downloaded");
-  }
 
   return (
     <>
@@ -53,13 +46,13 @@ export default function Settings() {
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="relative flex h-12 shrink-0 items-center justify-center bg-[var(--we-bg)] text-[var(--we-text)]"><button onClick={close} aria-label="Back" className="absolute left-2 flex h-10 w-10 items-center justify-center"><ChevronLeft size={26} /></button><span className="text-[16.5px] font-semibold">Settings</span></div>
           <div className="no-scrollbar flex-1 overflow-y-auto bg-[var(--we-bg)] pb-12">
-            <button onClick={() => { setDraft(profile); setSheet("profile"); }} className="flex w-full items-center gap-3.5 bg-[var(--we-cell)] px-4 py-4 text-left active:opacity-80">
+            <button onClick={() => setSheet("profile")} className="flex w-full items-center gap-3.5 bg-[var(--we-cell)] px-4 py-4 text-left active:opacity-80">
               <Avatar initials={initials(profile.name)} color="#A63FBD" size={54} />
-              <div className="min-w-0 flex-1"><div className="disp truncate text-[17px] font-bold">{profile.name || "Your name"}</div><div className="truncate text-[12.5px] text-[var(--dim)]">@{profile.handle || "handle"} · {[profile.level, profile.program].filter(Boolean).join(" · ") || "Add your level and program"}</div></div><span className="text-[var(--dim)]">›</span>
+              <div className="min-w-0 flex-1"><div className="truncate text-[17px] font-semibold text-[var(--we-text)]">{profile.name || "Your name"}</div><div className="truncate text-[13px] text-[var(--we-sub)]">@{profile.handle || "handle"} · {[profile.level, profile.program].filter(Boolean).join(" · ") || "Add your level and course"}</div></div><span className="text-[var(--we-hint)]">›</span>
             </button>
 
             {auth.status === "guest" && (
-              <div className="rounded-2xl bg-gradient-to-br from-[var(--ink)] to-[#2b1546] p-4 text-[var(--paper)]"><div className="disp text-[16px] font-bold">You're using Birdie as a guest</div><p className="mt-1 text-[12.5px] leading-snug text-white/65">Your work is saved on this device only. Create an account to keep it safe and use it anywhere.</p><button onClick={() => { close(); setAuthOpen(true); }} className="mt-3 rounded-xl bg-[var(--birdie)] px-4 py-2 text-[13px] font-semibold text-white active:scale-95">Create an account</button></div>
+              <div className="rounded-2xl bg-gradient-to-br from-[var(--ink)] to-[#2b1546] p-4 text-[var(--paper)]"><div className="disp text-[16px] font-bold">You&apos;re using Birdie as a guest</div><p className="mt-1 text-[12.5px] leading-snug text-white/65">Your work is saved on this device only. Create an account to keep it safe and use it anywhere.</p><button onClick={() => { close(); setAuthOpen(true); }} className="mt-3 rounded-xl bg-[var(--birdie)] px-4 py-2 text-[13px] font-semibold text-white active:scale-95">Create an account</button></div>
             )}
             {auth.status === "in" && <div className="px-4 pt-2 text-[12.5px] text-[var(--we-sub)]">Signed in as <b className="text-[var(--text)]">{auth.email}</b></div>}
 
@@ -106,6 +99,7 @@ export default function Settings() {
 
             <Group icon={Bell} title="Notifications">
               <PushToggle />
+              {auth.status === "in" && <Row label="Send a test notification" sub="Check that notifications reach this phone" onClick={async () => { const ok = await pushTest(); flash(ok ? "Sent. It should pop up in a few seconds." : "That's enough tests for now. Try again in an hour."); }} />}
               <Toggle on={settings.notifRec} onChange={(v) => setSetting("notifRec", v)} label="Study recommendations" />
             </Group>
 
@@ -136,84 +130,41 @@ export default function Settings() {
 
             {auth.status === "in" && (
               <Group icon={Lock} title="Security">
-                <Row label="Change password" onClick={() => { setPw({ a: "", b: "", c: "" }); setSheet("password"); }} />
-                <Row label="Sign out of other devices" sub="Keeps you signed in here" onClick={async () => { const { error } = await createClient().auth.signOut({ scope: "others" }); flash(error ? "Couldn't sign out other devices" : "Signed out everywhere else"); }} />
+                <SecurityRows Row={Row} />
               </Group>
             )}
 
-            <Group icon={FileText} title="Your data">
-              <Row label="Download my data" sub="Courses, notes and settings as a file" onClick={exportData} />
-              <Row label="Delete my account" sub="Removes everything on this device" danger onClick={() => setSheet("delete")} />
-            </Group>
+            {auth.status === "in" && (
+              <Group icon={FileText} title="Your data">
+                <DataRows Row={Row} />
+              </Group>
+            )}
 
             <Group icon={BookOpen} title="About">
               <Row label="Terms of Service" onClick={() => window.open("/terms", "_blank")} />
               <Row label="Privacy Policy" onClick={() => window.open("/privacy", "_blank")} />
               <Row label="How to use Birdie" onClick={() => setSheet("about")} />
-              {auth.status === "in" && <Row label="Log out" danger onClick={async () => { close(); await signOut(); resetAll(); }} />}
             </Group>
-            <p className="pb-2 text-center text-[11.5px] text-[var(--dim)]">Birdie · powered by Unisupport</p>
+            {auth.status === "in" && <button onClick={() => setSheet("logout")} className="mt-2 w-full bg-[var(--we-cell)] py-3.5 text-[16px] text-[var(--we-text)] active:bg-[var(--we-bg)]">Log Out</button>}
+            <p className="pb-2 pt-6 text-center text-[12.5px] text-[var(--we-hint)]">Birdie, by Klvr</p>
           </div>
         </div>
       </Screen>
       {birdie && <div className="absolute inset-0 z-[66] flex flex-col bg-[var(--we-bg)]"><BirdieSettings onBack={() => setBirdie(false)} /></div>}
 
-      <Sheet open={sheet === "profile"} onClose={() => setSheet(null)} title="Edit profile">
-        <div className="space-y-3">
-          <TextField value={draft.name} onChange={(v) => setDraft({ ...draft, name: v })} placeholder="Full name" />
-          <TextField value={draft.handle} onChange={(v) => setDraft({ ...draft, handle: v.toLowerCase().replace(/[^a-z0-9._]/g, "") })} placeholder="Handle" />
-          <TextField value={draft.level} onChange={(v) => setDraft({ ...draft, level: v })} placeholder="Level, e.g. 300 Level or Year 2" />
-          <TextField value={draft.program} onChange={(v) => setDraft({ ...draft, program: v })} placeholder="Program, e.g. Computer Science" />
-          <CountryPicker value={draft.country} onChange={(v) => setDraft({ ...draft, country: v, region: v === draft.country ? draft.region : "" })} />
-          <RegionPicker country={draft.country} value={draft.region ?? ""} onChange={(v) => setDraft({ ...draft, region: v })} />
-          <SchoolPicker country={draft.country} region={draft.region} value={draft.institution} onChange={(v) => setDraft({ ...draft, institution: v })} />
-          <TextField multiline value={draft.bio} onChange={(v) => setDraft({ ...draft, bio: v })} placeholder="Channel description: what you post, what you study" />
-          <div>
-            <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Links (up to 5)</div>
-            <div className="space-y-2">
-              {(draft.links ?? []).map((l, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <input value={l.label} onChange={(e) => setDraft({ ...draft, links: (draft.links ?? []).map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} placeholder="Label" className="w-24 shrink-0 rounded-xl bg-[var(--paper-dim)] px-3 py-2.5 text-[13px] outline-none" />
-                  <input value={l.url} onChange={(e) => setDraft({ ...draft, links: (draft.links ?? []).map((x, j) => (j === i ? { ...x, url: e.target.value } : x)) })} placeholder="instagram.com/you" className="min-w-0 flex-1 rounded-xl bg-[var(--paper-dim)] px-3 py-2.5 text-[13px] outline-none" />
-                  <button onClick={() => setDraft({ ...draft, links: (draft.links ?? []).filter((_, j) => j !== i) })} aria-label="Remove link" className="text-[var(--dim)]"><X size={16} /></button>
-                </div>
-              ))}
-              {(draft.links ?? []).length < 5 && <button onClick={() => setDraft({ ...draft, links: [...(draft.links ?? []), { label: "", url: "" }] })} className="text-[12.5px] font-bold text-[var(--study)]">+ Add a link</button>}
-            </div>
-          </div>
-          <p className="text-[11.5px] leading-snug text-[var(--dim)]">Your name, handle, school, country, description and links show on your public channel. Country, region and school also decide which shared courses limited to a place you can see.</p>
-          <Btn variant="study" disabled={!draft.name.trim() || saving} onClick={async () => {
-            const links = (draft.links ?? []).filter((l) => l.url.trim());
-            const bad = links.find((l) => !cleanUrl(l.url));
-            if (bad) return flash(`"${bad.url}" isn't a valid web link`);
-            setSaving(true);
-            const err = await saveProfile({ ...draft, links: links.map((l) => ({ label: l.label.trim(), url: cleanUrl(l.url)! })) });
-            setSaving(false);
-            if (err === "handle_taken") return flash(`@${draft.handle} is taken. Try another handle.`);
-            if (err) return flash("Couldn't save your profile. Check your connection.");
-            setSheet(null); flash("Profile saved");
-          }}>{saving ? "Saving..." : "Save"}</Btn>
+      <ProfileSettingsPage open={sheet === "profile"} onClose={() => setSheet(null)} />
+      <Page open={sheet === "logout"} onClose={() => setSheet(null)} title="Log Out">
+        <div className="flex flex-col items-center px-8 pb-6 pt-10 text-center">
+          <Avatar initials={initials(profile.name)} color="#A63FBD" size={64} />
+          <p className="mt-3 text-[17px] font-medium text-[var(--we-text)]">Log out of Birdie?</p>
+          <p className="mt-1 text-[14px] text-[var(--we-sub)]">Your courses, chats and balance stay safe in your account. Log back in with {auth.email ?? "your email"} any time.</p>
         </div>
-      </Sheet>
-      <Sheet open={sheet === "password"} onClose={() => setSheet(null)} title="Change password">
-        <div className="space-y-3">
-          <TextField type="password" value={pw.b} onChange={(v) => setPw({ ...pw, b: v })} placeholder="New password" />
-          <TextField type="password" value={pw.c} onChange={(v) => setPw({ ...pw, c: v })} placeholder="Repeat new password" />
-          <p className="text-[12px] text-[var(--dim)]">You&apos;ll stay signed in on this device. Other devices are signed out next time they need to check.</p>
-          <Btn variant="study" disabled={pwBusy || pw.b.length < 8 || pw.b !== pw.c} onClick={async () => {
-            setPwBusy(true);
-            const { error } = await createClient().auth.updateUser({ password: pw.b });
-            setPwBusy(false);
-            if (error) return flash(error.message);
-            setSheet(null); flash("Password updated");
-          }}>{pwBusy ? "Updating..." : "Update password"}</Btn>
+        <div className="space-y-2 px-4">
+          <button onClick={async () => { setSheet(null); close(); await signOut(); resetAll(); }} className="w-full rounded-[6px] bg-[var(--we-cell)] py-3 text-[16px] font-medium text-[var(--we-red)]">Log Out</button>
+          <button onClick={() => setSheet(null)} className="w-full rounded-[6px] py-3 text-[16px] text-[var(--we-text)]">Cancel</button>
         </div>
-      </Sheet>
-      <Sheet open={sheet === "delete"} onClose={() => setSheet(null)} title="Delete account?">
-        <p className="mb-4 text-[14px] leading-relaxed text-[var(--dim)]">This clears your courses, notes, chats and settings from this device and can't be undone.</p>
-        <button onClick={async () => { setSheet(null); close(); await signOut(); resetAll(); }} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--help)] py-3.5 text-[15px] font-semibold text-white active:scale-[0.97]"><Trash2 size={16} /> Delete everything</button>
-        <button onClick={() => setSheet(null)} className="mt-2 w-full py-2.5 text-[13.5px] font-semibold text-[var(--dim)]">Keep my account</button>
-      </Sheet>
+        <p className="pt-10 text-center text-[12.5px] text-[var(--we-hint)]">Birdie, by Klvr</p>
+      </Page>
       <Sheet open={sheet === "about"} onClose={() => setSheet(null)} title="About Birdie">
         <div className="space-y-3 text-[13.5px] leading-relaxed text-[var(--dim)]">
           <p><b className="text-[var(--text)]">Birdie</b> turns your courses into a study partner that knows what you were taught: ask it questions, make flashcards, get quizzed, and it only answers from your own notes and files. Help is provided by <b className="text-[var(--text)]">Unisupport</b>, the company behind our writers and help desk.</p>

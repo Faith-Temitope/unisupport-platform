@@ -41,5 +41,7 @@ export function accentVars(accent: Settings["accent"]): CSSProperties {
   return {
     "--birdie": p.main, "--uni": p.main, "--birdie-soft": p.soft, "--uni-soft": p.soft,
     "--birdie-text": p.text, "--uni-deep": p.text, "--study": p.study, "--study-soft": p.studySoft,
+    // The WeChat-style screens (buttons, tabs, ticks) use --we-accent.
+    "--we-accent": p.main,
   } as CSSProperties;
 }

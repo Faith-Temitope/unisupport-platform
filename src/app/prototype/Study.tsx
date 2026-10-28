@@ -9,7 +9,7 @@ import { useViewState } from "./persist";
 import { SlotAd } from "./Sponsored";
 import { CourseShares } from "./CourseShare";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, BookOpen, CheckCircle2, ChevronLeft, Download, FileText, FolderInput, FolderPlus, Folder as FolderIcon, Image as ImageIcon, MoreHorizontal, Plus, Presentation, Printer, Search, Share2, Sparkles, StickyNote, Timer, Trash2, Upload } from "lucide-react";
+import { ArrowLeft, BookOpen, CheckCircle2, ChevronLeft, Megaphone, Download, FileText, FolderInput, FolderPlus, Folder as FolderIcon, Image as ImageIcon, MoreHorizontal, Plus, Presentation, Printer, Search, Share2, Sparkles, StickyNote, Timer, Trash2, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { ingestFiles, readWithAI, scannable, within } from "./ingest";
@@ -19,6 +19,7 @@ import { folderPath, uid, useApp, type Course, type FileItem, type Folder, type 
 import { Btn, Empty, IconBtn, Page, Sheet, TextField } from "./ui";
 import { ExtraSheets, type ExtraSheet } from "./StudyExtras";
 import { BellButton } from "./Notifications";
+import { openRepDesk } from "./RepDesk";
 import { TimetablePage, TodaySchedule } from "./Schedule";
 import { CategoryPicker, CategoryPill, CategoryTabs } from "./Categories";
 import { ShareCourseForm } from "./ShareCourseForm";
@@ -30,7 +31,7 @@ const fmtSize = (n: number) => (n > 1_000_000 ? `${(n / 1_000_000).toFixed(1)} M
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
 export default function Study() {
-  const { courses, folders, addCourse, addFolder, renameFolder, deleteFolder, deleteCourse, moveCourse, studyIntent, clearStudyIntent, flash, focusEndsAt, startFocus, stopFocus } = useApp();
+  const { courses, folders, addCourse, addFolder, renameFolder, deleteFolder, deleteCourse, moveCourse, studyIntent, clearStudyIntent, flash, focusEndsAt, startFocus, stopFocus, isRep } = useApp();
   const [menu, setMenu] = useState(false);
   const [extra, setExtra] = useState<ExtraSheet>(null);
   // Courses > Timetable (also opened by a reminder notification: ?tab=study&schedule=1).
@@ -69,6 +70,7 @@ export default function Study() {
     { label: "New Course", Icon: BookOpen, run: () => setSheet("course") },
     { label: folderId ? "New Subfolder" : "New Folder", Icon: FolderPlus, run: () => setSheet("folder") },
     focusEndsAt ? { label: "Stop Focus", Icon: Timer, run: () => stopFocus() } : { label: "Focus Timer", Icon: Timer, run: () => setSheet("focus") },
+    ...(isRep ? [{ label: "Rep Desk", Icon: Megaphone, run: openRepDesk }] : []),
   ];
   return (
     <div className="flex h-full flex-col bg-[var(--we-bg)]">
@@ -219,8 +221,8 @@ function MoveList({ folders, current, onPick }: { folders: Folder[]; current: st
 function RecordingRow({ r, onDelete, readOnly }: { r: Rec; onDelete: () => void; readOnly?: boolean }) {
   const [src, setSrc] = useState<string | undefined>(r.url);
   useEffect(() => {
-    if (r.url) { setSrc(r.url); return; } // still in this session, blob plays fine
-    if (!r.storagePath) { setSrc(undefined); return; }
+    if (r.url) { void Promise.resolve().then(() => setSrc(r.url)); return; } // still in this session, blob plays fine
+    if (!r.storagePath) { void Promise.resolve().then(() => setSrc(undefined)); return; }
     let cancelled = false;
     void signedUrl("study-recordings", r.storagePath).then((u) => { if (!cancelled) setSrc(u ?? undefined); });
     return () => { cancelled = true; };

@@ -3,48 +3,83 @@ import Link from "next/link";
 
 export const metadata: Metadata = { title: "Terms of Service" };
 
-const UPDATED = "30 September 2026";
+const UPDATED = "28 October 2026";
 
 export default function TermsPage() {
   return (
     <div className="min-h-screen bg-[#FAF7FD]">
       <div className="mx-auto max-w-2xl px-6 py-14">
-        <Link href="/" className="text-sm font-semibold text-[#7B2A91]">← Back to Birdie</Link>
+        <Link href="/" className="text-sm font-semibold text-[#7B2A91]">Back to Birdie</Link>
         <h1 className="mt-4 text-3xl font-bold text-[#1E1428]">Terms of Service</h1>
         <p className="mt-1 text-sm text-[#6E6480]">Last updated {UPDATED}</p>
 
         <div className="prose prose-sm prose-purple mt-8 max-w-none text-[#2a2036] prose-headings:text-[#1E1428] prose-a:text-[#7B2A91]">
-          <p>These terms cover Birdie, the study app, and Unisupport, the writer help desk built into it. By creating an account or using Birdie as a guest, you agree to them.</p>
+          <p>Birdie is a student app made by Klvr. Unisupport, the help desk and writers inside Birdie, is part of it. These terms are the deal between you and us when you use any of it. Create an account or use Birdie as a guest and you&apos;re agreeing to them, so please read them. We kept them short and plain on purpose.</p>
 
           <h2>What Birdie is</h2>
-          <p>Birdie helps you study from your own course material: it can answer questions, make flashcards, summarise and quiz you, always grounded in the notes and files you've added — it says so plainly when something isn't covered rather than making it up. Help connects you with a real writer for mentoring ("Mentor me") or a full write-up ("Do it for me").</p>
+          <p>Birdie is where you study and where your school life happens. Courses holds your notes, files, recordings and class timetable. Birdie AI answers from your own course material. Chats has your classmates, groups, course chats and Unisupport Help. Discover has Moments, Channels, Campus updates, shared courses, deals and mini programs like Hostel &amp; Roommates and Lost &amp; Found. Me has your wallet, CV, achievements and settings.</p>
 
           <h2>Your account</h2>
-          <p>You need to be old enough to use online services in your country, with a parent or guardian's consent if your country requires it for your age. Keep your password safe — you're responsible for what happens under your account. Guest mode keeps your work on that device only; create an account to keep it safe and use it elsewhere.</p>
+          <ul>
+            <li>You need to be old enough to use online services where you live. If the law there says you need a parent or guardian&apos;s permission at your age, get it.</li>
+            <li>One person, one account. Use your real name and your real school.</li>
+            <li>Keep your password to yourself. What happens on your account is on you, so set a main phone in Settings and change your password if you think someone has it.</li>
+            <li>Your Birdie ID can be changed once a week. Don&apos;t pick one that pretends to be someone else, a school office or a brand.</li>
+          </ul>
 
-          <h2>Your content</h2>
-          <p>You own what you upload — notes, files, recordings, posts. By adding it, you're telling us you have the right to, and you let us store and process it to run the app for you (for example, sending relevant notes to an AI brain when you ask it a question). Don't upload anything you don't have the rights to, or anything illegal, harassing or that violates someone else's privacy.</p>
+          <h2>Verification</h2>
+          <p>Anyone can type a school, so Birdie lets you prove yours with your student ID card and a selfie. Verified accounts (an SUG, a department, a company) send documents like a CAC certificate and an ID card, and a selfie of the person applying. When you send any of this, you&apos;re telling us it&apos;s true, it&apos;s yours, and you&apos;re allowed to speak for whoever you&apos;re applying for. A fake card, someone else&apos;s face or a made-up company gets the account removed, and we may report it. A tick can be taken away if things change or we find out it was wrong.</p>
 
-          <h2>Academic honesty</h2>
-          <p>Birdie's AI only answers from your own material and tells you when it doesn't know. "Do it for me" work from a Unisupport writer is meant as a reference and a learning aid — you're responsible for how you use it and for following your institution's academic integrity rules. We're not liable for a mark, grade or academic outcome.</p>
+          <h2>Course reps</h2>
+          <p>Course reps get extra tools: the class timetable, the Rep Desk, and up to three class groups. When a rep asks Birdie to post an announcement or add a class, Birdie does it in the rep&apos;s name and the rep is responsible for it. Check what Birdie wrote and use Undo if it got something wrong. We can remove rep tools from anyone who misuses them.</p>
 
-          <h2>Paid features and your balance</h2>
-          <p>Spark, Birdie's free AI brain, always stays free, with a fair daily limit. Nova and Sage are paid — you top up your Birdie balance with Paystack and each answer is charged from it at a clearly shown price before you send it. Session and work fees with writers work the same way: nothing downloads until it's paid for. Top-ups are non-refundable once spent; an unused balance can be refunded on request within a reasonable time, minus any payment processing fees.</p>
+          <h2>What you post</h2>
+          <p>Your notes, files, recordings, messages, Moments, videos and posts are yours. By putting them on Birdie, you&apos;re telling us you have the right to, and you&apos;re letting us store them, show them to the people you chose, and process them to run the app (for example, sending your notes to the AI when you ask Birdie a question about them). We don&apos;t claim ownership of any of it.</p>
 
-          <h2>Writers and Help</h2>
-          <p>A session fee connects you to a Unisupport writer inside the app; after that you message them directly with no further desk fee, unless you need a different writer. Unisupport reviews completed work before it counts as closed. Be respectful to writers and staff — we can suspend accounts that are abusive, that attempt to pay outside the app, or that misuse the service.</p>
+          <h2>Community rules</h2>
+          <p>Birdie works because students can trust each other on it. So don&apos;t:</p>
+          <ul>
+            <li>harass, threaten, bully or shame anyone, or post someone&apos;s private details or photos without their permission</li>
+            <li>post fake hostel or roommate listings, fake lost or found items, or deals that aren&apos;t real</li>
+            <li>scam anyone, or ask people to pay outside Birdie for something offered on Birdie</li>
+            <li>post nudity, violence, hate, or anything illegal</li>
+            <li>pretend to be another student, a lecturer, a school office or Birdie</li>
+            <li>spam, scrape Birdie, or try to break into it or around its limits</li>
+          </ul>
+          <p>Use Report on anything that breaks these rules. We can hide posts, remove groups and suspend or close accounts that break them, and we&apos;ll cooperate with the police where the law requires it.</p>
 
-          <h2>Acceptable use</h2>
-          <p>Don't use Birdie to harass others, cheat a payment, scrape or resell our content, attempt to break the app or its security, or impersonate someone else. We can suspend or close an account that breaks these terms.</p>
+          <h2>Birdie AI</h2>
+          <p>Birdie answers from the material you add, and it says so when your notes don&apos;t cover something. It still gets things wrong sometimes, the same way a classmate can. Check anything that matters before you rely on it, especially before an exam. Turning speech into text (voice notes, lecture recordings, video subtitles) can also make mistakes.</p>
 
-          <h2>Availability</h2>
-          <p>We aim to keep Birdie available, but it's provided "as is" — we don't guarantee it will always be error-free or uninterrupted, and AI answers can occasionally be wrong even when grounded in your notes; always check anything important.</p>
+          <h2>Studying honestly</h2>
+          <p>Birdie is here to help you learn. Work from a Unisupport writer is a guide and a reference. How you use it is your responsibility, and so is following your school&apos;s rules on academic honesty. We&apos;re not responsible for a mark, a grade or what your school decides.</p>
+
+          <h2>Money</h2>
+          <ul>
+            <li>You add money to your Birdie balance through Paystack. You can send it to friends, give giveaways in chats, and pay for Birdie Plus, an Exam Pass, printing, tutorials and Unisupport writers.</li>
+            <li>Prices are shown before you pay. Money you&apos;ve spent isn&apos;t refunded. Unspent balance can be withdrawn on request, less any payment processor fees.</li>
+            <li>Transfers to other students are final once sent, so check who you&apos;re sending to. If you think you&apos;ve been scammed, message Unisupport Help straight away.</li>
+            <li>Delete your account with money in it and that money is gone. Withdraw it first.</li>
+          </ul>
+
+          <h2>Unisupport Help and writers</h2>
+          <p>Unisupport Help is a chat where our team helps you and can connect you to a writer. Agreed prices are paid inside Birdie, and work is released once it&apos;s paid for. Be respectful to writers and staff. Accounts that abuse them, or try to pay or be paid outside the app, get suspended.</p>
+
+          <h2>Sponsored posts</h2>
+          <p>You&apos;ll see a few posts marked Sponsored, usually from businesses near your campus. A sponsored post is the business&apos;s word, not ours. Deal with them carefully, the way you would anywhere else.</p>
+
+          <h2>When things go wrong</h2>
+          <p>We work hard to keep Birdie running and your data safe, but we can&apos;t promise it will never go down or never have a bug. Birdie is provided as it is. As far as the law allows, we aren&apos;t liable for indirect losses, or for what other students, writers, verified accounts or advertisers do. Nothing here takes away rights you have under Nigerian consumer law.</p>
+
+          <h2>Leaving</h2>
+          <p>You can delete your account any time in Settings. We ask for your password and warn you three times, because it can&apos;t be undone. We can suspend or close accounts that break these terms. Where it&apos;s fair to, we&apos;ll tell you why.</p>
 
           <h2>Changes</h2>
-          <p>We may update these terms as Birdie grows. If we make a material change, we'll update the date above and let you know in the app.</p>
+          <p>Birdie keeps growing, so these terms will change too. When the change is a big one, we&apos;ll update the date at the top and tell you in the app before it applies.</p>
 
-          <h2>Contact</h2>
-          <p>Questions about these terms: <a href="mailto:hello@unisupport.app">hello@unisupport.app</a>. See also our <Link href="/privacy">Privacy Policy</Link>.</p>
+          <h2>Talk to us</h2>
+          <p>Message Unisupport Help in Chats, or email <a href="mailto:hello@theklvr.com">hello@theklvr.com</a> (or <a href="mailto:klvrcorp@gmail.com">klvrcorp@gmail.com</a>). How we handle your data is in the <Link href="/privacy">Privacy Policy</Link>.</p>
+          <p>Birdie, by Klvr.</p>
         </div>
       </div>
     </div>

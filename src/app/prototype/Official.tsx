@@ -3,6 +3,7 @@
 // Verified accounts (WeChat's official accounts): companies with SIWES and internships, the SUG,
 // departments and school bodies. Students chat with them, read their articles and videos, and use
 // their menu. An account can only message you within 7 days of you writing to it.
+import { ApplyVerifiedPage } from "./Verify";
 import { shareToMoments } from "./Moments";
 import { MomentsIcon } from "./we";
 import type { MomentLink } from "./live/chatData";
@@ -11,9 +12,9 @@ import { ArrowLeft, BadgeCheck, ChevronRight, ExternalLink, Eye, Keyboard, Menu 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Rich } from "./Rich";
 import { whileVisible } from "./perf";
-import { applyOfficial, clock, followOfficial, myOfficialApplications, oaChat, oaMenuTap, oaPost, oaSend, officialProfile, searchOfficials, type OAccount, type OAMsg, type OAPostCard, type OAProfile, type OMenu } from "./live/chatData";
+import { clock, followOfficial, oaChat, oaMenuTap, oaPost, oaSend, officialProfile, searchOfficials, type OAccount, type OAMsg, type OAPostCard, type OAProfile, type OMenu } from "./live/chatData";
 import { useApp } from "./store";
-import { Btn, Empty, Page, Segmented, Sheet, TextField, scrollToEnd } from "./ui";
+import { Empty, Segmented, Sheet, scrollToEnd } from "./ui";
 
 export const CATEGORY_LABEL: Record<string, string> = { company: "Company", school: "School", sug: "Students' Union", department: "Department", organisation: "Organisation", government: "Government", unisupport: "Birdie" };
 
@@ -248,41 +249,8 @@ export function VerifiedDirectory({ onBack, onProfile }: { onBack: () => void; o
   );
 }
 
-export function ApplyVerifiedSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { flash, profile } = useApp();
-  const [f, setF] = useState({ name: "", handle: "", category: "company", school: "", about: "", contact_name: "", phone: "", email: "", proof: "" });
-  const [apps, setApps] = useState<Awaited<ReturnType<typeof myOfficialApplications>>>([]);
-  const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) void myOfficialApplications().then(setApps); }, [open]);
-  const set = (k: keyof typeof f) => (v: string) => setF((x) => ({ ...x, [k]: v }));
-  async function submit() {
-    setBusy(true);
-    const r = await applyOfficial({ ...f, contact_name: f.contact_name || profile.name });
-    setBusy(false);
-    if (r.error) { flash(r.error === "too_many" ? "You already have requests waiting" : "Couldn't send. Check the name."); return; }
-    flash("Sent. We'll verify it and let you know."); void myOfficialApplications().then(setApps);
-    setF({ name: "", handle: "", category: "company", school: "", about: "", contact_name: "", phone: "", email: "", proof: "" });
-  }
-  return (
-    <Page open={open} onClose={onClose} title="Get a Verified Account"><div className="bg-[var(--we-cell)] px-4 pb-10 pt-4">
-      <div className="space-y-2.5">
-        {apps.length > 0 && <div className="space-y-1 rounded-xl bg-[var(--paper-dim)] p-3 text-[12.5px]">{apps.map((a) => <div key={a.id} className="flex justify-between"><span className="font-semibold">{a.name}</span><span className={a.status === "approved" ? "text-[#2FA36B]" : a.status === "rejected" ? "text-[var(--help)]" : "text-[var(--dim)]"}>{a.status === "pending" ? "Being checked" : a.status}</span></div>)}</div>}
-        <TextField value={f.name} onChange={set("name")} placeholder="Name, e.g. SUG FUL or Dangote SIWES" />
-        <TextField value={f.handle} onChange={(v) => set("handle")(v.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 30))} placeholder="Handle you'd like, e.g. sug_ful" />
-        <select value={f.category} onChange={(e) => set("category")(e.target.value)} className="w-full rounded-xl border-2 border-[var(--line)] bg-white px-3 py-2.5 text-[14px] outline-none">
-          {["company", "sug", "department", "school", "organisation", "government"].map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
-        </select>
-        <TextField value={f.school} onChange={set("school")} placeholder="School (if it's for one school)" />
-        <TextField value={f.about} onChange={set("about")} placeholder="What you do, and what students get from you" multiline />
-        <TextField value={f.phone} onChange={set("phone")} placeholder="Phone" type="tel" />
-        <TextField value={f.email} onChange={set("email")} placeholder="Official email" type="email" />
-        <TextField value={f.proof} onChange={set("proof")} placeholder="Proof: CAC number, website, or a link to a letter" multiline />
-        <Btn disabled={busy || f.name.trim().length < 2} onClick={() => void submit()}>{busy ? "Sending..." : "Request verification"}</Btn>
-        <p className="text-[11.5px] leading-snug text-[var(--dim)]">The Birdie team checks every account before it gets the blue tick. Verified accounts can only message students who wrote to them in the last 7 days.</p>
-      </div>
-    </div></Page>
-  );
-}
+// The request form lives in Verify.tsx (documents, a selfie and the declaration).
+export const ApplyVerifiedSheet = ApplyVerifiedPage;
 
 /** "Share to Moments" for an article: opens the Moments composer with it attached. */
 function ShareToMomentsBtn({ link }: { link: MomentLink }) {
