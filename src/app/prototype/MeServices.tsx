@@ -171,7 +171,7 @@ export function ServicesPage({ onBack, onPin }: { onBack: () => void; onPin: () 
       <WeHeader onBack={() => setSub(null)} title="Wallet" right={<button onClick={() => setSub("tx")} className="mr-3 text-[15px]">Transactions</button>} />
       <CellGroup gap={false}>
         <Cell icon={<span className="text-[20px] text-[#F5A623]">₦</span>} label="Balance" value={naira(balance)} onClick={() => setWalletOpen(true)} />
-        <Cell icon={<Wallet size={20} className="text-[#3D83F7]" />} label="Top Up" sub="Pay with Paystack, or ask a parent to pay" onClick={() => setWalletOpen(true)} />
+        <Cell icon={<Wallet size={20} className="text-[#3D83F7]" />} label="Top Up" sub="Card, bank transfer or a parent pays" onClick={() => setWalletOpen(true)} />
       </CellGroup>
       <CellGroup>
         <Cell icon={<ShieldCheck size={20} className="text-[#3D83F7]" />} label="Payment Settings" onClick={() => setSub("pay")} />

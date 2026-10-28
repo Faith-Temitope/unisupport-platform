@@ -486,6 +486,19 @@ export default function ChatRoom({ scope, id, onBack, onOpenCourse }: Props) {
           <button onClick={() => setReply(null)} aria-label="Cancel quote" className="text-[18px] leading-none">×</button>
         </div>
       )}
+      {/* Recording a voice note: WeChat's overlay. Slide up onto the X to cancel. */}
+      {recording && (
+        <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-end bg-black/55 pb-[120px]">
+          <div className={`relative mb-16 flex h-[72px] w-[180px] items-center justify-center gap-[3px] rounded-[12px] ${recording === "cancel" ? "bg-[var(--we-red)]" : "bg-[var(--we-mine)]"}`}>
+            {Array.from({ length: 18 }, (_, i) => <span key={i} className="w-[3px] animate-pulse rounded-full bg-[var(--we-mine-text)]" style={{ height: `${8 + ((i * 37) % 26)}px`, animationDelay: `${(i % 6) * 0.12}s` }} />)}
+            <span className={`absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 ${recording === "cancel" ? "bg-[var(--we-red)]" : "bg-[var(--we-mine)]"}`} />
+          </div>
+          <div className="flex w-full items-center justify-center">
+            <span className={`flex h-16 w-16 items-center justify-center rounded-full text-[26px] transition ${recording === "cancel" ? "scale-110 bg-white text-[var(--we-red)]" : "bg-white/20 text-white"}`}>✕</span>
+          </div>
+          <p className="mt-6 text-[14px] text-white/85">{recording === "cancel" ? "Release to cancel" : "Release to send · slide up to cancel"}</p>
+        </div>
+      )}
       {atQuery !== null && !voice && (
         <div role="listbox" aria-label="Mention" className="no-scrollbar max-h-[260px] shrink-0 overflow-y-auto border-t border-[var(--we-sep)] bg-[var(--we-cell)]">
           {[

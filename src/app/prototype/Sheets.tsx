@@ -1,14 +1,13 @@
 "use client";
 
 import { CountryPicker, RegionPicker, SchoolPicker } from "./PlacePicker";
-import { PlusCard, PlusSheet } from "./Plus";
-import { Copy, CreditCard, Heart, MapPin, Share2 } from "lucide-react";
+import { PlusSheet } from "./Plus";
+import { Copy, Heart, MapPin, Share2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { naira, useApp } from "./store";
-import { Btn, Screen, Sheet, TextField } from "./ui";
+import { Btn, Page, Screen, Sheet, TextField } from "./ui";
 import { BrainPicker } from "./BrainPicker";
-import { PassPacks } from "./PassPacks";
 import { PrintOrders } from "./PrintOrders";
 
 const LEVELS = ["100 Level", "200 Level", "300 Level", "400 Level", "500 Level", "Year 1", "Year 2", "Year 3", "Year 4", "Postgraduate"];
@@ -61,7 +60,7 @@ export default function Sheets() {
   }, [walletOpen, walletLive, payLink]);
   async function sharePayLink() {
     if (!payLink) return;
-    const text = `Hi, could you top up my Birdie study balance? It's only spent on study tools (AI study help, Exam Pass, course materials). You can pay here with Paystack: ${payLink}`;
+    const text = `Hi, could you top up my Birdie study balance? It's only spent on study tools (AI study help, Exam Pass, course materials). You can pay here: ${payLink}`;
     try { if (navigator.share) await navigator.share({ text }); else { await navigator.clipboard.writeText(text); flash("Message and link copied"); } } catch { /* cancelled */ }
   }
   async function resetPayLink() {
@@ -81,34 +80,46 @@ export default function Sheets() {
   return (
     <>
       <PlusSheet />
-      <Sheet open={walletOpen} onClose={() => setWalletOpen(false)} title="Your Birdie balance">
-        <div className="rounded-[20px] bg-[var(--ink)] p-4 text-[var(--paper)]"><div className="text-[11px] font-semibold uppercase tracking-wider text-white/50">Available</div><div className="disp text-[30px] font-bold">{naira(balance)}</div></div>
-        {walletLive ? (<>
-          <div className="mb-2 mt-4 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Top up with Paystack</div>
-          <div className="mb-3 flex gap-2">{[2000, 5000, 10000, 20000].map((a) => (<button key={a} onClick={() => setAmt(a)} className={`flex-1 rounded-xl border-2 py-2.5 text-[12.5px] font-bold transition active:scale-95 ${amt === a ? "border-[var(--birdie)] bg-[var(--birdie-soft)] text-[var(--birdie-text)]" : "border-[var(--line)] text-[var(--dim)]"}`}>{naira(a)}</button>))}</div>
-          <Btn variant="birdie" disabled={payBusy} onClick={payWithPaystack}><span className="inline-flex items-center gap-2"><CreditCard size={16} /> {payBusy ? "Starting..." : `Pay ${naira(amt)} with Paystack`}</span></Btn>
-          <p className="mt-2 text-center text-[11.5px] text-[var(--dim)]">This is your real balance. It pays for paid AI brains, session fees and writer work.</p>
-        </>) : (<>
-          <div className="mb-2 mt-4 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Top up</div>
-          <div className="mb-3 flex gap-2">{[5000, 10000, 20000, 50000].map((a) => (<button key={a} onClick={() => setAmt(a)} className={`flex-1 rounded-xl border-2 py-2.5 text-[12.5px] font-bold transition active:scale-95 ${amt === a ? "border-[var(--birdie)] bg-[var(--birdie-soft)] text-[var(--birdie-text)]" : "border-[var(--line)] text-[var(--dim)]"}`}>{naira(a)}</button>))}</div>
-          <Btn variant="birdie" onClick={() => { topUp(amt); setWalletOpen(false); flash(`Loaded ${naira(amt)}`); }}><span className="inline-flex items-center gap-2"><CreditCard size={16} /> Add {naira(amt)} (demo)</span></Btn>
-          <p className="mt-2 text-center text-[11.5px] text-[var(--dim)]">Guest mode uses demo money. Create an account for a real balance.</p>
-        </>)}
-        {walletLive && <div className="mt-4"><PlusCard><PassPacks /></PlusCard></div>}
+      <Page open={walletOpen} onClose={() => setWalletOpen(false)} title="Balance">
+        <div className="flex flex-col items-center bg-[var(--we-cell)] px-6 pb-7 pt-6">
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#FFF3D6] text-[26px] font-semibold text-[#F5A623]">₦</span>
+          <div className="mt-3 text-[14px] text-[var(--we-sub)]">Balance</div>
+          <div className="mt-1 text-[34px] font-semibold tracking-tight text-[var(--we-text)]">{naira(balance)}</div>
+        </div>
+
+        <div className="mt-2 bg-[var(--we-cell)] px-4 pb-5 pt-4">
+          <div className="mb-3 text-[15px] text-[var(--we-text)]">Top Up</div>
+          <div className="grid grid-cols-4 gap-2">{(walletLive ? [2000, 5000, 10000, 20000] : [5000, 10000, 20000, 50000]).map((a) => (
+            <button key={a} onClick={() => setAmt(a)} className={`rounded-[6px] py-2.5 text-[14px] ${amt === a ? "bg-[var(--we-accent)] text-white" : "bg-[var(--we-bg)] text-[var(--we-text)]"}`}>{naira(a)}</button>
+          ))}</div>
+          <button disabled={payBusy} onClick={() => (walletLive ? void payWithPaystack() : (topUp(amt), setWalletOpen(false), flash(`Loaded ${naira(amt)}`)))}
+            className="mt-4 w-full rounded-[6px] bg-[var(--we-accent)] py-3 text-[16px] font-medium text-white disabled:opacity-50">{payBusy ? "Opening..." : `Top Up ${naira(amt)}`}</button>
+          <p className="mt-2 text-center text-[12.5px] text-[var(--we-sub)]">{walletLive ? "Card, bank transfer or USSD" : "Guest mode uses practice money. Sign up for a balance."}</p>
+        </div>
+
         {walletLive && (
-          <div className="mt-3 rounded-2xl border-2 border-[var(--line)] p-4">
-            <div className="flex items-center gap-2 text-[13.5px] font-bold"><Heart size={16} className="text-[var(--birdie-text)]" /> Ask a parent to pay</div>
-            <p className="mt-1 text-[12.5px] leading-snug text-[var(--dim)]">Send this link to a parent or sponsor. They pay with Paystack, no account needed, and it lands in your balance. It can only be spent on Birdie, so they know where it goes.</p>
+          <div className="mt-2 bg-[var(--we-cell)] px-4 py-4">
+            <div className="flex items-center gap-2 text-[15px] text-[var(--we-text)]"><Heart size={17} className="text-[var(--we-red)]" /> Ask a Parent to Pay</div>
+            <p className="mt-1 text-[13px] leading-snug text-[var(--we-sub)]">Send them a link. They pay without an account and it lands here.</p>
             <div className="mt-3 flex gap-2">
-              <Btn variant="birdie" disabled={!payLink} onClick={() => void sharePayLink()}><span className="inline-flex items-center gap-2"><Share2 size={15} /> Send link</span></Btn>
-              <button disabled={!payLink} onClick={() => { void navigator.clipboard.writeText(payLink ?? ""); flash("Link copied"); }} className="shrink-0 rounded-2xl bg-[var(--paper-dim)] px-4 text-[13px] font-semibold active:scale-95"><Copy size={15} /></button>
+              <button disabled={!payLink} onClick={() => void sharePayLink()} className="flex flex-1 items-center justify-center gap-2 rounded-[6px] bg-[var(--we-bg)] py-2.5 text-[14.5px] text-[var(--we-text)] disabled:opacity-50"><Share2 size={16} /> Send Link</button>
+              <button disabled={!payLink} onClick={() => { void navigator.clipboard.writeText(payLink ?? ""); flash("Link copied"); }} className="flex flex-1 items-center justify-center gap-2 rounded-[6px] bg-[var(--we-bg)] py-2.5 text-[14.5px] text-[var(--we-text)] disabled:opacity-50"><Copy size={16} /> Copy Link</button>
             </div>
-            <button onClick={() => void resetPayLink()} className="mt-2 text-[11.5px] font-semibold text-[var(--dim)] underline">Make a new link (stops the old one)</button>
+            <button onClick={() => void resetPayLink()} className="mt-2.5 text-[12.5px] text-[var(--we-link)]">Make a new link (the old one stops working)</button>
           </div>
         )}
-        <div className="mb-2 mt-5 text-[11px] font-bold uppercase tracking-wider text-[var(--dim)]">Activity</div>
-        <div className="space-y-2">{txs.length === 0 && <div className="text-[13px] text-[var(--dim)]">No transactions yet.</div>}{txs.map((t) => (<div key={t.id} className="flex items-center justify-between rounded-xl bg-white px-3.5 py-2.5 ring-1 ring-[var(--line)]"><div><div className="text-[13px] font-semibold">{t.label}</div><div className="text-[11px] text-[var(--dim)]">{t.t}</div></div><div className={`text-[13.5px] font-bold ${t.amount > 0 ? "text-[var(--uni-deep)]" : ""}`}>{t.amount > 0 ? "+" : "-"}{naira(Math.abs(t.amount))}</div></div>))}</div>
-      </Sheet>
+
+        <div className="mt-2 bg-[var(--we-cell)]">
+          <div className="px-4 pb-1 pt-3 text-[13px] text-[var(--we-sub)]">Recent</div>
+          {txs.length === 0 ? <p className="px-4 pb-4 pt-2 text-[14px] text-[var(--we-hint)]">No transactions yet</p> : txs.slice(0, 30).map((t) => (
+            <div key={t.id} className="flex items-center gap-3 border-b border-[var(--we-sep)] px-4 py-3 last:border-0">
+              <span className="min-w-0 flex-1"><span className="block truncate text-[15px] text-[var(--we-text)]">{t.label}</span><span className="block text-[12px] text-[var(--we-hint)]">{t.t}</span></span>
+              <span className={`text-[15.5px] ${t.amount > 0 ? "text-[#2AAE67]" : "text-[var(--we-text)]"}`}>{t.amount > 0 ? "+" : "-"}{naira(Math.abs(t.amount))}</span>
+            </div>
+          ))}
+        </div>
+        <div className="h-10" />
+      </Page>
 
       <Sheet open={brainOpen} onClose={() => setBrainOpen(false)} title="Birdie's brain"><BrainPicker /></Sheet>
       <PrintOrders />

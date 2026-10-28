@@ -13,7 +13,7 @@ import { Rich } from "./Rich";
 import { whileVisible } from "./perf";
 import { applyOfficial, clock, followOfficial, myOfficialApplications, oaChat, oaMenuTap, oaPost, oaSend, officialProfile, searchOfficials, type OAccount, type OAMsg, type OAPostCard, type OAProfile, type OMenu } from "./live/chatData";
 import { useApp } from "./store";
-import { Btn, Empty, Segmented, Sheet, TextField, scrollToEnd } from "./ui";
+import { Btn, Empty, Page, Segmented, Sheet, TextField, scrollToEnd } from "./ui";
 
 export const CATEGORY_LABEL: Record<string, string> = { company: "Company", school: "School", sug: "Students' Union", department: "Department", organisation: "Organisation", government: "Government", unisupport: "Birdie" };
 
@@ -264,7 +264,7 @@ export function ApplyVerifiedSheet({ open, onClose }: { open: boolean; onClose: 
     setF({ name: "", handle: "", category: "company", school: "", about: "", contact_name: "", phone: "", email: "", proof: "" });
   }
   return (
-    <Sheet open={open} onClose={onClose} title="Get a verified account">
+    <Page open={open} onClose={onClose} title="Get a Verified Account"><div className="bg-[var(--we-cell)] px-4 pb-10 pt-4">
       <div className="space-y-2.5">
         {apps.length > 0 && <div className="space-y-1 rounded-xl bg-[var(--paper-dim)] p-3 text-[12.5px]">{apps.map((a) => <div key={a.id} className="flex justify-between"><span className="font-semibold">{a.name}</span><span className={a.status === "approved" ? "text-[#2FA36B]" : a.status === "rejected" ? "text-[var(--help)]" : "text-[var(--dim)]"}>{a.status === "pending" ? "Being checked" : a.status}</span></div>)}</div>}
         <TextField value={f.name} onChange={set("name")} placeholder="Name, e.g. SUG FUL or Dangote SIWES" />
@@ -280,7 +280,7 @@ export function ApplyVerifiedSheet({ open, onClose }: { open: boolean; onClose: 
         <Btn disabled={busy || f.name.trim().length < 2} onClick={() => void submit()}>{busy ? "Sending..." : "Request verification"}</Btn>
         <p className="text-[11.5px] leading-snug text-[var(--dim)]">The Birdie team checks every account before it gets the blue tick. Verified accounts can only message students who wrote to them in the last 7 days.</p>
       </div>
-    </Sheet>
+    </div></Page>
   );
 }
 

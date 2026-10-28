@@ -2,7 +2,7 @@
 
 import { useBackLayer } from "./nav";
 import { AnimatePresence, motion } from "framer-motion";
-import { X } from "lucide-react";
+import { ChevronLeft, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useApp } from "./store";
@@ -31,6 +31,29 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
             )}
             {children}
           </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    phone,
+  );
+}
+
+/** A full-screen page that slides in from the right, WeChat style (back arrow, centred title). Back closes it. */
+export function Page({ open, onClose, title, right, children, tone = "bg" }: { open: boolean; onClose: () => void; title?: ReactNode; right?: ReactNode; children: ReactNode; tone?: "bg" | "cell" }) {
+  const { phone } = useApp();
+  useBackLayer(open, onClose);
+  if (!phone) return null;
+  return createPortal(
+    <AnimatePresence>
+      {open && (
+        <motion.div className={`absolute inset-0 z-[70] flex flex-col ${tone === "cell" ? "bg-[var(--we-cell)]" : "bg-[var(--we-bg)]"}`}
+          initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "tween", duration: 0.22 }}>
+          <div className="relative flex h-12 shrink-0 items-center justify-between bg-[var(--we-bg)] px-2 text-[var(--we-text)]">
+            <button onClick={onClose} aria-label="Back" className="z-10 flex h-10 w-10 items-center justify-center"><ChevronLeft size={26} /></button>
+            <div className="pointer-events-none absolute inset-x-20 truncate text-center text-[16.5px] font-semibold">{title}</div>
+            <div className="z-10 flex min-w-10 items-center justify-end">{right}</div>
+          </div>
+          <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">{children}</div>
         </motion.div>
       )}
     </AnimatePresence>,
@@ -119,9 +142,9 @@ export function Empty({ icon, title, text, action }: { icon?: ReactNode; title: 
 
 export function Toggle({ on, onChange, label, sub }: { on: boolean; onChange: (b: boolean) => void; label: string; sub?: string }) {
   return (
-    <button onClick={() => onChange(!on)} className="flex w-full items-center gap-3 border-b border-[var(--line)] py-3 text-left last:border-0 active:opacity-70">
-      <div className="min-w-0 flex-1"><div className="text-[14px] font-semibold text-[var(--text)]">{label}</div>{sub && <div className="text-[12px] leading-snug text-[var(--dim)]">{sub}</div>}</div>
-      <span className={`flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition ${on ? "bg-[var(--uni)]" : "bg-[var(--line)]"}`}><span className={`h-5 w-5 rounded-full bg-white shadow transition ${on ? "translate-x-5" : ""}`} /></span>
+    <button onClick={() => onChange(!on)} className="flex w-full items-center gap-3 border-b border-[var(--we-sep)] py-3.5 text-left last:border-0 active:opacity-70">
+      <div className="min-w-0 flex-1"><div className="text-[16px] text-[var(--we-text)]">{label}</div>{sub && <div className="mt-0.5 text-[12.5px] leading-snug text-[var(--we-sub)]">{sub}</div>}</div>
+      <span className={`flex h-[30px] w-[50px] shrink-0 items-center rounded-full p-0.5 transition ${on ? "bg-[var(--we-accent)]" : "bg-[var(--we-sep)]"}`}><span className={`h-[26px] w-[26px] rounded-full bg-white shadow transition ${on ? "translate-x-5" : ""}`} /></span>
     </button>
   );
 }
@@ -149,7 +172,7 @@ export function Screen({ open, children, z = 60, fade }: { open: boolean; childr
     <AnimatePresence>
       {open && (
         <motion.div className="absolute inset-0 flex flex-col bg-[var(--paper)]" style={{ zIndex: z }} initial={fade ? { opacity: 0 } : { x: "100%" }} animate={fade ? { opacity: 1 } : { x: 0 }} exit={fade ? { opacity: 0 } : { x: "100%" }} transition={fade ? { duration: 0.15 } : { type: "spring", damping: 34, stiffness: 340 }}>
-          <div className="h-12 shrink-0" />
+          <div className="hidden h-12 shrink-0 lg:block" />
           {children}
         </motion.div>
       )}

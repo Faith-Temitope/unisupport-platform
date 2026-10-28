@@ -802,7 +802,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (amount > balance) return false; setBalance((b) => b - amount); if (amount > 0) setTxs((t) => [{ id: uid(), label, amount: -amount, t: "Just now" }, ...t]); return true;
     },
     topUp: (amount) => {
-      if (walletLive) { flash("Use the top-up screen to pay with Paystack"); return; }
+      if (walletLive) { flash("Use Top Up on the Balance page"); return; }
       setBalance((b) => b + amount); setTxs((t) => [{ id: uid(), label: "Top up (simulated)", amount, t: "Just now" }, ...t]);
     },
     spendWallet: async (amount, label) => {

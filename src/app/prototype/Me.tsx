@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { favText, readFavs, writeFavs, type Fav } from "./ChatRoom";
 import { chatMediaUrl, hasPin, setPin } from "./live/chatData";
 import { MyProfilePage, MyQrPage, ServicesPage } from "./MeServices";
+import MomentsScreen from "./Moments";
 import { useBackLayer } from "./nav";
 import { useApp } from "./store";
 import { Btn, Sheet } from "./ui";
@@ -16,9 +17,9 @@ import { Cell, CellGroup, SqAvatar, WeHeader } from "./we";
 const ic = (n: ReactNode, color: string) => <span className="flex h-6 w-6 items-center justify-center" style={{ color }}>{n}</span>;
 
 export default function Me({ active }: { active: boolean }) {
-  const { profile, auth, plus, openPlus, setOverlay, setAuthOpen, setTab, setDiscoverView, refreshWallet } = useApp();
+  const { profile, auth, plus, openPlus, setOverlay, setAuthOpen, refreshWallet } = useApp();
   const [pinOpen, setPinOpen] = useState(false);
-  const [sub, setSub] = useState<null | "favorites" | "stickers" | "services" | "profile" | "qr">(null);
+  const [sub, setSub] = useState<null | "favorites" | "stickers" | "services" | "profile" | "qr" | "posts">(null);
   useBackLayer(!!sub, () => setSub(null));
   useBackLayer(sub === "qr", () => setSub("profile")); // QR code opens on top of My Profile
   const signedIn = auth.status === "in";
@@ -26,6 +27,8 @@ export default function Me({ active }: { active: boolean }) {
   useEffect(() => { if (active) void Promise.resolve().then(load); }, [active, load]);
   const need = (f: () => void) => () => (signedIn ? f() : setAuthOpen(true));
 
+  // My Posts opens inside Me (not in Discover, where it used to stay open after you left).
+  if (sub === "posts" && auth.userId) return <div className="flex h-full min-h-0 flex-col"><MomentsScreen userId={auth.userId} onBack={() => setSub(null)} /></div>;
   if (sub === "favorites") return <Favorites onBack={() => setSub(null)} />;
   if (sub === "stickers") return <Stickers onBack={() => setSub(null)} />;
   if (sub === "services") return <><ServicesPage onBack={() => setSub(null)} onPin={() => setPinOpen(true)} /><ChangePin open={pinOpen} onClose={() => setPinOpen(false)} /></>;
@@ -50,7 +53,7 @@ export default function Me({ active }: { active: boolean }) {
       </CellGroup>
       <CellGroup>
         <Cell icon={ic(<Star size={22} />, "#F5A623")} label="Favorites" onClick={() => setSub("favorites")} />
-        <Cell icon={ic(<Images size={22} />, "#3D83F7")} label="My Posts" onClick={need(() => { setTab("explore"); setDiscoverView(auth.userId ? { k: "userMoments", id: auth.userId } : { k: "moments" }); })} />
+        <Cell icon={ic(<Images size={22} />, "#3D83F7")} label="My Posts" onClick={need(() => setSub("posts"))} />
         <Cell icon={ic(<CreditCard size={22} />, "#1B8A85")} label="Cards & Offers" sub={plus ? "Birdie Plus is on" : "Birdie Plus, Exam Pass and student offers"} onClick={() => openPlus(plus ? "You're on Birdie Plus." : "Get more from Birdie.")} />
         <Cell icon={ic(<Smile size={22} />, "#F5C518")} label="Sticker Gallery" onClick={() => setSub("stickers")} />
       </CellGroup>

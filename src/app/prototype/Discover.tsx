@@ -6,6 +6,7 @@ import jsQR from "jsqr";
 import { BookOpen, Bot, Briefcase, Camera, QrCode, Tag, ImagePlus, LayoutGrid, Plus, ScanLine, Search, Smartphone, Zap } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Head, ListRow } from "./Chats";
+import Channels from "./Channels";
 import Explore from "./Explore";
 import MomentsScreen, { hasNewMomentNotices } from "./Moments";
 import { OALogo, OAPostView, OAProfileView } from "./Official";
@@ -49,7 +50,7 @@ export default function Discover({ active }: { active: boolean }) {
     <div className="flex h-full min-h-0 flex-col bg-[var(--we-bg)]">
       {view.k === "moments" && <MomentsScreen onBack={back} />}
       {view.k === "userMoments" && <MomentsScreen key={view.id} userId={view.id} onBack={back} />}
-      {view.k === "channels" && <Explore active={active} onBack={back} />}
+      {view.k === "channels" && <Channels active={active} onBack={back} onSearch={() => go({ k: "search" })} />}
       {view.k === "sharedCourses" && <Explore active={active} onBack={back} section="courses" />}
       {view.k === "deals" && <Explore active={active} onBack={back} section="deals" />}
       {view.k === "scan" && <Scan onBack={back} />}
@@ -322,28 +323,55 @@ function Stories({ onBack, onOpen }: { onBack: () => void; onOpen: (id: string) 
 }
 
 function SearchAll({ onBack }: { onBack: () => void }) {
-  const { setOverlay, setDiscoverView: go } = useApp();
+  const { setOverlay, setDiscoverView: go, posts, searchFeed, goBirdie } = useApp();
   const [q, setQ] = useState("");
+  const [cat, setCat] = useState<"all" | "people" | "channels" | "articles" | "accounts">("all");
   const [res, setRes] = useState<Awaited<ReturnType<typeof searchAll>> | null>(null);
+  const [trending, setTrending] = useState<ArticleCard[]>([]);
+  useEffect(() => { void topStories().then((l) => setTrending(l.slice(0, 8))); }, []);
   useEffect(() => {
     const t = q.trim();
     if (t.length < 2) { void Promise.resolve().then(() => setRes(null)); return; }
-    const h = setTimeout(() => void searchAll(t).then(setRes), 300);
+    const h = setTimeout(() => { void searchAll(t).then(setRes); void searchFeed(t); }, 300);
     return () => clearTimeout(h);
-  }, [q]);
-  const empty = res && !res.people.length && !res.accounts.length && !res.articles.length;
+  }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
+  const term = q.trim().toLowerCase();
+  const vids = res ? posts.filter((p) => `${p.title} ${p.body ?? ""} ${p.tags.join(" ")}`.toLowerCase().includes(term)).slice(0, 6) : [];
+  const show = (c: typeof cat) => cat === "all" || cat === c;
+  const empty = res && !res.people.length && !res.accounts.length && !res.articles.length && !vids.length;
+  const CATS = [["all", "All"], ["people", "People"], ["channels", "Channels"], ["articles", "Articles"], ["accounts", "Verified"]] as const;
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[var(--we-bg)]">
       <div className="flex items-center gap-2 px-3 pb-2 pt-2">
         <div className="flex flex-1 items-center gap-2 rounded-[6px] bg-[var(--we-cell)] px-3 py-2"><Search size={16} className="text-[var(--we-sub)]" /><input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" className="min-w-0 flex-1 bg-transparent text-[16px] text-[var(--we-text)] outline-none" /></div>
         <button onClick={onBack} className="px-1 text-[16px] text-[var(--we-link)]">Cancel</button>
       </div>
+      <div className="no-scrollbar flex shrink-0 gap-5 overflow-x-auto px-4 pb-2 text-[15px]">
+        {CATS.map(([id, label]) => <button key={id} onClick={() => setCat(id)} className={`shrink-0 pb-1 ${cat === id ? "border-b-2 border-[var(--we-accent)] font-medium text-[var(--we-text)]" : "text-[var(--we-link)]"}`}>{label}</button>)}
+      </div>
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-10">
-        {!res && <p className="px-10 pt-12 text-center text-[14px] text-[var(--we-hint)]">Search for students, verified accounts and articles</p>}
-        {empty && <p className="pt-12 text-center text-[14px] text-[var(--we-sub)]">No results for &quot;{q.trim()}&quot;</p>}
-        {res && res.people.length > 0 && <><Head t="People" /><div className="bg-[var(--we-cell)]">{res.people.map((p) => <ListRow key={p.id} avatar={<SqAvatar name={p.name} color={p.color} size={44} />} name={p.name} last={[p.handle && `@${p.handle}`, p.school].filter(Boolean).join(" · ")} onClick={() => setOverlay({ t: "contact", id: p.id })} />)}</div></>}
-        {res && res.accounts.length > 0 && <><Head t="Verified Accounts" /><div className="bg-[var(--we-cell)]">{res.accounts.map((a) => <ListRow key={a.id} avatar={<OALogo a={a} size={44} />} name={a.name} tick last={a.about ?? ""} onClick={() => go({ k: "oaProfile", key: a.handle })} />)}</div></>}
-        {res && res.articles.length > 0 && <><Head t="Articles" /><div className="bg-[var(--we-cell)]">{res.articles.map((a) => <ListRow key={a.id} avatar={<OALogo a={a.account} size={44} />} name={a.title} last={a.account.name} onClick={() => go({ k: "post", id: a.id })} />)}</div></>}
+        {!res && (trending.length > 0 ? (
+          <div className="mx-3 mt-2 rounded-[8px] bg-[var(--we-cell)] px-4 py-3">
+            <div className="pb-2 text-[13px] text-[var(--we-sub)]">On campus now</div>
+            {trending.map((a) => <button key={a.id} onClick={() => go({ k: "post", id: a.id })} className="block w-full truncate py-2.5 text-left text-[15.5px] text-[var(--we-text)]">{a.title}</button>)}
+          </div>
+        ) : <p className="px-10 pt-12 text-center text-[14px] text-[var(--we-hint)]">Search students, channel videos, verified accounts and articles</p>)}
+        {res && term && (
+          <button onClick={() => goBirdie({ courseId: "general", prompt: q.trim() })} className="mx-3 mt-2 flex w-[calc(100%-1.5rem)] items-center gap-3 rounded-[8px] bg-[var(--we-cell)] px-4 py-3 text-left">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#C05BD6] to-[#8A2FA3] font-bold text-white">B</span>
+            <span className="min-w-0 flex-1"><span className="block truncate text-[15.5px] text-[var(--we-text)]">Ask Birdie: {q.trim()}</span><span className="block text-[12.5px] text-[var(--we-sub)]">Get an answer from Birdie AI</span></span>
+          </button>
+        )}
+        {empty && <p className="pt-10 text-center text-[14px] text-[var(--we-sub)]">No results for &quot;{q.trim()}&quot;</p>}
+        {res && show("people") && res.people.length > 0 && <><Head t="People" /><div className="bg-[var(--we-cell)]">{res.people.map((p) => <ListRow key={p.id} avatar={<SqAvatar name={p.name} color={p.color} size={44} />} name={p.name} last={[p.handle && `@${p.handle}`, p.school].filter(Boolean).join(" · ")} onClick={() => setOverlay({ t: "contact", id: p.id })} />)}</div></>}
+        {res && show("channels") && vids.length > 0 && <><Head t="Channels" /><div className="grid grid-cols-2 gap-2 px-3">{vids.map((p) => (
+          <button key={p.id} onClick={() => go({ k: "channels" })} className="overflow-hidden rounded-[8px] bg-[var(--we-cell)] text-left">
+            <span className="relative block aspect-[3/4] bg-black">{p.youtubeId ? <img src={`https://i.ytimg.com/vi/${p.youtubeId}/hqdefault.jpg`} alt="" className="h-full w-full object-cover" /> : <span className="flex h-full items-center justify-center p-3 text-center text-[14px] text-white" style={{ background: p.grad }}>{p.title}</span>}</span>
+            <span className="block truncate px-2 py-2 text-[13.5px] text-[var(--we-text)]">{p.title}</span>
+          </button>
+        ))}</div></>}
+        {res && show("accounts") && res.accounts.length > 0 && <><Head t="Verified Accounts" /><div className="bg-[var(--we-cell)]">{res.accounts.map((a) => <ListRow key={a.id} avatar={<OALogo a={a} size={44} />} name={a.name} tick last={a.about ?? ""} onClick={() => go({ k: "oaProfile", key: a.handle })} />)}</div></>}
+        {res && show("articles") && res.articles.length > 0 && <><Head t="Articles" /><div className="bg-[var(--we-cell)]">{res.articles.map((a) => <ListRow key={a.id} avatar={<OALogo a={a.account} size={44} />} name={a.title} last={a.account.name} onClick={() => go({ k: "post", id: a.id })} />)}</div></>}
       </div>
     </div>
   );
@@ -374,6 +402,7 @@ type MiniSub = null | "internships" | "jdi";
 function Mini({ onBack }: { onBack: () => void }) {
   const { goBirdie, setDiscoverView: go, setTab, auth, setAuthOpen } = useApp();
   const [sub, setSub] = useState<MiniSub>(null);
+  const [recent, setRecent] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem("birdie-mini-recent") ?? "[]"); } catch { return []; } });
   useBackLayer(!!sub, () => setSub(null));
   const need = (f: () => void) => () => (auth.status === "in" ? f() : setAuthOpen(true));
   const close = () => setSub(null);
@@ -388,16 +417,34 @@ function Mini({ onBack }: { onBack: () => void }) {
     { label: "Shared Courses", color: "#2F9E5B", icon: <BookOpen size={26} />, run: () => go({ k: "sharedCourses" }) },
     { label: "My Courses", color: "#D9467E", icon: <BookOpen size={26} />, run: () => { go(null); setTab("study"); } },
   ];
+  // Recently Used: the last four you opened, kept on this phone.
+  const recentApps = recent.map((l) => apps.find((a) => a.label === l)).filter(Boolean).slice(0, 4) as typeof apps;
+  const openApp = (a: (typeof apps)[number]) => () => {
+    const next = [a.label, ...recent.filter((l) => l !== a.label)].slice(0, 8);
+    setRecent(next); try { localStorage.setItem("birdie-mini-recent", JSON.stringify(next)); } catch { /* ignore */ }
+    a.run();
+  };
+  const tileOf = (a: (typeof apps)[number]) => (
+    <button key={a.label} onClick={openApp(a)} className="flex min-w-0 flex-col items-center gap-2 active:opacity-70">
+      <span className="flex h-14 w-14 items-center justify-center rounded-full text-white" style={{ background: a.color }}>{a.icon}</span>
+      <span className="line-clamp-2 max-w-full px-1 text-center text-[12px] leading-tight text-[var(--we-text)]">{a.label}</span>
+    </button>
+  );
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[var(--we-bg)]">
       <WeHeader onBack={onBack} title="Mini Programs" />
-      <div className="px-4 pb-2 pt-3 text-[13px] text-[var(--we-sub)]">Birdie tools</div>
-      <div className="grid grid-cols-4 gap-y-5 bg-[var(--we-cell)] px-2 py-5">{apps.map((a) => (
-        <button key={a.label} onClick={a.run} className="flex min-w-0 flex-col items-center gap-2 active:opacity-70">
-          <span className="flex h-14 w-14 items-center justify-center rounded-full text-white" style={{ background: a.color }}>{a.icon}</span>
-          <span className="line-clamp-2 max-w-full px-1 text-center text-[12px] leading-tight text-[var(--we-text)]">{a.label}</span>
-        </button>
-      ))}</div>
+      <div className="no-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto px-3 pb-10 pt-2">
+        {recentApps.length > 0 && (
+          <div className="rounded-[10px] bg-[var(--we-cell)] px-2 pb-4 pt-3">
+            <div className="px-2 pb-3 text-[15px] font-medium text-[var(--we-text)]">Recently Used</div>
+            <div className="grid grid-cols-4 gap-y-4">{recentApps.map((a) => tileOf(a))}</div>
+          </div>
+        )}
+        <div className="rounded-[10px] bg-[var(--we-cell)] px-2 pb-4 pt-3">
+          <div className="px-2 pb-3 text-[15px] font-medium text-[var(--we-text)]">All Mini Programs</div>
+          <div className="grid grid-cols-4 gap-y-4">{apps.map((a) => tileOf(a))}</div>
+        </div>
+      </div>
     </div>
   );
 }

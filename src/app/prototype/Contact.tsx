@@ -7,6 +7,7 @@ import { Check, MessageCircle, UserPlus } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { contactInfo, friendRequest, momentMediaUrl, setContactPrefs, type ContactInfo } from "./live/chatData";
 import { reportThing } from "./live/socialData";
+import MomentsScreen from "./Moments";
 import { useApp } from "./store";
 import { Cell, CellGroup, SqAvatar, Switch, WeHeader } from "./we";
 
@@ -16,10 +17,10 @@ export function MomentThumb({ path, size = 56 }: { path: string; size?: number }
   return <span className="block shrink-0 overflow-hidden bg-[var(--we-sep)]" style={{ width: size, height: size }}>{url && <img src={url} alt="" className="h-full w-full object-cover" />}</span>;
 }
 
-type Sub = null | "privacy" | "edit" | "more";
+type Sub = null | "privacy" | "edit" | "more" | "moments";
 
 export default function Contact({ id, onBack }: { id: string; onBack: () => void }) {
-  const { openDm, setOverlay, flash, setTab, setDiscoverView } = useApp();
+  const { openDm, setOverlay, flash } = useApp();
   const [c, setC] = useState<ContactInfo | null | undefined>(undefined);
   const [sub, setSub] = useState<Sub>(null);
   useBackLayer(!!sub, () => setSub(null));
@@ -28,6 +29,8 @@ export default function Contact({ id, onBack }: { id: string; onBack: () => void
   if (c === undefined) return <div className="flex flex-1 flex-col bg-[var(--we-bg)]"><WeHeader onBack={onBack} /></div>;
   if (c === null) return <div className="flex flex-1 flex-col bg-[var(--we-bg)]"><WeHeader onBack={onBack} /><p className="py-10 text-center text-[14px] text-[var(--we-sub)]">This account isn&apos;t available.</p></div>;
 
+  // Their Moments open inside the profile, so Back comes straight back here.
+  if (sub === "moments") return <div className="flex min-h-0 flex-1 flex-col"><MomentsScreen userId={c.id} onBack={() => setSub(null)} /></div>;
   if (sub === "privacy") return <Privacy c={c} onBack={() => { setSub(null); void load(); }} />;
   if (sub === "edit") return <EditRemark c={c} onBack={() => { setSub(null); void load(); }} />;
   if (sub === "more") return (
@@ -64,7 +67,7 @@ export default function Contact({ id, onBack }: { id: string; onBack: () => void
         )}
         <CellGroup>
           <Cell label="Moments" right={<Thumbs>{c.moments.map((p) => <MomentThumb key={p} path={p} />)}</Thumbs>}
-            onClick={() => { setOverlay(null); setTab("explore"); setDiscoverView({ k: "userMoments", id: c.id }); }} />
+            onClick={() => setSub("moments")} />
           <Cell label="Channels" right={<Thumbs>{c.videos.map((v) => v.youtube_id
             ? <img key={v.id} src={`https://i.ytimg.com/vi/${v.youtube_id}/default.jpg`} alt="" className="h-14 w-14 object-cover" />
             : <span key={v.id} className="flex h-14 w-14 items-center justify-center bg-[var(--we-sep)] p-1 text-center text-[9px] leading-tight text-[var(--we-sub)]">{v.title}</span>)}</Thumbs>}

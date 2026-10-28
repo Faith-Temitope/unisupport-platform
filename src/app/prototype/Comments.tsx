@@ -80,3 +80,11 @@ function CommentsSheet({ post, open, onClose, list, reload, onProfile }: { post:
     </Sheet>
   );
 }
+
+/** The comments sheet on its own (Channels opens it from the video's comment button). */
+export function CommentsPanel({ post, open, onClose, onProfile }: { post: Post; open: boolean; onClose: () => void; onProfile: (id: string) => void }) {
+  const [list, setList] = useState<Comment[] | null>(null);
+  const reload = useCallback(() => listComments(post.id).then(setList), [post.id]);
+  useEffect(() => { if (open && post.remote) void reload(); }, [open, post.remote, reload]);
+  return <CommentsSheet post={post} open={open} onClose={onClose} list={list} reload={reload} onProfile={onProfile} />;
+}

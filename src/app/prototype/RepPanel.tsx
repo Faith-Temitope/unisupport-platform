@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Share2, Users } from "lucide-react";
+import { Copy, Share2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { applyRep, fetchMyRep, linkRep, unlinkRep, type RepInfo } from "./live/repData";
 import { naira, useApp } from "./store";
@@ -44,8 +44,9 @@ export function RepPanel() {
     : "Get unlimited Birdie AI and earn from your class";
 
   return (
-    <section className="rounded-2xl border border-[var(--line)] bg-white px-4 pb-1 pt-3.5">
-      <div className="mb-1 flex items-center gap-2 text-[12px] font-bold uppercase tracking-wider text-[var(--birdie)]"><Users size={14} /> Course rep</div>
+    <section>
+      <div className="px-4 pb-1.5 pt-4 text-[13px] text-[var(--we-sub)]">Course Rep</div>
+      <div className="bg-[var(--we-cell)] px-4">
       <button onClick={() => setSheet("link")} className="flex w-full items-center gap-3 border-b border-[var(--line)] py-3 text-left active:opacity-70">
         <div className="min-w-0 flex-1"><div className="text-[14px] font-semibold text-[var(--text)]">Your course rep</div><div className="text-[12px] leading-snug text-[var(--dim)]">{linked ? `${linked.name}${linked.active ? "" : " (no longer a rep)"}` : "Enter your rep's code"}</div></div><span className="text-[var(--dim)]">›</span>
       </button>
@@ -103,6 +104,6 @@ export function RepPanel() {
           </div>
         )}
       </Sheet>
-    </section>
+    </div></section>
   );
 }

@@ -2,16 +2,17 @@
 
 import { whileVisible } from "./perf";
 import { useViewState } from "./persist";
-import { BadgeCheck, BookmarkPlus, ChevronLeft, Search, Send, Users } from "lucide-react";
+import { BadgeCheck, BookmarkPlus, ChevronLeft, Search } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { FeedAd, SlotAd, usePlacements } from "./Sponsored";
 import { CampusDeals } from "./CampusDeals";
 import { CertStrip } from "./Certificates";
 import { topInterests } from "./engine";
 import { logPostEvent } from "./live/recData";
+import { courseGroupId } from "./live/chatData";
 import PostCard, { initials } from "./PostCard";
 import { firstName, naira, nowTime, useApp, type SharedCourse } from "./store";
-import { Avatar, Btn, DemoControls, Empty, Label, Segmented, Sheet, scrollToEnd } from "./ui";
+import { Avatar, Btn, DemoControls, Empty, Page, Sheet } from "./ui";
 import { ShareCourseForm } from "./ShareCourseForm";
 
 // Discover > Channels (videos and posts), Discover > Shared Courses and Discover > Campus Deals.
@@ -143,9 +144,19 @@ export default function Explore({ active, onBack, section = "feed" }: { active: 
   const chip = (on: boolean) => `shrink-0 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition active:scale-95 ${on ? "bg-[var(--ink)] text-[var(--paper)]" : "bg-[var(--paper-dim)] text-[var(--text)]"}`;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className={`flex h-full flex-col ${seg !== "feed" ? "bg-[var(--we-bg)]" : ""}`}>
       <div ref={scroller} onScroll={onScroll} className="no-scrollbar relative flex-1 overflow-y-auto pb-32">
         {/* Header slides away while scrolling down and returns on the way up, so videos get the screen. */}
+        {seg !== "feed" ? (
+          <div className="sticky top-0 z-20 bg-[var(--we-bg)]">
+            <div className="relative flex h-12 items-center justify-between px-2 text-[var(--we-text)]">
+              {onBack ? <button onClick={onBack} aria-label="Back" className="flex h-10 w-10 items-center justify-center"><ChevronLeft size={26} /></button> : <span className="w-10" />}
+              <span className="pointer-events-none absolute inset-x-20 text-center text-[16.5px] font-semibold">{seg === "courses" ? "Shared Courses" : "Campus Deals"}</span>
+              {seg === "courses" ? <button onClick={() => setSearchOpen((o) => !o)} aria-label="Search" className="flex h-10 w-10 items-center justify-center"><Search size={21} /></button> : <span className="w-10" />}
+            </div>
+            {seg === "courses" && (searchOpen || q) && <div className="px-3 pb-2"><div className="flex items-center gap-2 rounded-[6px] bg-[var(--we-cell)] px-3 py-2"><Search size={16} className="text-[var(--we-sub)]" /><input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search courses" className="min-w-0 flex-1 bg-transparent text-[15px] text-[var(--we-text)] outline-none" /></div></div>}
+          </div>
+        ) : (
         <div className={`sticky top-0 z-20 bg-[var(--paper)] pb-2 transition-transform duration-200 ${hideHead ? "-translate-y-full" : ""}`}>
           <div className="flex items-center gap-2 px-4 pt-2">
             {onBack && <button onClick={onBack} aria-label="Back" className="-ml-2 flex h-9 w-9 items-center justify-center"><ChevronLeft size={26} /></button>}
@@ -158,8 +169,9 @@ export default function Explore({ active, onBack, section = "feed" }: { active: 
             {seg === "feed" && tags.map((t) => (<button key={t} onClick={() => setTag(t)} className={`${chip(tag === t)} capitalize`}>{t}</button>))}
           </div>
         </div>
+        )}
 
-        <div className="px-5 pt-1">
+        <div className={seg === "feed" ? "px-5 pt-1" : ""}>
         {seg === "feed" ? (
           feed.length === 0 ? (
             <Empty icon={<Search size={20} />} title={posts.length === 0 ? "Nothing here yet" : "No matches"} text={posts.length === 0 ? "Follow creators and watch what other students post, or share something yourself. Tap the mascot and choose Post." : tag === "Following" ? "Follow a creator to see their posts here." : "Try another tag or search term."} action={<Btn variant="study" onClick={() => setOverlay({ t: "post" })}>Post something</Btn>} />
@@ -172,29 +184,43 @@ export default function Explore({ active, onBack, section = "feed" }: { active: 
             </div>
           )
         ) : seg === "deals" ? (
-          <CampusDeals campus={campus} deals={deals} />
+          <div className="px-4 pt-2"><CampusDeals campus={campus} deals={deals} /></div>
         ) : (
-          <div className="space-y-3">
-            <CertStrip active={active && seg === "courses"} />
-            <SlotAd surface="courses" active={active && seg === "courses"} />
-            <Btn variant="ghost" onClick={() => (courses.length ? setShareOpen(true) : flash("Create a course in Courses first"))}>Share one of my courses</Btn>
-            {filteredShared.length === 0 ? <Empty icon={<Users size={20} />} title="No shared courses yet" text="Students share their course libraries here. Add one to your Study and chat with everyone in it." /> : filteredShared.map((s) => {
-              const joined = s.members.includes("me") || s.ownerId === "me";
-              return (
-                <button key={s.id} onClick={() => setDetail(s.id)} className="w-full rounded-2xl border border-[var(--line)] bg-white p-3.5 text-left active:scale-[0.98]">
-                  <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="text-[14.5px] font-bold text-[var(--text)]">{s.code} · {s.name}</div><div className="mt-0.5 text-[12px] text-[var(--dim)]">{s.school ? `${s.school} · ` : ""}shared by {s.ownerName || (s.ownerId === "me" ? profile.name || "you" : personById(s.ownerId)?.name)}</div></div>{joined ? <BadgeCheck size={18} className="shrink-0 text-[var(--uni)]" /> : <PriceTag price={s.priceNgn} />}</div>
-                  <div className="mt-2.5 flex gap-4 text-[12px] font-semibold text-[var(--dim)]"><span className="flex items-center gap-1"><Users size={13} /> {s.members.length}</span><span>{contentsLabel(s)}</span><span>{s.messages.length} messages</span></div>
-                </button>
-              );
-            })}
+          <div>
+            <div className="bg-[var(--we-cell)]">
+              <button onClick={() => (courses.length ? setShareOpen(true) : flash("Create a course in Courses first"))} className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-black/5">
+                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--we-accent)] text-white"><BookmarkPlus size={20} /></span>
+                <span className="min-w-0 flex-1"><span className="block text-[16px] text-[var(--we-text)]">Share One of My Courses</span><span className="block text-[12.5px] text-[var(--we-sub)]">Free or paid. You keep 90% of sales.</span></span>
+              </button>
+            </div>
+            <div className="px-3 pt-2"><CertStrip active={active && seg === "courses"} /><SlotAd surface="courses" active={active && seg === "courses"} /></div>
+            <div className="px-4 pb-1.5 pt-3 text-[13px] text-[var(--we-sub)]">{filteredShared.length ? "Courses students shared" : ""}</div>
+            {filteredShared.length === 0 ? <p className="px-10 py-12 text-center text-[14px] leading-relaxed text-[var(--we-sub)]">No shared courses yet. When students share their course notes, files and recordings, they show here.</p> : (
+              <div className="bg-[var(--we-cell)]">{filteredShared.map((s) => {
+                const joined = s.members.includes("me") || s.ownerId === "me";
+                return (
+                  <button key={s.id} onClick={() => setDetail(s.id)} className="flex w-full items-center gap-3 pl-4 text-left active:bg-black/5">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold text-white" style={{ background: courseColor(s.code) }}>{s.code.replace(/\s+/g, "").slice(0, 4)}</span>
+                    <span className="flex min-h-[68px] min-w-0 flex-1 items-center gap-2 border-b border-[var(--we-sep)] py-2.5 pr-4">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[16px] text-[var(--we-text)]">{s.code} · {s.name}</span>
+                        <span className="block truncate text-[12.5px] text-[var(--we-sub)]">{[s.school, `by ${s.ownerName || (s.ownerId === "me" ? profile.name || "you" : personById(s.ownerId)?.name ?? "a student")}`].filter(Boolean).join(" · ")}</span>
+                        <span className="block truncate text-[12.5px] text-[var(--we-hint)]">{s.members.length} member{s.members.length === 1 ? "" : "s"} · {contentsLabel(s)}</span>
+                      </span>
+                      {joined ? <BadgeCheck size={18} className="shrink-0 text-[var(--we-accent)]" /> : <PriceTag price={s.priceNgn} />}
+                    </span>
+                  </button>
+                );
+              })}</div>
+            )}
           </div>
         )}
         </div>
       </div>
 
-      <Sheet open={!!sel} onClose={() => setDetail(null)} title={sel ? `${sel.code} · ${sel.name}` : ""}>
+      <Page open={!!sel} onClose={() => setDetail(null)} title={sel ? sel.code : ""}>
         {sel && <SharedDetail s={sel} buying={buying} onJoin={() => void join(sel)} onOpen={() => { const c = courses.find((x) => x.sharedId === sel.id); setDetail(null); if (c) goStudy({ courseId: c.id }); else setTab("study"); }} onLeave={() => { leaveShared(sel.id); flash("Left the course chat"); }} onSend={(t) => sendShared(sel.id, t)} onProfile={(id) => { setDetail(null); setOverlay({ t: "profile", id }); }} me={firstName(profile)} personName={(id) => (id === "me" ? "You" : personById(id)?.name ?? "Someone")} />}
-      </Sheet>
+      </Page>
 
       <ShareSheet open={shareOpen} onClose={() => setShareOpen(false)} />
 
@@ -215,41 +241,47 @@ function contentsLabel(s: SharedCourse) {
   return parts.length ? parts.join(", ") : "Nothing shared yet";
 }
 
-function SharedDetail({ s, buying, onJoin, onOpen, onLeave, onSend, onProfile, personName }: { s: SharedCourse; buying: boolean; onJoin: () => void; onOpen: () => void; onLeave: () => void; onSend: (t: string) => void; onProfile: (id: string) => void; me: string; personName: (id: string) => string }) {
-  const [tab, setTab] = useState<"about" | "chat">("about");
-  const [draft, setDraft] = useState("");
-  const end = useRef<HTMLDivElement>(null);
+function SharedDetail({ s, buying, onJoin, onOpen, onLeave, onProfile, personName }: { s: SharedCourse; buying: boolean; onJoin: () => void; onOpen: () => void; onLeave: () => void; onSend?: (t: string) => void; me?: string; onProfile: (id: string) => void; personName: (id: string) => string | undefined }) {
+  const { setChatView, flash } = useApp();
   const owner = s.ownerId === "me";
   const joined = s.members.includes("me") || owner;
-  const joinLabel = buying ? "Working..." : s.priceNgn ? `Buy for ${naira(s.priceNgn)}` : "Add to my Study and join chat";
-  useEffect(() => { scrollToEnd(end.current); }, [s.messages.length, tab]);
+  const joinLabel = buying ? "Working..." : s.priceNgn ? `Buy for ${naira(s.priceNgn)}` : "Add to My Courses";
+  async function openChat() {
+    const gid = await courseGroupId(s.id);
+    if (!gid) return flash("The course chat opens once you've added the course");
+    setChatView({ k: "group", id: gid });
+  }
   return (
-    <div>
-      <Segmented value={tab} onChange={setTab} options={[{ id: "about", label: "About" }, { id: "chat", label: `Chat (${s.messages.length})` }]} />
-      {tab === "about" ? (
-        <div className="mt-4 space-y-4">
-          <p className="text-[13.5px] leading-snug text-[var(--text)]">{s.description}</p>
-          <div className="rounded-xl bg-[var(--paper-dim)] px-3 py-2 text-[12.5px] text-[var(--dim)]">Shared by <b className="text-[var(--text)]">{s.ownerName || personName(s.ownerId)}</b>{s.school ? <> · <b className="text-[var(--text)]">{s.school}</b></> : null}</div>
-          <div><Label>Members ({s.members.length})</Label><div className="flex flex-wrap gap-2">{s.members.map((id) => (<button key={id} onClick={() => id !== "me" && onProfile(id)} className="flex items-center gap-2 rounded-full bg-white py-1 pl-1 pr-3 ring-1 ring-[var(--line)]"><Avatar initials={initials(personName(id))} color="#7C4DDB" size={26} /><span className="text-[12.5px] font-semibold">{personName(id)}</span></button>))}</div></div>
-          <div><Label>What&apos;s included</Label><div className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2.5 text-[13px] ring-1 ring-[var(--line)]"><span>{contentsLabel(s)}</span><PriceTag price={s.priceNgn} /></div></div>
-          {joined ? (<div className="space-y-2"><Btn variant="study" onClick={onOpen}>{owner ? "Open (manage sharing from the course)" : "Open in my Study"}</Btn>{!owner && !s.priceNgn && <Btn variant="ghost" onClick={onLeave}>Leave chat</Btn>}</div>) : (<>
-            <Btn variant="study" disabled={buying} onClick={onJoin}><span className="inline-flex items-center gap-2"><BookmarkPlus size={16} /> {joinLabel}</span></Btn>
-            {!!s.priceNgn && <p className="text-center text-[11.5px] text-[var(--dim)]">One-time payment from your Birdie balance. You keep access, including anything the owner adds to this listing later.</p>}
-          </>)}
-        </div>
-      ) : (
-        <div className="mt-3">
-          <div className="no-scrollbar h-[300px] space-y-2 overflow-y-auto rounded-2xl bg-[#F0E9F6] p-3">
-            {s.messages.length === 0 && <div className="pt-16 text-center text-[13px] text-[var(--dim)]">No messages yet. Say hi to the class.</div>}
-            {s.messages.map((m) => (<div key={m.id} className={`flex ${m.authorId === "me" ? "justify-end" : ""}`}><div className={`max-w-[82%] rounded-2xl px-3 py-2 text-[13.5px] leading-snug shadow-sm ${m.authorId === "me" ? "rounded-tr-md bg-[#EBD3F5]" : "rounded-tl-md bg-white"}`}>{m.authorId !== "me" && <div className="text-[11px] font-bold text-[var(--birdie)]">{personName(m.authorId)}</div>}{m.text}<div className="mt-0.5 text-right text-[10px] text-[#8a7fa0]">{m.t}</div></div></div>))}
-            <div ref={end} />
-          </div>
-          {joined ? (<div className="mt-3 flex gap-2"><input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && draft.trim()) { onSend(draft.trim()); setDraft(""); } }} placeholder="Message the class" className="min-w-0 flex-1 rounded-full bg-[var(--paper-dim)] px-4 py-3 text-[14px] outline-none placeholder:text-[#a99fb8]" /><button onClick={() => { if (draft.trim()) { onSend(draft.trim()); setDraft(""); } }} aria-label="Send" className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--uni)] text-white active:scale-90"><Send size={17} /></button></div>) : <div className="mt-3"><Btn variant="study" disabled={buying} onClick={onJoin}>{s.priceNgn ? joinLabel : "Join to chat"}</Btn></div>}
-        </div>
-      )}
+    <div className="pb-10">
+      <div className="flex flex-col items-center bg-[var(--we-cell)] px-6 pb-6 pt-5 text-center">
+        <span className="flex h-16 w-16 items-center justify-center rounded-full text-[15px] font-semibold text-white" style={{ background: courseColor(s.code) }}>{s.code.replace(/\s+/g, "").slice(0, 4)}</span>
+        <div className="mt-2 text-[18px] font-semibold text-[var(--we-text)]">{s.code} · {s.name}</div>
+        <div className="mt-0.5 text-[13px] text-[var(--we-sub)]">{[s.school, `Shared by ${s.ownerName || personName(s.ownerId) || "a student"}`].filter(Boolean).join(" · ")}</div>
+        {s.description && <p className="mt-3 text-[14.5px] leading-snug text-[var(--we-text)]">{s.description}</p>}
+      </div>
+      <div className="mt-2 bg-[var(--we-cell)] px-4">
+        <div className="flex items-center justify-between border-b border-[var(--we-sep)] py-3.5 text-[16px] text-[var(--we-text)]"><span>What&apos;s included</span><span className="text-[14px] text-[var(--we-sub)]">{contentsLabel(s)}</span></div>
+        <div className="flex items-center justify-between py-3.5 text-[16px] text-[var(--we-text)]"><span>Price</span><PriceTag price={s.priceNgn} /></div>
+      </div>
+      <div className="px-4 pb-1.5 pt-4 text-[13px] text-[var(--we-sub)]">Members ({s.members.length})</div>
+      <div className="flex flex-wrap gap-3 bg-[var(--we-cell)] px-4 py-3">{s.members.slice(0, 20).map((id) => (
+        <button key={id} onClick={() => id !== "me" && onProfile(id)} className="flex w-14 flex-col items-center gap-1"><Avatar initials={initials(personName(id) || "?")} color={courseColor(id)} size={44} /><span className="w-full truncate text-center text-[11.5px] text-[var(--we-sub)]">{id === "me" ? "You" : personName(id) || "Student"}</span></button>
+      ))}</div>
+      <div className="mt-4 space-y-2 px-4">
+        {joined ? (<>
+          <button onClick={() => void openChat()} className="w-full rounded-[6px] bg-[var(--we-accent)] py-3 text-[16px] font-medium text-white">Open Course Chat</button>
+          <button onClick={onOpen} className="w-full rounded-[6px] bg-[var(--we-cell)] py-3 text-[16px] text-[var(--we-text)]">{owner ? "Open the Course" : "Open in My Courses"}</button>
+          {!owner && !s.priceNgn && <button onClick={onLeave} className="w-full py-2 text-[15px] text-[var(--we-red)]">Remove from My Courses</button>}
+        </>) : (<>
+          <button disabled={buying} onClick={onJoin} className="w-full rounded-[6px] bg-[var(--we-accent)] py-3 text-[16px] font-medium text-white disabled:opacity-50">{joinLabel}</button>
+          {!!s.priceNgn && <p className="text-center text-[12.5px] text-[var(--we-sub)]">Paid once from your Birdie balance. You keep anything the owner adds later.</p>}
+        </>)}
+      </div>
     </div>
   );
 }
+
+const courseColor = (t: string) => ["#3D83F7", "#7C4DDB", "#1B8A85", "#D9467E", "#E2553F", "#A63FBD", "#F5A623", "#2F9E5B"][[...t].reduce((a, c) => a + c.charCodeAt(0), 0) % 8];
 
 function ShareSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { courses } = useApp();

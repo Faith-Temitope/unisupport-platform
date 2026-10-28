@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase";
 import { countPdfPages } from "./extract";
 import { safeName, uploadTo } from "./live/helpData";
 import { naira, uid, useApp } from "./store";
-import { Btn, Segmented, Sheet, TextField } from "./ui";
+import { Btn, Page, Segmented, TextField } from "./ui";
 
 type OrderFile = { name: string; path: string };
 type Order = {
@@ -110,7 +110,7 @@ export function PrintOrders() {
   const chip = (on: boolean) => `flex-1 rounded-xl border-2 py-2 text-[12.5px] font-bold transition active:scale-95 ${on ? "border-[var(--uni)] bg-[var(--uni-soft)] text-[var(--uni-deep)]" : "border-[var(--line)] text-[var(--dim)]"}`;
 
   return (
-    <Sheet open={open} onClose={closePrint} title={view === "orders" ? "Your print orders" : kind === "print" ? "Print & deliver" : "Handwrite my assignment"}>
+    <Page open={open} onClose={closePrint} title={view === "orders" ? "My Print Orders" : kind === "print" ? "Print & Deliver" : "Handwriting"}><div className="bg-[var(--we-cell)] px-4 pb-10 pt-4">
       {auth.status !== "in" ? <p className="text-[13.5px] text-[var(--dim)]">Sign in to place an order.</p> : view === "orders" ? (
         <div className="space-y-2.5">
           {orders.length === 0 ? <p className="text-[13px] text-[var(--dim)]">No orders yet.</p> : orders.map((o) => (
@@ -173,6 +173,6 @@ export function PrintOrders() {
           <button onClick={() => setView("orders")} className="w-full text-center text-[12.5px] font-bold text-[var(--uni)]">See my orders</button>
         </div>
       )}
-    </Sheet>
+    </div></Page>
   );
 }

@@ -4,40 +4,43 @@ import { CountryPicker, RegionPicker, SchoolPicker } from "./PlacePicker";
 import { PushToggle } from "./PushToggle";
 import Buddy, { SKINS } from "@/components/brand/Buddy";
 import { Downloads } from "./Downloads";
-import { ArrowLeft, Bell, BookOpen, Bot as BotIcon, Cpu, Compass, CreditCard, Eye, FileText, Download, Lock, LogOut, Palette, PlugZap, ShieldCheck, Sparkles, Trash2, Type, UserRound, X } from "lucide-react";
+import { ChevronLeft, Bell, BookOpen, Bot as BotIcon, Compass, CreditCard, Eye, FileText, Download, Lock, Palette, ShieldCheck, Sparkles, Trash2, Type, UserRound, X } from "lucide-react";
 import { cleanUrl } from "./live/socialData";
 import { RepPanel } from "./RepPanel";
 import { useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase";
 import { initials } from "./PostCard";
 import { naira, useApp } from "./store";
-import { Avatar, Btn, IconBtn, Screen, Segmented, Sheet, TextField, Toggle } from "./ui";
-import { BrainPicker } from "./BrainPicker";
+import { Avatar, Btn, Screen, Segmented, Sheet, TextField, Toggle } from "./ui";
+import { BirdieSettings } from "./Companions";
+import { useBackLayer } from "./nav";
 import { ACCENTS } from "./theme";
 
-function Group({ icon: Icon, title, children }: { icon: typeof Bell; title: string; children: ReactNode }) {
+function Group({ title, children }: { icon?: typeof Bell; title: string; children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-[var(--line)] bg-white px-4 pb-1 pt-3.5">
-      <div className="mb-1 flex items-center gap-2 text-[12px] font-bold uppercase tracking-wider text-[var(--birdie)]"><Icon size={14} /> {title}</div>
-      {children}
+    <section>
+      <div className="px-4 pb-1.5 pt-4 text-[13px] text-[var(--we-sub)]">{title}</div>
+      <div className="bg-[var(--we-cell)] px-4">{children}</div>
     </section>
   );
 }
 const Row = ({ label, sub, onClick, danger }: { label: string; sub?: string; onClick: () => void; danger?: boolean }) => (
-  <button onClick={onClick} className="flex w-full items-center gap-3 border-b border-[var(--line)] py-3 text-left last:border-0 active:opacity-70">
-    <div className="min-w-0 flex-1"><div className={`text-[14px] font-semibold ${danger ? "text-[var(--help)]" : "text-[var(--text)]"}`}>{label}</div>{sub && <div className="text-[12px] leading-snug text-[var(--dim)]">{sub}</div>}</div><span className="text-[var(--dim)]">›</span>
+  <button onClick={onClick} className="flex w-full items-center gap-3 border-b border-[var(--we-sep)] py-3.5 text-left last:border-0 active:opacity-70">
+    <div className="min-w-0 flex-1"><div className={`text-[16px] ${danger ? "text-[var(--we-red)]" : "text-[var(--we-text)]"}`}>{label}</div>{sub && <div className="mt-0.5 text-[12.5px] leading-snug text-[var(--we-sub)]">{sub}</div>}</div><span className="text-[var(--dim)]">›</span>
   </button>
 );
-const Choice = ({ label, children }: { label: string; children: ReactNode }) => (<div className="border-b border-[var(--line)] py-3 last:border-0"><div className="mb-2 text-[14px] font-semibold text-[var(--text)]">{label}</div>{children}</div>);
+const Choice = ({ label, children }: { label: string; children: ReactNode }) => (<div className="border-b border-[var(--we-sep)] py-3.5 last:border-0"><div className="mb-2.5 text-[16px] text-[var(--we-text)]">{label}</div>{children}</div>);
 
 export default function Settings() {
-  const { overlay, setOverlay, profile, saveProfile, settings, setSetting, demoOn, setDemo, balance, txs, setWalletOpen, courses, folders, resetAll, flash, auth, signOut, setAuthOpen, plus, openPlus, setTourOpen } = useApp();
+  const { overlay, setOverlay, profile, saveProfile, settings, setSetting, demoOn, setDemo, balance, setWalletOpen, courses, folders, resetAll, flash, auth, signOut, setAuthOpen, plus, openPlus, setTourOpen } = useApp();
   const [sheet, setSheet] = useState<null | "profile" | "password" | "delete" | "about">(null);
   const [draft, setDraft] = useState(profile);
   const [saving, setSaving] = useState(false);
   const [pw, setPw] = useState({ a: "", b: "", c: "" });
   const [pwBusy, setPwBusy] = useState(false);
   const close = () => setOverlay(null);
+  const [birdie, setBirdie] = useState(false);
+  useBackLayer(birdie, () => setBirdie(false));
 
   function exportData() {
     const data = { exportedAt: new Date().toISOString(), profile, settings, folders, courses: courses.map((c) => ({ ...c, files: c.files.map(({ url, ...f }) => { void url; return f; }), recs: c.recs.map(({ url, ...r }) => { void url; return r; }) })) };
@@ -48,29 +51,27 @@ export default function Settings() {
     <>
       <Screen open={overlay?.t === "settings"} z={64}>
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex shrink-0 items-center gap-3 border-b border-[var(--line)] px-4 pb-2.5 pt-1"><IconBtn label="Back" onClick={close}><ArrowLeft size={17} /></IconBtn><h2 className="disp text-[19px] font-bold">Settings</h2></div>
-          <div className="no-scrollbar flex-1 space-y-3.5 overflow-y-auto px-4 py-4 pb-10">
-            <button onClick={() => { setDraft(profile); setSheet("profile"); }} className="flex w-full items-center gap-3.5 rounded-2xl border border-[var(--line)] bg-white p-3.5 text-left active:scale-[0.98]">
+          <div className="relative flex h-12 shrink-0 items-center justify-center bg-[var(--we-bg)] text-[var(--we-text)]"><button onClick={close} aria-label="Back" className="absolute left-2 flex h-10 w-10 items-center justify-center"><ChevronLeft size={26} /></button><span className="text-[16.5px] font-semibold">Settings</span></div>
+          <div className="no-scrollbar flex-1 overflow-y-auto bg-[var(--we-bg)] pb-12">
+            <button onClick={() => { setDraft(profile); setSheet("profile"); }} className="flex w-full items-center gap-3.5 bg-[var(--we-cell)] px-4 py-4 text-left active:opacity-80">
               <Avatar initials={initials(profile.name)} color="#A63FBD" size={54} />
               <div className="min-w-0 flex-1"><div className="disp truncate text-[17px] font-bold">{profile.name || "Your name"}</div><div className="truncate text-[12.5px] text-[var(--dim)]">@{profile.handle || "handle"} · {[profile.level, profile.program].filter(Boolean).join(" · ") || "Add your level and program"}</div></div><span className="text-[var(--dim)]">›</span>
             </button>
-            <Btn variant="ghost" onClick={() => setOverlay({ t: "profile", id: "me" })}>View my channel</Btn>
 
             {auth.status === "guest" && (
               <div className="rounded-2xl bg-gradient-to-br from-[var(--ink)] to-[#2b1546] p-4 text-[var(--paper)]"><div className="disp text-[16px] font-bold">You're using Birdie as a guest</div><p className="mt-1 text-[12.5px] leading-snug text-white/65">Your work is saved on this device only. Create an account to keep it safe and use it anywhere.</p><button onClick={() => { close(); setAuthOpen(true); }} className="mt-3 rounded-xl bg-[var(--birdie)] px-4 py-2 text-[13px] font-semibold text-white active:scale-95">Create an account</button></div>
             )}
-            {auth.status === "in" && <div className="rounded-2xl border border-[var(--line)] bg-white px-4 py-3 text-[13px] text-[var(--dim)]">Signed in as <b className="text-[var(--text)]">{auth.email}</b></div>}
+            {auth.status === "in" && <div className="px-4 pt-2 text-[12.5px] text-[var(--we-sub)]">Signed in as <b className="text-[var(--text)]">{auth.email}</b></div>}
 
             <Group icon={CreditCard} title="Wallet">
-              <div className="flex items-center justify-between border-b border-[var(--line)] py-3"><div><div className="text-[12px] text-[var(--dim)]">Birdie balance</div><div className="disp text-[22px] font-bold">{naira(balance)}</div></div><button onClick={() => setWalletOpen(true)} className="rounded-xl bg-[var(--birdie)] px-4 py-2 text-[13px] font-semibold text-white active:scale-95">Top up</button></div>
+              <Row label="Balance" sub={naira(balance)} onClick={() => setWalletOpen(true)} />
               <Row label="How Birdie works" sub="The quick tour: studying, Birdie AI, earning and more" onClick={() => setTourOpen(true)} />
-              <Row label="Transactions" sub={txs.length ? `${txs.length} so far` : "Nothing yet"} onClick={() => setWalletOpen(true)} />
             </Group>
 
             <RepPanel />
 
-            <Group icon={Cpu} title="Birdie's brain">
-              <div className="pb-3 pt-1"><p className="mb-3 text-[12.5px] leading-snug text-[var(--dim)]">Pick the AI you like best. You can switch any time, and each one has its own model levels.</p><BrainPicker /></div>
+            <Group title="Birdie AI">
+              <Row label="Companion, thinking and memory" sub="Spark, Nova or Sage, how deep it thinks, what it knows about you" onClick={() => setBirdie(true)} />
             </Group>
 
             <Group icon={Sparkles} title="Birdie and study">
@@ -98,7 +99,6 @@ export default function Settings() {
             </Group>
 
             <Group icon={Compass} title="Explore">
-              <Toggle on={settings.autoplay} onChange={(v) => setSetting("autoplay", v)} label="Play videos on hover" sub="Preview videos silently as you point at them" />
               <Toggle on={settings.dataSaver} onChange={(v) => setSetting("dataSaver", v)} label="Data saver" sub="No video previews and lighter loading, to save your data" />
               <Toggle on={settings.personalTags} onChange={(v) => setSetting("personalTags", v)} label="Tags based on my chats" sub="Suggest topics from your courses and Birdie chats" />
               <Toggle on={demoOn} onChange={setDemo} label="Demo community" sub="Adds a few sample students, posts and shared courses so Explore isn't empty while you're the only one here. Kept separate from your own data." />
@@ -106,10 +106,7 @@ export default function Settings() {
 
             <Group icon={Bell} title="Notifications">
               <PushToggle />
-              <Toggle on={settings.notifChat} onChange={(v) => setSetting("notifChat", v)} label="Messages" sub="People, shared courses and writers" />
-              <Toggle on={settings.notifSession} onChange={(v) => setSetting("notifSession", v)} label="Writer sessions and payments" />
               <Toggle on={settings.notifRec} onChange={(v) => setSetting("notifRec", v)} label="Study recommendations" />
-              <Toggle on={settings.notifExplore} onChange={(v) => setSetting("notifExplore", v)} label="New posts from people I follow" />
             </Group>
 
             <Group icon={Download} title="Downloads (offline)">
@@ -131,11 +128,6 @@ export default function Settings() {
               <Toggle on={settings.reduceMotion} onChange={(v) => setSetting("reduceMotion", v)} label="Reduce motion" />
             </Group>
 
-            <Group icon={PlugZap} title="Connectors">
-              <Toggle on={settings.calendar} onChange={(v) => setSetting("calendar", v)} label="Calendar" sub="Let Birdie know your deadlines and class times" />
-              <Toggle on={settings.schoolApps} onChange={(v) => setSetting("schoolApps", v)} label="School apps" sub="Campus map and timetable" />
-              <Toggle on={settings.offline} onChange={(v) => setSetting("offline", v)} label="Offline mode" sub="Keep notes and flashcards usable without data" />
-            </Group>
 
             <Group icon={Eye} title="Privacy">
               <Choice label="Who can see my profile"><Segmented value={settings.profileVisibility} onChange={(v) => setSetting("profileVisibility", v)} options={[{ id: "everyone", label: "Everyone" }, { id: "followers", label: "Followers" }, { id: "private", label: "Only me" }]} /></Choice>
@@ -164,6 +156,7 @@ export default function Settings() {
           </div>
         </div>
       </Screen>
+      {birdie && <div className="absolute inset-0 z-[66] flex flex-col bg-[var(--we-bg)]"><BirdieSettings onBack={() => setBirdie(false)} /></div>}
 
       <Sheet open={sheet === "profile"} onClose={() => setSheet(null)} title="Edit profile">
         <div className="space-y-3">
