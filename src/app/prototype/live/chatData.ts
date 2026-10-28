@@ -234,22 +234,30 @@ export const setContactPrefs = (id: string, p: { chatsOnly?: boolean; hideMine?:
 // ---------- Moments
 export interface Moment {
   id: string; author: ChatPerson; body: string; images: string[]; location: string | null; created_at: string; mine: boolean; liked: boolean;
+  video?: MomentVideo | null; link?: MomentLink | null; visibility?: "friends" | "private";
   likes: { id: string; name: string }[]; comments: { id: string; mine: boolean; body: string; created_at: string; user: { id: string; name: string }; reply_to: { id: string; name: string } | null }[];
 }
 export const momentsFeed = async (before?: string) => (await call<Moment[]>("moments_feed", { p_before: before ?? null })).data ?? [];
 export const userMoments = async (user: string, before?: string) => (await call<Moment[]>("user_moments", { p_user: user, p_before: before ?? null })).data ?? [];
 export const momentsHeader = async (user?: string) => (await call<{ person: ChatPerson; cover: string | null; can_see: boolean }>("moments_header", { p_user: user ?? null })).data;
-export const postMoment = (body: string, images: string[], location: string | null) => call<Moment>("post_moment", { p_body: body, p_images: images, p_location: location });
+export interface MomentVideo { path: string; poster: string | null; seconds: number }
+export interface MomentLink { url: string; title: string; thumb: string | null; source: string | null }
+export interface MomentNotice { kind: "like" | "comment" | "reply"; at: string; moment_id: string; user: ChatPerson; body: string | null; moment: { body: string; image: string | null; video: string | null } }
+export const postMoment = (body: string, o: { images?: string[]; location?: string | null; video?: MomentVideo | null; link?: MomentLink | null; visibility?: "friends" | "private" } = {}) =>
+  call<Moment>("post_moment2", { p_body: body, p_images: o.images ?? [], p_location: o.location ?? null, p_video: o.video ?? null, p_link: o.link ?? null, p_visibility: o.visibility ?? "friends" });
+export const momentsInbox = async () => (await call<MomentNotice[]>("moments_inbox", { p_limit: 50 })).data ?? [];
+export const momentGet = async (id: string) => (await call<Moment | null>("moment_get", { p_id: id })).data;
 export const deleteMoment = (id: string) => call("delete_moment", { p_id: id });
 export const likeMoment = (id: string, on: boolean) => call<Moment>("like_moment", { p_id: id, p_on: on });
 export const commentMoment = (id: string, body: string, replyTo?: string | null) => call<Moment>("comment_moment", { p_id: id, p_body: body, p_reply_to: replyTo ?? null });
 export const deleteMomentComment = (id: string) => call("delete_moment_comment", { p_id: id });
 export const setMomentsCover = (path: string) => call("set_moments_cover", { p_path: path });
+/** Photos, videos (up to 50 MB) and video covers for Moments. */
 export async function uploadMomentPhoto(file: Blob): Promise<{ path?: string; error?: string }> {
   try {
     const r = await fetch("/api/moments/media", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ size: file.size, type: file.type }) });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) return { error: j.error === "too_large" ? "That photo is too big" : "Couldn't upload" };
+    if (!r.ok) return { error: j.error === "too_large" ? (file.type.startsWith("video/") ? "Videos can be up to 50 MB" : "That photo is too big") : "Couldn't upload" };
     const up = await sb().storage.from("moments").uploadToSignedUrl(j.path, j.token, file, { contentType: file.type || "image/jpeg" });
     return up.error ? { error: "Couldn't upload" } : { path: j.path as string };
   } catch { return { error: "Couldn't upload. Check your connection." }; }

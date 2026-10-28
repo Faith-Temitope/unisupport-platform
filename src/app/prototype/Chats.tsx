@@ -28,7 +28,7 @@ type Row = { key: string; view: ChatView; name: string; last: string; at: string
   menu?: { kind: "dm" | "group" | "oa"; id: string; owner?: boolean; course?: boolean }; onOpen?: () => void };
 
 export default function Chats({ active }: { active: boolean }) {
-  const { chatView, setChatView, auth, setAuthOpen, setChatBadge, chats: birdieChats, courses, goStudy, goHelp, flash } = useApp();
+  const { chatView, setChatView, auth, setAuthOpen, setChatBadge, chats: birdieChats, courses, goStudy, flash } = useApp();
   const signedIn = auth.status === "in";
   const [dms, setDms] = useState<DmRow[]>([]);
   const [groups, setGroups] = useState<GroupRow[]>([]);
@@ -190,7 +190,7 @@ function ChatList({ rows, courseRow, helpLast, loaded, signedIn, birdieLast, ope
             <p className="text-[14px] leading-relaxed text-[var(--we-sub)]">Sign in to chat with classmates, make groups, send money and giveaways, and follow your SUG and companies offering SIWES.</p>
             <button onClick={onSignIn} className="mt-4 rounded-[6px] bg-[var(--we-accent)] px-6 py-2.5 text-[15px] font-medium text-white">Sign In</button>
           </div>
-        ) : loaded && rows.length === 0 ? (
+        ) : loaded && rows.length === 0 && !courseRow ? (
           <p className="px-8 py-16 text-center text-[14px] leading-relaxed text-[var(--we-sub)]">No chats yet. Tap ⊕ to add classmates by their Birdie ID, start a group, or follow verified accounts.</p>
         ) : rows.map((r) => (
           <div key={r.key} {...hold(r)}>

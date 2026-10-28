@@ -3,11 +3,11 @@
 // Discover, laid out like WeChat's: Moments, Channels, Scan, Shake, Top Stories, Search, People at your
 // school and Mini Programs. Each opens full screen (the bottom bar hides) and Back returns to the list.
 import jsQR from "jsqr";
-import { BookOpen, Bot, Briefcase, ImagePlus, Package, PenLine, Presentation, Printer, Search, Smartphone, Zap } from "lucide-react";
+import { BookOpen, Bot, Briefcase, Camera, ImagePlus, LayoutGrid, Package, Plus, ScanLine, PenLine, Presentation, Printer, Search, Smartphone, Zap } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Head, ListRow } from "./Chats";
 import Explore from "./Explore";
-import MomentsScreen from "./Moments";
+import MomentsScreen, { hasNewMomentNotices } from "./Moments";
 import { OALogo, OAPostView, OAProfileView } from "./Official";
 import { momentsFeed, peopleAtSchool, searchAll, shake, topStories, type ArticleCard, type ChatPerson, type Moment } from "./live/chatData";
 import { JustDoIt } from "./JustDoIt";
@@ -25,10 +25,14 @@ export default function Discover({ active }: { active: boolean }) {
   const { discoverView: view, setDiscoverView: go, auth, setAuthOpen } = useApp();
   const [latest, setLatest] = useState<Moment | null>(null);
   const [seenAt, setSeenAt] = useState("");
+  const [notices, setNotices] = useState(false);
+  const [menu, setMenu] = useState(false);
+  useBackLayer(menu, () => setMenu(false));
   const signedIn = auth.status === "in";
   useEffect(() => {
     if (!active || view || !signedIn) return;
     void momentsFeed().then((l) => setLatest(l.find((m) => !m.mine) ?? null));
+    void hasNewMomentNotices().then(setNotices);
     try { void Promise.resolve().then(() => setSeenAt(localStorage.getItem(SEEN_KEY) ?? "")); } catch { /* ignore */ }
   }, [active, view, signedIn]);
   const open = (v: NonNullable<typeof view>) => {
@@ -37,7 +41,7 @@ export default function Discover({ active }: { active: boolean }) {
     go(v);
   };
   const back = navBack;
-  const fresh = !!latest && latest.created_at > seenAt;
+  const fresh = (!!latest && latest.created_at > seenAt) || notices;
 
   if (view) return (
     <div className="flex h-full min-h-0 flex-col bg-[var(--we-bg)]">
@@ -58,7 +62,24 @@ export default function Discover({ active }: { active: boolean }) {
   const icon = (n: ReactNode) => <span className="flex h-6 w-6 items-center justify-center">{n}</span>;
   return (
     <div className="flex h-full min-h-0 flex-col bg-[var(--we-bg)]">
-      <WeHeader title="Discover" />
+      <div className="relative z-30">
+        <WeHeader title="Discover" right={<>
+          <button onClick={() => open({ k: "search" })} aria-label="Search" className="flex h-10 w-10 items-center justify-center"><Search size={21} /></button>
+          <button onClick={() => setMenu((m) => !m)} aria-label="More" className="flex h-10 w-10 items-center justify-center"><span className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-[1.6px] border-current"><Plus size={15} strokeWidth={2.2} /></span></button>
+        </>} />
+        {menu && (<>
+          <div className="fixed inset-0 z-20" onClick={() => setMenu(false)} />
+          <div className="absolute right-3 top-12 z-30 w-[180px] rounded-[6px] bg-[var(--we-pop)] py-1 text-[15.5px] text-white shadow-2xl">
+            <span className="absolute -top-1.5 right-4 h-3 w-3 rotate-45 bg-[var(--we-pop)]" />
+            {[
+              { label: "Post to Moments", Icon: Camera, run: () => open({ k: "moments" }) },
+              { label: "Scan", Icon: ScanLine, run: () => open({ k: "scan" }) },
+              { label: "Shake", Icon: Smartphone, run: () => open({ k: "shake" }) },
+              { label: "Mini Programs", Icon: LayoutGrid, run: () => open({ k: "mini" }) },
+            ].map(({ label, Icon, run }) => <button key={label} onClick={() => { setMenu(false); run(); }} className="relative flex w-full items-center gap-3.5 px-4 py-3 text-left active:bg-white/10"><Icon size={20} strokeWidth={1.7} />{label}</button>)}
+          </div>
+        </>)}
+      </div>
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pb-28">
         <CellGroup gap={false}>
           <Cell icon={icon(<MomentsIcon />)} label="Moments" onClick={() => open({ k: "moments" })}

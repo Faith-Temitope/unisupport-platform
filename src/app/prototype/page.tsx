@@ -43,7 +43,7 @@ const NAV: [TabId, string, typeof TabChats][] = [["chats", "Chats", TabChats], [
 const ZOOM = { s: 0.92, m: 1, l: 1.1 } as const;
 
 function Shell() {
-  const { tab, setTab, chatView, setChatView, discoverView, setDiscoverView, chatBadge, toast, setPhone, setSlot, settings, resetAll, resetKey, skipHours, recommendation, flash, refreshWallet, setWalletOpen, auth, openByHandle, setAuthOpen, plus, setOverlay, profile, boot, setTourOpen, overlay, watching, tourOpen, recorderOpen, pocketOpen, viewFile } = useApp();
+  const { tab, setTab, chatView, setChatView, discoverView, setDiscoverView, watch, chatBadge, toast, setPhone, setSlot, settings, resetAll, resetKey, skipHours, recommendation, flash, refreshWallet, setWalletOpen, auth, openByHandle, setAuthOpen, plus, setOverlay, profile, boot, setTourOpen, overlay, watching, tourOpen, recorderOpen, pocketOpen, viewFile } = useApp();
   const seen = { explore: useEver(tab === "explore"), chats: useEver(tab === "chats" || auth.status === "in"), me: useEver(tab === "me"), settings: useEver(overlay?.t === "settings"), overlays: useEver((!!overlay && overlay.t !== "settings") || !!watching), player: useEver(!!watching), tour: useEver(tourOpen), recorder: useEver(recorderOpen), pocket: useEver(pocketOpen), viewer: useEver(!!viewFile) };
   const show = (id: TabId) => ({ display: tab === id ? "flex" : "none" });
   // Internal tools (staff app links, timer skip, reset) stay reachable at ?dev=1 for us; real
@@ -97,15 +97,19 @@ function Shell() {
     if (q.get("oa")) setChatView({ k: "oa", id: q.get("oa")! });
     if (q.get("oa_inbox")) setChatView({ k: "manage", id: q.get("oa_inbox")! });
     if (chat) setOverlay({ t: "thread", id: chat });
+    if (q.get("oa_post")) setChatView({ k: "post", id: q.get("oa_post")! });
+    if (q.get("watch")) watch(q.get("watch")!);
     if (t === "explore" || q.get("moments")) { setTab("explore"); setDiscoverView(q.get("moments") ? { k: "moments" } : null); }
   };
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     // After saved screens are restored (a microtask), so the link wins over the last screen.
-    if (["tab", "chat", "group", "dm", "oa", "oa_inbox", "moments"].some((k) => q.get(k))) { const href = window.location.href; window.history.replaceState(null, "", window.location.pathname); setTimeout(() => openLink(href), 0); }
+    if (["tab", "chat", "group", "dm", "oa", "oa_inbox", "moments", "oa_post", "watch"].some((k) => q.get(k))) { const href = window.location.href; window.history.replaceState(null, "", window.location.pathname); setTimeout(() => openLink(href), 0); }
     const onMsg = (e: MessageEvent) => { if (e.data?.type === "open-link") openLink(e.data.url); };
+    const onLink = (e: Event) => { const href = String((e as CustomEvent).detail ?? ""); const u = new URL(href, window.location.origin); if (u.pathname.startsWith("/u/")) void openByHandle(u.pathname.slice(3)); else openLink(href); };
     navigator.serviceWorker?.addEventListener("message", onMsg);
-    return () => navigator.serviceWorker?.removeEventListener("message", onMsg);
+    window.addEventListener("birdie-open-link", onLink);
+    return () => { navigator.serviceWorker?.removeEventListener("message", onMsg); window.removeEventListener("birdie-open-link", onLink); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A group invite link (/g/code -> ?join=code): offer to join once signed in.

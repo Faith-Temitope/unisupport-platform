@@ -4,12 +4,14 @@ import { Check, Flag, Lock, Pin, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { myPlaylistsFor, playlistToggle, reportThing, savePlaylist } from "./live/socialData";
 import { logPostEvent } from "./live/recData";
+import { shareToMoments } from "./Moments";
 import { useApp, type Post } from "./store";
+import { MomentsIcon } from "./we";
 import { Btn, Sheet } from "./ui";
 
 /** The "⋯" sheet on a post: save to a playlist, pin to your channel, delete. */
 export function PostMenu({ post, open, onClose }: { post: Post; open: boolean; onClose: () => void }) {
-  const { flash, setPinned, deletePost, auth } = useApp();
+  const { flash, setPinned, deletePost, auth, setTab, setDiscoverView, setOverlay } = useApp();
   const [mine, setMine] = useState<{ id: string; title: string; is_public: boolean; has: boolean }[] | null>(null);
   const [newTitle, setNewTitle] = useState("");
   const [busy, setBusy] = useState(false);
@@ -60,6 +62,7 @@ export function PostMenu({ post, open, onClose }: { post: Post; open: boolean; o
             </div>
           </div>
         )}
+        {post.remote && <Btn variant="ghost" onClick={() => { onClose(); shareToMoments({ url: `${window.location.origin}/prototype?watch=${post.id}`, title: post.title, thumb: post.youtubeId ? `https://i.ytimg.com/vi/${post.youtubeId}/mqdefault.jpg` : null, source: "Channels" }, { setTab, setDiscoverView, setOverlay }); }}><span className="inline-flex items-center gap-2"><MomentsIcon size={16} /> Share to Moments</span></Btn>}
         {isMe && post.remote && <Btn variant="ghost" onClick={() => void pin()}><span className="inline-flex items-center gap-2"><Pin size={15} /> {post.pinnedAt ? "Unpin from my channel" : "Pin to the top of my channel"}</span></Btn>}
         {!isMe && post.remote && <button onClick={async () => { const reason = prompt("What's wrong with this post? (optional)") ?? ""; onClose(); const err = await reportThing("post", post.id, reason); flash(err ?? "Thanks. Our team will look at it."); }} className="flex w-full items-center justify-center gap-2 py-2 text-[14px] font-semibold text-[var(--dim)]"><Flag size={15} /> Report this post</button>}
         {isMe && <button onClick={() => { if (confirm("Delete this post?")) { deletePost(post.id); onClose(); } }} className="flex w-full items-center justify-center gap-2 py-2 text-[14px] font-semibold text-[var(--help)]"><Trash2 size={15} /> Delete post</button>}

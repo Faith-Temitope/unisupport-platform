@@ -114,6 +114,26 @@ export function FeedAd({ p, edge }: { p: Placement; edge?: boolean }) {
   );
 }
 
+/** A sponsored post in Moments: looks like a friend's post, always labelled Sponsored (at most two a day). */
+export function MomentAd({ p, onSeen }: { p: Placement; onSeen: (id: string) => void }) {
+  const ref = useViewLog(p.id);
+  const seen = useRef(onSeen);
+  useEffect(() => { seen.current = onSeen; });
+  useEffect(() => { seen.current(p.id); }, [p.id]);
+  return (
+    <div ref={ref} className="flex gap-3 border-b border-[var(--we-sep)] px-4 py-4">
+      <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center overflow-hidden rounded-[4px] bg-[var(--we-bg)] text-[15px] font-bold text-[var(--we-sub)]">{p.image_url ? <img src={p.image_url} alt="" className="h-full w-full object-cover" /> : p.sponsor_name.slice(0, 1)}</div>
+      <div className="min-w-0 flex-1">
+        <div className="text-[16px] font-semibold text-[var(--we-link)]">{p.sponsor_name}</div>
+        <p className="mt-1 text-[16px] leading-snug text-[var(--we-text)]">{p.title}{p.body ? ` ${p.body}` : ""}</p>
+        {p.media_url ? <div className="mt-2 w-[220px]"><AdMedia p={p} /></div> : p.image_url && <button onClick={() => open(p)} className="mt-2 block w-[220px]"><img src={p.image_url} alt="" className="w-full object-cover" /></button>}
+        {p.discount_code && <div className="mt-2"><CodeChip code={p.discount_code} /></div>}
+        <div className="mt-2 flex items-center gap-3 text-[13px] text-[var(--we-hint)]"><span>Sponsored</span>{p.url && <button onClick={() => open(p)} className="text-[var(--we-link)]">{p.cta_label || "Learn more"}</button>}</div>
+      </div>
+    </div>
+  );
+}
+
 /** Slim bar under the video player (like YouTube's "Sponsored · Learn more" strip). */
 export function SponsorBar({ p }: { p: Placement }) {
   const ref = useViewLog(p.id);

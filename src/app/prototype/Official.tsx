@@ -3,6 +3,9 @@
 // Verified accounts (WeChat's official accounts): companies with SIWES and internships, the SUG,
 // departments and school bodies. Students chat with them, read their articles and videos, and use
 // their menu. An account can only message you within 7 days of you writing to it.
+import { shareToMoments } from "./Moments";
+import { MomentsIcon } from "./we";
+import type { MomentLink } from "./live/chatData";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, BadgeCheck, ChevronRight, ExternalLink, Eye, Keyboard, Menu as MenuIcon, Search, Send, Settings2, UserRound } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -207,7 +210,9 @@ export function OAPostView({ id, onBack, onProfile }: { id: string; onBack: () =
           {p.summary && <p className="mt-4 text-[14.5px] font-semibold leading-relaxed text-[var(--dim)]">{p.summary}</p>}
           {p.body && <div className="mt-3 text-[15px] leading-relaxed"><Rich text={p.body} /></div>}
           {p.link_url && <a href={p.link_url} target="_blank" rel="noreferrer" className="mt-5 flex items-center justify-center gap-2 rounded-2xl bg-[var(--ink)] py-3.5 text-[14.5px] font-semibold text-[var(--paper)]">Open link <ExternalLink size={15} /></a>}
-          <div className="mt-6 flex items-center gap-1.5 text-[12px] text-[var(--dim)]"><Eye size={13} /> {p.views} read{p.views === 1 ? "" : "s"}</div>
+          <div className="mt-6 flex items-center gap-1.5 text-[12px] text-[var(--dim)]"><Eye size={13} /> {p.views} read{p.views === 1 ? "" : "s"}
+            <ShareToMomentsBtn link={{ url: `${typeof window === "undefined" ? "" : window.location.origin}/prototype?oa_post=${p.id}`, title: p.title, thumb: p.cover_url && /^https?:/.test(p.cover_url) ? p.cover_url : null, source: p.account.name }} />
+          </div>
         </div>
       )}
     </div>
@@ -277,4 +282,10 @@ export function ApplyVerifiedSheet({ open, onClose }: { open: boolean; onClose: 
       </div>
     </Sheet>
   );
+}
+
+/** "Share to Moments" for an article: opens the Moments composer with it attached. */
+function ShareToMomentsBtn({ link }: { link: MomentLink }) {
+  const { setTab, setDiscoverView, setOverlay } = useApp();
+  return <button onClick={() => shareToMoments(link, { setTab, setDiscoverView, setOverlay })} className="ml-auto flex items-center gap-1.5 rounded-full bg-[var(--paper-dim)] px-3 py-1.5 text-[12.5px] font-semibold text-[var(--text)]"><MomentsIcon size={16} /> Share to Moments</button>;
 }

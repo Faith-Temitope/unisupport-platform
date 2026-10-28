@@ -1,22 +1,23 @@
 import { NextResponse } from "next/server";
 import { adminClient, currentUser, jsonError } from "@/lib/server";
 
-// Photos in Moments (and your Moments cover). Stored privately under moments/<you>/...; only you and
+// Photos and videos in Moments (and your Moments cover). Stored privately under moments/<you>/...; only you and
 // friends who can see your Moments get a link (the same rules as the feed, checked on the server).
 //   POST { size, type } -> { path, token }
 //   GET  ?path=<owner>/<file> -> { url }
-const MAX = 15 * 1024 * 1024;
+const MAX_PHOTO = 15 * 1024 * 1024, MAX_VIDEO = 50 * 1024 * 1024;
 
 export async function POST(req: Request) {
   let b: { size?: number; type?: string };
   try { b = await req.json(); } catch { return jsonError(400, "invalid_json"); }
   const { user } = await currentUser();
   if (!user) return jsonError(401, "sign_in_required");
-  if (!/^image\//.test(String(b.type))) return jsonError(400, "images_only");
-  if (!b.size || b.size > MAX) return jsonError(413, "too_large");
+  const video = /^video\//.test(String(b.type));
+  if (!video && !/^image\//.test(String(b.type))) return jsonError(400, "photos_and_videos_only");
+  if (!b.size || b.size > (video ? MAX_VIDEO : MAX_PHOTO)) return jsonError(413, "too_large");
   const admin = adminClient();
   if (!admin) return jsonError(501, "not_configured");
-  const path = `${user.id}/${crypto.randomUUID()}.jpg`;
+  const path = `${user.id}/${crypto.randomUUID()}.${video ? (String(b.type).includes("webm") ? "webm" : String(b.type).includes("quicktime") ? "mov" : "mp4") : "jpg"}`;
   const { data, error } = await admin.storage.from("moments").createSignedUploadUrl(path);
   if (error || !data) return jsonError(500, "upload_failed");
   return NextResponse.json({ path, token: data.token });
